@@ -68,8 +68,8 @@ La démo ne contient ni secret, ni écriture réseau, ni donnée personnelle ré
 La boucle GitHub multi-runner se lance manuellement avec le workflow
 `ChoreScore OpenCode Ox cycle`. Elle produit deux candidats isolés, un audit
 indépendant, puis une seule PR d'intégration jamais fusionnée automatiquement.
-Elle reste désactivée tant que la variable privée
-`ENABLE_OPENCODE_OX_ALPHA=true` n'a pas été configurée après lecture de
-[`docs/agent-workflow.md`](./docs/agent-workflow.md).
+Elle utilise uniquement la route publique du modèle gratuit Ox, sans clé API,
+OpenCode GitHub App ou secret de fournisseur. Son fonctionnement et ses
+barrières sont décrits dans [`docs/agent-workflow.md`](./docs/agent-workflow.md).
 
 Ce projet est privé et propriétaire. Aucun droit de redistribution n'est accordé.

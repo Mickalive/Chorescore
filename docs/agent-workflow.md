@@ -104,24 +104,20 @@ en l'adaptant à une application mobile :
 La note humaine est transmise comme donnée au modèle, jamais interpolée dans une
 commande shell. Les agents ne reçoivent pas le `GITHUB_TOKEN` servant aux pushes ;
 ce jeton éphémère n'est exposé qu'aux étapes de persistance après leur exécution.
-L'action OpenCode échange toutefois son jeton OIDC contre un jeton d'installation
-éphémère de l'OpenCode GitHub App, puis configure Git avec ce jeton pendant la
-session. Les permissions OpenCode interdisent les commandes de push, et les
-chemins sont de nouveau contrôlés par des étapes de confiance après l'agent.
-Les identifiants Git ne sont pas conservés dans le checkout. Aucun secret
-applicatif, Firebase ou Stripe n'est fourni au workflow.
+OpenCode est appelé directement avec `opencode run`, comme dans la boucle SPIDER :
+il ne reçoit donc ni jeton GitHub, ni jeton OIDC, ni clé d'API. Dans la version
+OpenCode revue et épinglée, l'absence de `OPENCODE_API_KEY` force l'identifiant
+public et désactive les modèles payants ; seul le modèle gratuit explicitement
+sélectionné peut être utilisé. Les identifiants Git ne sont pas conservés dans
+le checkout. Aucun secret applicatif, Firebase ou Stripe n'est fourni au
+workflow.
 
-Ox Alpha est gratuit au niveau des jetons pendant sa période promotionnelle,
-mais l'accès OpenCode Zen n'est pas anonyme. Le secret Actions
-`OPENCODE_API_KEY` reste nécessaire. Il doit provenir d'une clé Zen dédiée à ce
-dépôt, sans autre usage, et être révoqué lorsque le pilote se termine. Un job
-`preflight` arrête le cycle avant toute exécution d'agent si le secret manque.
-
-Le workflow est manuel, limité aux dépôts privés et **désactivé par défaut**. Il
-faut créer la variable de dépôt `ENABLE_OPENCODE_OX_ALPHA=true` pour le rendre
-exécutable. Sur `main`, les protections de branche et la revue humaine sont la
-barrière finale ; la permission d'écrire des branches ne vaut jamais permission
-de fusionner.
+Le workflow est manuel et limité aux dépôts privés. Le commit d'installation
+peut provoquer un premier démarrage explicite si son message contient
+`[run-chorescore-cycle]` et si ce même commit modifie le fichier du workflow.
+Les pushes ordinaires ne lancent rien. Sur `main`, les protections de branche et
+la revue humaine restent la barrière finale ; la permission d'écrire des
+branches ne vaut jamais permission de fusionner.
 
 ## Pilote d'audit en lecture seule
 
@@ -131,27 +127,25 @@ pull request. Il accepte seulement un déclenchement manuel et un choix fermé
 ne reçoit aucun secret, ne persiste pas les identifiants Git et n'a aucun droit
 d'écriture. Le partage OpenCode est désactivé.
 
-L'action externe est fixée au
-[commit officiel vérifié `anomalyco/opencode/github@03bba464d46f3eddf74195919b1344aa937f7b11`](https://github.com/anomalyco/opencode/commit/03bba464d46f3eddf74195919b1344aa937f7b11).
-Cependant, à ce commit, son action composite utilise encore
-`actions/cache@v4` et télécharge l'installateur courant depuis
-`https://opencode.ai/install`. L'épinglage extérieur n'élimine donc pas le risque
-de chaîne d'approvisionnement transitif.
+L'action GitHub OpenCode n'est pas utilisée, car son enveloppe lancerait sa
+propre logique de branche et de PR, incompatible avec l'orchestration auditée de
+ChoreScore. L'action locale `.github/actions/setup-opencode` télécharge
+l'installateur depuis le commit officiel revu
+[`03bba464d46f3eddf74195919b1344aa937f7b11`](https://github.com/anomalyco/opencode/commit/03bba464d46f3eddf74195919b1344aa937f7b11),
+vérifie son blob Git attendu, puis installe exclusivement OpenCode `1.18.21` et
+contrôle la version obtenue. Cela réduit le risque de dérive de l'installateur ;
+le binaire de release reste néanmoins une dépendance externe à réévaluer lors
+de toute mise à jour.
 
-Cette même limite de chaîne d'approvisionnement concerne la boucle. Ne régler
-`ENABLE_OPENCODE_OX_ALPHA` à `true` qu'après :
+Avant une fusion de la PR produite :
 
-1. revue d'un nouveau commit officiel ou remplacement par une action dont toutes
-   les dépendances et l'outil installé sont épinglés et vérifiés ;
-2. installation de l'OpenCode GitHub App sur ce seul dépôt privé afin que l'OIDC
-   fournisse un jeton GitHub éphémère, sans PAT GitHub statique ;
-3. création d'une clé OpenCode Zen dédiée et enregistrement exclusif dans le
-   secret Actions `OPENCODE_API_KEY` ;
-4. activation des protections de `main`, checks CI et revue CODEOWNER ;
-5. vérification des permissions des quatre runners et du pilote
-   `github-auditor`, notamment absence de push/merge/déploiement côté agent ;
-6. approbation explicite du propriétaire et exécution pilote sur des données
-   exclusivement synthétiques.
+1. vérifier les logs et confirmer que le modèle utilisé est
+   `opencode/x-preview-f-free` sans autre fournisseur ;
+2. activer les protections de `main`, checks CI et revue CODEOWNER ;
+3. vérifier les permissions des quatre runners et du pilote `github-auditor`,
+   notamment l'absence de push, merge ou déploiement côté agent ;
+4. conserver des données exclusivement synthétiques et relire humainement tous
+   les changements.
 
 Même activé, ce workflow ne crée pas de commit, commentaire, PR, merge ou
 déploiement. Son rapport doit être relu puis reproduit localement.

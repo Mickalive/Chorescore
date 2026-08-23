@@ -21,42 +21,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  disabled:
-    name: Guard disabled by default
-    if: ${{ vars.ENABLE_OPENCODE_OX_ALPHA != 'true' || github.event.repository.visibility != 'private' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 2
-    steps:
-      - name: Explain the guard
-        run: |
-          {
-            echo "## OpenCode/Ox Alpha non exécuté"
-            echo
-            echo "Le pilote reste désactivé tant que le verrou de sécurité décrit dans docs/agent-workflow.md n'est pas levé par le propriétaire."
-          } >> "$GITHUB_STEP_SUMMARY"
-
-  preflight:
-    name: Verify private activation prerequisites
-    if: ${{ vars.ENABLE_OPENCODE_OX_ALPHA == 'true' && github.event.repository.visibility == 'private' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 2
-    permissions: {}
-    env:
-      OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-    steps:
-      - name: Require the dedicated OpenCode Zen credential
-        shell: bash
-        run: |
-          if [ -z "$OPENCODE_API_KEY" ]; then
-            echo "::error::Missing repository secret OPENCODE_API_KEY."
-            exit 1
-          fi
-          echo "OpenCode credential is configured; its value is never printed."
-
   audit:
     name: Read-only Ox Alpha audit
-    needs: preflight
-    if: ${{ vars.ENABLE_OPENCODE_OX_ALPHA == 'true' && github.event.repository.visibility == 'private' }}
+    if: ${{ github.event.repository.visibility == 'private' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -68,24 +35,15 @@ jobs:
         with:
           persist-credentials: false
 
-      # The outer action is pinned and verified, but its implementation still
-      # downloads mutable transitive code. Keep ENABLE_OPENCODE_OX_ALPHA unset
-      # until the activation checklist in docs/agent-workflow.md is satisfied.
-      - name: Run the bounded read-only audit
-        uses: anomalyco/opencode/github@03bba464d46f3eddf74195919b1344aa937f7b11
+      - name: Set up reviewed OpenCode CLI
+        uses: ./.github/actions/setup-opencode
+
+      - name: Run the bounded read-only audit with public Ox
+        shell: bash
         env:
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-          # Ephemeral token created by GitHub for this run; no stored secret.
-          # Its hard capability is limited by this job to repository reads.
-          GITHUB_TOKEN: ${{ github.token }}
-        with:
-          model: opencode/x-preview-f-free
-          agent: github-auditor
-          share: "false"
-          use_github_token: "true"
-          prompt: >-
-            Analyse en lecture seule le commit extrait. Mode demandé :
-            ${{ inputs.task }}. Respecte AGENTS.md et la commande correspondante
-            dans .opencode/commands. Ne lance aucune commande, ne modifie aucun
-            fichier, ne divulgue aucune donnée et fournis uniquement des constats
-            traçables destinés à une revue humaine.
+          AUDIT_TASK: ${{ inputs.task }}
+        run: |
+          opencode run \
+            --model opencode/x-preview-f-free \
+            --agent github-auditor \
+            "Analyse en lecture seule le commit extrait. Mode demandé : ${AUDIT_TASK}. Respecte AGENTS.md et la commande correspondante dans .opencode/commands. Ne lance aucune commande, ne modifie aucun fichier, ne divulgue aucune donnée et fournis uniquement des constats traçables destinés à une revue humaine."

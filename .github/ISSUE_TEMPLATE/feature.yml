@@ -1,0 +1,59 @@
+name: Évolution produit
+description: Proposer une amélioration cohérente avec le canon ChoreScore
+title: "[Feature] "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problème utilisateur
+      description: Décrire le besoin, sans imposer immédiatement une solution.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Résultat attendu
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Critères d'acceptation
+      placeholder: |
+        - [ ] …
+        - [ ] …
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Zone principale
+      options:
+        - Expérience mobile
+        - Domaine / score
+        - Démo locale
+        - Functions / Firebase
+        - Abonnement / paiement
+        - Confidentialité / analytics
+        - Accessibilité
+        - Outillage / documentation
+    validations:
+      required: true
+  - type: textarea
+    id: data
+    attributes:
+      label: Données et confidentialité
+      description: Quelles données seraient nécessaires, pourquoi et pendant combien de temps ?
+    validations:
+      required: true
+  - type: checkboxes
+    id: guardrails
+    attributes:
+      label: Garde-fous
+      options:
+        - label: La proposition respecte `docs/product-decisions.md` ou identifie explicitement la décision à revoir.
+          required: true
+        - label: La démo peut rester hors ligne, sans compte, secret, analytics ni paiement réel.
+          required: true
+        - label: La proposition n'introduit ni culpabilisation ni dark pattern.
+          required: true

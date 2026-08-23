@@ -1,0 +1,71 @@
+name: OpenCode Ox Alpha manual audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: Audit borné à exécuter en lecture seule
+        required: true
+        type: choice
+        default: review
+        options:
+          - review
+          - security-audit
+
+# No repository write permission is ever granted to this workflow.
+permissions:
+  contents: read
+
+concurrency:
+  group: opencode-ox-alpha-manual
+  cancel-in-progress: false
+
+jobs:
+  disabled:
+    name: Guard disabled by default
+    if: ${{ vars.ENABLE_OPENCODE_OX_ALPHA != 'true' || github.event.repository.visibility != 'private' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Explain the guard
+        run: |
+          {
+            echo "## OpenCode/Ox Alpha non exécuté"
+            echo
+            echo "Le pilote reste désactivé tant que le verrou de sécurité décrit dans docs/agent-workflow.md n'est pas levé par le propriétaire."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  audit:
+    name: Read-only Ox Alpha audit
+    if: ${{ vars.ENABLE_OPENCODE_OX_ALPHA == 'true' && github.event.repository.visibility == 'private' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      # Verified in the official actions/checkout repository on 2026-08-24.
+      - name: Checkout the default-branch commit without credentials
+        uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          persist-credentials: false
+
+      # The outer action is pinned and verified, but its implementation still
+      # downloads mutable transitive code. Keep ENABLE_OPENCODE_OX_ALPHA unset
+      # until the activation checklist in docs/agent-workflow.md is satisfied.
+      - name: Run the bounded read-only audit
+        uses: anomalyco/opencode/github@03bba464d46f3eddf74195919b1344aa937f7b11
+        env:
+          # Ephemeral token created by GitHub for this run; no stored secret.
+          # Its hard capability is limited by this job to repository reads.
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          model: opencode/x-preview-f-free
+          agent: github-auditor
+          share: "false"
+          use_github_token: "true"
+          prompt: >-
+            Analyse en lecture seule le commit extrait. Mode demandé :
+            ${{ inputs.task }}. Respecte AGENTS.md et la commande correspondante
+            dans .opencode/commands. Ne lance aucune commande, ne modifie aucun
+            fichier, ne divulgue aucune donnée et fournis uniquement des constats
+            traçables destinés à une revue humaine.

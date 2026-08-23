@@ -1,0 +1,15 @@
+# A human owner must approve every change. Keep sensitive paths explicit so
+# branch protection can require code-owner review even if the catch-all evolves.
+* @Mickalive
+/.github/ @Mickalive
+/.opencode/ @Mickalive
+/AGENTS.md @Mickalive
+/CLAUDE.md @Mickalive
+/opencode.json @Mickalive
+/functions/ @Mickalive
+/firebase.json @Mickalive
+/firestore.rules @Mickalive
+/firestore.indexes.json @Mickalive
+/storage.rules @Mickalive
+/package.json @Mickalive
+/package-lock.json @Mickalive

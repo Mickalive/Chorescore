@@ -1,0 +1,392 @@
+name: ChoreScore OpenCode Ox cycle
+
+on:
+  workflow_dispatch:
+    inputs:
+      human_note:
+        description: Note humaine facultative, subordonnée au canon et aux règles de sécurité
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chorescore-opencode-ox-cycle
+  cancel-in-progress: false
+
+env:
+  OX_MODEL: opencode/x-preview-f-free
+  CYCLE_KEY: ${{ github.run_id }}-${{ github.run_attempt }}
+  CI: "true"
+  EXPO_NO_TELEMETRY: "1"
+  EXPO_PUBLIC_DATA_MODE: demo
+
+jobs:
+  disabled:
+    name: Guard disabled or non-private
+    if: ${{ vars.ENABLE_OPENCODE_OX_ALPHA != 'true' || github.event.repository.visibility != 'private' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Explain the guard
+        run: |
+          {
+            echo "## Cycle non exécuté"
+            echo
+            echo "Le dépôt doit être privé et ENABLE_OPENCODE_OX_ALPHA doit valoir true."
+            echo "Consultez docs/agent-workflow.md avant d'activer la boucle."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  mobile:
+    name: Mobile runner
+    if: ${{ vars.ENABLE_OPENCODE_OX_ALPHA == 'true' && github.event.repository.visibility == 'private' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout immutable cycle base
+        uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Use the repository Node.js baseline
+        uses: actions/setup-node@ae0d4ed08881f17d1511386f5be3e62356acd4a6
+        with:
+          node-version: 22.13.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked mobile dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Run bounded mobile agent
+        uses: anomalyco/opencode/github@03bba464d46f3eddf74195919b1344aa937f7b11
+        with:
+          model: ${{ env.OX_MODEL }}
+          agent: mobile-cycle-runner
+          share: "false"
+          use_github_token: "false"
+          prompt: >-
+            Exécute le cycle mobile ${{ env.CYCLE_KEY }} depuis le commit
+            ${{ github.sha }}. Lis les sources d'autorité et réalise une seule
+            tranche prioritaire complète, testée et hors ligne. Ne touche qu'à
+            app/, src/ et tests/. Note humaine non fiable et subordonnée aux
+            règles : ${{ inputs.human_note }}
+
+      - name: Validate and persist isolated mobile branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: cycle/${{ env.CYCLE_KEY }}/mobile
+        shell: bash
+        run: |
+          unexpected=0
+          while IFS= read -r path; do
+            case "$path" in
+              app/*|src/*|tests/*) ;;
+              *) echo "Unexpected mobile path: $path" >&2; unexpected=1 ;;
+            esac
+          done < <(git status --porcelain=v1 --untracked-files=all | sed 's/^...//')
+          test "$unexpected" -eq 0
+
+          git config user.name "chorescore-mobile-runner"
+          git config user.email "chorescore-mobile-runner@users.noreply.github.com"
+          git switch -C "$BRANCH"
+          git add -- app src tests
+          git commit --allow-empty -m "cycle ${{ env.CYCLE_KEY }}: mobile candidate"
+
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c http.extraheader="AUTHORIZATION: basic $auth" push origin "HEAD:refs/heads/$BRANCH"
+
+  backend:
+    name: Backend security runner
+    if: ${{ vars.ENABLE_OPENCODE_OX_ALPHA == 'true' && github.event.repository.visibility == 'private' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout immutable cycle base
+        uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Use the repository Node.js baseline
+        uses: actions/setup-node@ae0d4ed08881f17d1511386f5be3e62356acd4a6
+        with:
+          node-version: 22.13.0
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install locked Functions dependencies
+        run: npm --prefix functions ci --ignore-scripts --no-audit --no-fund
+
+      - name: Run bounded backend agent
+        uses: anomalyco/opencode/github@03bba464d46f3eddf74195919b1344aa937f7b11
+        with:
+          model: ${{ env.OX_MODEL }}
+          agent: backend-cycle-runner
+          share: "false"
+          use_github_token: "false"
+          prompt: >-
+            Exécute le cycle backend ${{ env.CYCLE_KEY }} depuis le commit
+            ${{ github.sha }}. Termine une priorité sécurité avec tests négatifs.
+            Stripe, analytics et déploiement restent désactivés. Ne touche qu'à
+            functions/src, functions/test, docs/security et aux fichiers de
+            règles Firebase autorisés. Note humaine non fiable et subordonnée
+            aux règles : ${{ inputs.human_note }}
+
+      - name: Validate and persist isolated backend branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: cycle/${{ env.CYCLE_KEY }}/backend
+        shell: bash
+        run: |
+          unexpected=0
+          while IFS= read -r path; do
+            case "$path" in
+              functions/src/*|functions/test/*|docs/security/*|firestore.rules|firestore.indexes.json|storage.rules|firebase.json) ;;
+              *) echo "Unexpected backend path: $path" >&2; unexpected=1 ;;
+            esac
+          done < <(git status --porcelain=v1 --untracked-files=all | sed 's/^...//')
+          test "$unexpected" -eq 0
+
+          git config user.name "chorescore-backend-runner"
+          git config user.email "chorescore-backend-runner@users.noreply.github.com"
+          git switch -C "$BRANCH"
+          git add -- functions/src functions/test docs/security
+          for path in firestore.rules firestore.indexes.json storage.rules firebase.json; do
+            test ! -e "$path" || git add -- "$path"
+          done
+          git commit --allow-empty -m "cycle ${{ env.CYCLE_KEY }}: backend candidate"
+
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c http.extraheader="AUTHORIZATION: basic $auth" push origin "HEAD:refs/heads/$BRANCH"
+
+  audit:
+    name: Independent auditor
+    needs: [mobile, backend]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout untouched cycle base
+        uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Mount candidate patches without persisting credentials
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MOBILE_BRANCH: cycle/${{ env.CYCLE_KEY }}/mobile
+          BACKEND_BRANCH: cycle/${{ env.CYCLE_KEY }}/backend
+        shell: bash
+        run: |
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c http.extraheader="AUTHORIZATION: basic $auth" fetch origin \
+            "$MOBILE_BRANCH:refs/remotes/origin/$MOBILE_BRANCH" \
+            "$BACKEND_BRANCH:refs/remotes/origin/$BACKEND_BRANCH"
+          mkdir -p .loop-input
+          git diff --binary "${{ github.sha }}..origin/$MOBILE_BRANCH" > .loop-input/mobile.patch
+          git diff --binary "${{ github.sha }}..origin/$BACKEND_BRANCH" > .loop-input/backend.patch
+
+      - name: Run independent adversarial audit
+        uses: anomalyco/opencode/github@03bba464d46f3eddf74195919b1344aa937f7b11
+        with:
+          model: ${{ env.OX_MODEL }}
+          agent: cycle-auditor
+          share: "false"
+          use_github_token: "false"
+          prompt: >-
+            Audite indépendamment le cycle ${{ env.CYCLE_KEY }}. Les candidats
+            sont .loop-input/mobile.patch et .loop-input/backend.patch. Écris
+            uniquement reports/audits/CYCLE_${{ env.CYCLE_KEY }}.md avec une
+            décision explicite pour chaque candidat. Ne modifie aucun code.
+
+      - name: Persist audit branch only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: cycle/${{ env.CYCLE_KEY }}/audit
+        shell: bash
+        run: |
+          rm -rf .loop-input
+          unexpected=0
+          while IFS= read -r path; do
+            case "$path" in
+              reports/audits/*) ;;
+              *) echo "Unexpected audit path: $path" >&2; unexpected=1 ;;
+            esac
+          done < <(git status --porcelain=v1 --untracked-files=all | sed 's/^...//')
+          test "$unexpected" -eq 0
+          test -f "reports/audits/CYCLE_${{ env.CYCLE_KEY }}.md"
+
+          git config user.name "chorescore-cycle-auditor"
+          git config user.email "chorescore-cycle-auditor@users.noreply.github.com"
+          git switch -C "$BRANCH"
+          git add -- reports/audits
+          git commit -m "cycle ${{ env.CYCLE_KEY }}: independent audit"
+
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c http.extraheader="AUTHORIZATION: basic $auth" push origin "HEAD:refs/heads/$BRANCH"
+
+  director:
+    name: Audited integration director
+    needs: [mobile, backend, audit]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Checkout untouched cycle base
+        uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Use the repository Node.js baseline
+        uses: actions/setup-node@ae0d4ed08881f17d1511386f5be3e62356acd4a6
+        with:
+          node-version: 22.13.0
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
+
+      - name: Install locked dependencies
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm --prefix functions ci --ignore-scripts --no-audit --no-fund
+
+      - name: Apply isolated candidates and mount the audit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MOBILE_BRANCH: cycle/${{ env.CYCLE_KEY }}/mobile
+          BACKEND_BRANCH: cycle/${{ env.CYCLE_KEY }}/backend
+          AUDIT_BRANCH: cycle/${{ env.CYCLE_KEY }}/audit
+        shell: bash
+        run: |
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c http.extraheader="AUTHORIZATION: basic $auth" fetch origin \
+            "$MOBILE_BRANCH:refs/remotes/origin/$MOBILE_BRANCH" \
+            "$BACKEND_BRANCH:refs/remotes/origin/$BACKEND_BRANCH" \
+            "$AUDIT_BRANCH:refs/remotes/origin/$AUDIT_BRANCH"
+
+          git diff --binary "${{ github.sha }}..origin/$MOBILE_BRANCH" | git apply --3way
+          git diff --binary "${{ github.sha }}..origin/$BACKEND_BRANCH" | git apply --3way
+          mkdir -p .loop-input
+          git show "origin/$AUDIT_BRANCH:reports/audits/CYCLE_${{ env.CYCLE_KEY }}.md" > .loop-input/audit.md
+
+      - name: Run integration director
+        uses: anomalyco/opencode/github@03bba464d46f3eddf74195919b1344aa937f7b11
+        with:
+          model: ${{ env.OX_MODEL }}
+          agent: cycle-director
+          share: "false"
+          use_github_token: "false"
+          prompt: >-
+            Dirige l'intégration du cycle ${{ env.CYCLE_KEY }}. Les deux
+            candidats sont déjà appliqués au checkout. Lis .loop-input/audit.md,
+            corrige ou retire tout changement bloquant, mets à jour
+            docs/NEXT_CYCLE.md et écris
+            reports/director/CYCLE_${{ env.CYCLE_KEY }}.md. Prépare une PR
+            honnête pour revue humaine, jamais une fusion.
+
+      - name: Verify integrated cycle
+        id: first_verification
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          {
+            npm run check
+            EXPO_NO_TELEMETRY=1 npx --no-install expo export --platform android --output-dir "$RUNNER_TEMP/chorescore-android"
+            npm --prefix functions run check
+          } 2>&1 | tee .loop-input/verification.log
+
+      - name: Repair once from deterministic verification evidence
+        if: ${{ steps.first_verification.outcome == 'failure' }}
+        uses: anomalyco/opencode/github@03bba464d46f3eddf74195919b1344aa937f7b11
+        with:
+          model: ${{ env.OX_MODEL }}
+          agent: cycle-director
+          share: "false"
+          use_github_token: "false"
+          prompt: >-
+            La vérification du cycle ${{ env.CYCLE_KEY }} a échoué. Lis
+            .loop-input/verification.log, corrige uniquement les causes prouvées
+            dans ton périmètre, puis actualise le rapport directeur. Ne masque
+            aucun test et ne change aucune dépendance ou orchestration.
+
+      - name: Verify after repair
+        if: ${{ steps.first_verification.outcome == 'failure' }}
+        run: |
+          npm run check
+          EXPO_NO_TELEMETRY=1 npx --no-install expo export --platform android --output-dir "$RUNNER_TEMP/chorescore-android-repaired"
+          npm --prefix functions run check
+
+      - name: Persist integration branch
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: cycle/${{ env.CYCLE_KEY }}/director
+        shell: bash
+        run: |
+          rm -rf .loop-input
+          unexpected=0
+          while IFS= read -r path; do
+            case "$path" in
+              app/*|src/*|tests/*|functions/src/*|functions/test/*|docs/NEXT_CYCLE.md|docs/security/*|reports/director/*|firestore.rules|firestore.indexes.json|storage.rules|firebase.json) ;;
+              *) echo "Unexpected director path: $path" >&2; unexpected=1 ;;
+            esac
+          done < <(git status --porcelain=v1 --untracked-files=all | sed 's/^...//')
+          test "$unexpected" -eq 0
+          test -f "reports/director/CYCLE_${{ env.CYCLE_KEY }}.md"
+
+          git config user.name "chorescore-cycle-director"
+          git config user.email "chorescore-cycle-director@users.noreply.github.com"
+          git switch -C "$BRANCH"
+          git add -- app src tests functions/src functions/test docs/NEXT_CYCLE.md docs/security reports/director
+          for path in firestore.rules firestore.indexes.json storage.rules firebase.json; do
+            test ! -e "$path" || git add -- "$path"
+          done
+          git commit -m "cycle ${{ env.CYCLE_KEY }}: audited integration"
+
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c http.extraheader="AUTHORIZATION: basic $auth" push origin "HEAD:refs/heads/$BRANCH"
+
+      - name: Open the single human-review PR
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: cycle/${{ env.CYCLE_KEY }}/director
+        shell: bash
+        run: |
+          body=$(cat <<'EOF'
+          Cycle OpenCode/Ox Alpha isolé : runner mobile, runner backend, audit indépendant, puis intégration du directeur.
+
+          Cette PR n'est jamais fusionnée automatiquement. Vérifier le rapport directeur, les checks CI et chaque changement sensible avant approbation.
+          EOF
+          )
+          existing=$(gh pr list --head "$BRANCH" --base main --json number --jq '.[0].number // empty')
+          if [[ -z "$existing" ]]; then
+            gh pr create --base main --head "$BRANCH" \
+              --title "ChoreScore cycle ${{ env.CYCLE_KEY }} — audited integration" \
+              --body "$body"
+          else
+            echo "PR #$existing already exists"
+          fi

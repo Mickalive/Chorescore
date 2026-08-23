@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "ChoreScore",
+    "slug": "chorescore",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "chorescore",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.mickalive.chorescore"
+    },
+    "android": {
+      "package": "com.mickalive.chorescore",
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": true
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-splash-screen"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "dataMode": "demo"
+    }
+  }
+}

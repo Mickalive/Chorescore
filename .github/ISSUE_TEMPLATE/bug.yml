@@ -1,0 +1,65 @@
+name: Bug
+description: Signaler un comportement reproductible sans donnée sensible
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Ne publiez aucun secret, jeton, identifiant personnel ou détail de
+        vulnérabilité exploitable. Utilisez plutôt l'avis de sécurité privé.
+  - type: textarea
+    id: observed
+    attributes:
+      label: Comportement observé
+      description: Décrire le résultat sans copier de donnée réelle.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportement attendu
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Étapes minimales de reproduction
+      placeholder: |
+        1. Démarrer en mode démo
+        2. Ouvrir…
+        3. Constater…
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Plateforme
+      options:
+        - iOS
+        - Android
+        - Aperçu Expo web (non produit)
+        - Functions / Firebase local
+        - Plusieurs plateformes
+    validations:
+      required: true
+  - type: input
+    id: revision
+    attributes:
+      label: Version ou commit
+      placeholder: 0.1.0 ou SHA
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Preuves assainies
+      description: Captures ou logs après suppression de toute donnée sensible.
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Vérifications
+      options:
+        - label: J'ai reproduit le problème avec les données synthétiques de la démo.
+          required: true
+        - label: Ce signalement ne révèle aucun secret ni détail de vulnérabilité exploitable.
+          required: true

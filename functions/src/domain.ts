@@ -1,0 +1,190 @@
+import { createHash, randomBytes } from "node:crypto";
+
+import {
+  MAX_PRO_MEMBERS,
+  MAX_STANDARD_MEMBERS,
+  MIN_ANALYTICS_COHORT,
+} from "./constants";
+
+export const PAID_TIERS = ["standard", "pro"] as const;
+export type PaidTier = (typeof PAID_TIERS)[number];
+export type EffectivePlan = "trial" | "free" | PaidTier;
+export type StripeSubscriptionStatus =
+  | "active"
+  | "trialing"
+  | "past_due"
+  | "canceled"
+  | "unpaid"
+  | "incomplete"
+  | "incomplete_expired"
+  | "paused"
+  | "none";
+
+export const TASK_CATEGORIES = [
+  "dishes",
+  "cooking",
+  "cleaning",
+  "laundry",
+  "shopping",
+  "other",
+] as const;
+export type TaskCategory = (typeof TASK_CATEGORIES)[number];
+
+export interface BillingState {
+  readonly paidTier: PaidTier | null;
+  readonly stripeStatus: StripeSubscriptionStatus;
+  readonly stripeCurrentPeriodEndMs: number | null;
+  readonly trialEndsAtMs: number;
+}
+
+export interface PlanResolution {
+  readonly plan: EffectivePlan;
+  readonly memberLimit: number;
+  readonly standardMemberLimitExceeded: boolean;
+}
+
+const ACTIVE_STRIPE_STATUSES = new Set<StripeSubscriptionStatus>([
+  "active",
+  "trialing",
+]);
+
+export function resolvePlan(
+  billing: BillingState,
+  nowMs: number,
+  memberCount: number,
+): PlanResolution {
+  const paidAccessIsCurrent =
+    billing.paidTier !== null &&
+    ACTIVE_STRIPE_STATUSES.has(billing.stripeStatus) &&
+    billing.stripeCurrentPeriodEndMs !== null &&
+    billing.stripeCurrentPeriodEndMs > nowMs;
+
+  if (paidAccessIsCurrent && billing.paidTier === "pro") {
+    return {
+      plan: "pro",
+      memberLimit: MAX_PRO_MEMBERS,
+      standardMemberLimitExceeded: false,
+    };
+  }
+
+  if (paidAccessIsCurrent && billing.paidTier === "standard") {
+    return {
+      plan: "standard",
+      memberLimit: MAX_STANDARD_MEMBERS,
+      standardMemberLimitExceeded: memberCount > MAX_STANDARD_MEMBERS,
+    };
+  }
+
+  if (billing.trialEndsAtMs > nowMs) {
+    return {
+      plan: "trial",
+      memberLimit: MAX_PRO_MEMBERS,
+      standardMemberLimitExceeded: false,
+    };
+  }
+
+  return {
+    plan: "free",
+    memberLimit: MAX_PRO_MEMBERS,
+    standardMemberLimitExceeded: false,
+  };
+}
+
+export function getEffectiveWeight(
+  plan: EffectivePlan,
+  configuredWeight: number,
+): number {
+  if (!Number.isInteger(configuredWeight) || configuredWeight < 1 || configuredWeight > 1000) {
+    throw new Error("INVALID_WEIGHT");
+  }
+  return plan === "free" ? 1 : configuredWeight;
+}
+
+export function calculateScore(durationSeconds: number, weightSnapshot: number): number {
+  if (!Number.isInteger(durationSeconds) || durationSeconds < 1 || durationSeconds > 86_400) {
+    throw new Error("INVALID_DURATION");
+  }
+  if (!Number.isInteger(weightSnapshot) || weightSnapshot < 1 || weightSnapshot > 1000) {
+    throw new Error("INVALID_WEIGHT");
+  }
+  return (durationSeconds / 60) * weightSnapshot;
+}
+
+export function createOpaqueInviteToken(): string {
+  return randomBytes(32).toString("base64url");
+}
+
+export function sha256(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+export function isoWeekKey(date: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const values = new Map(parts.map((part) => [part.type, part.value]));
+  const year = Number(values.get("year"));
+  const month = Number(values.get("month"));
+  const day = Number(values.get("day"));
+  const localDateAsUtc = new Date(Date.UTC(year, month - 1, day));
+  const weekDay = localDateAsUtc.getUTCDay() || 7;
+  localDateAsUtc.setUTCDate(localDateAsUtc.getUTCDate() + 4 - weekDay);
+  const isoYear = localDateAsUtc.getUTCFullYear();
+  const firstDay = new Date(Date.UTC(isoYear, 0, 1));
+  const week = Math.ceil(
+    ((localDateAsUtc.getTime() - firstDay.getTime()) / 86_400_000 + 1) / 7,
+  );
+  return `${isoYear}-W${String(week).padStart(2, "0")}`;
+}
+
+export interface AnalyticsEvent {
+  readonly householdBucketId: string;
+  readonly category: TaskCategory;
+  readonly durationBucketMinutes: number;
+}
+
+export interface AnalyticsCategoryAggregate {
+  readonly completedTasks: number;
+  readonly contributingHouseholds: number;
+  readonly averageDurationBucketMinutes: number;
+}
+
+export interface AnalyticsAggregate {
+  readonly contributingHouseholds: number;
+  readonly categories: Partial<Record<TaskCategory, AnalyticsCategoryAggregate>>;
+}
+
+export function aggregateAnalyticsEvents(events: readonly AnalyticsEvent[]): AnalyticsAggregate {
+  const allHouseholds = new Set(events.map((event) => event.householdBucketId));
+  if (allHouseholds.size < MIN_ANALYTICS_COHORT) {
+    throw new Error("COHORT_TOO_SMALL");
+  }
+
+  const categories: Partial<Record<TaskCategory, AnalyticsCategoryAggregate>> = {};
+  for (const category of TASK_CATEGORIES) {
+    const categoryEvents = events.filter((event) => event.category === category);
+    const households = new Set(categoryEvents.map((event) => event.householdBucketId));
+    if (households.size < MIN_ANALYTICS_COHORT) {
+      continue;
+    }
+    const durationTotal = categoryEvents.reduce(
+      (sum, event) => sum + event.durationBucketMinutes,
+      0,
+    );
+    categories[category] = {
+      completedTasks: categoryEvents.length,
+      contributingHouseholds: households.size,
+      averageDurationBucketMinutes:
+        Math.round((durationTotal / categoryEvents.length) * 100) / 100,
+    };
+  }
+
+  return {
+    contributingHouseholds: allHouseholds.size,
+    categories,
+  };
+}

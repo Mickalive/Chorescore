@@ -1,0 +1,24 @@
+{
+  "name": "chorescore-functions",
+  "version": "0.1.0",
+  "private": true,
+  "main": "lib/src/index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test lib/test/*.test.js",
+    "check": "npm run test",
+    "audit:prod": "npm audit --omit=dev --audit-level=high"
+  },
+  "dependencies": {
+    "firebase-admin": "14.3.0",
+    "firebase-functions": "7.3.2",
+    "stripe": "22.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.30",
+    "typescript": "6.0.3"
+  }
+}

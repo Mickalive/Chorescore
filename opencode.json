@@ -1,0 +1,68 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "chorescore-orchestrator",
+  "subagent_depth": 1,
+  "enabled_providers": [
+    "opencode"
+  ],
+  "share": "disabled",
+  "autoupdate": false,
+  "instructions": [
+    "AGENTS.md",
+    "docs/agent-workflow.md"
+  ],
+  "permission": {
+    "*": "deny",
+    "read": {
+      "*": "allow",
+      ".env": "deny",
+      ".env.*": "deny",
+      ".env.example": "allow",
+      "**/.env": "deny",
+      "**/.env.*": "deny",
+      "**/.env.example": "allow",
+      "**/*.key": "deny",
+      "**/*.pem": "deny",
+      "**/*.p8": "deny",
+      "**/*.p12": "deny",
+      "**/*.jks": "deny",
+      "**/*.keystore": "deny",
+      "**/*.mobileprovision": "deny",
+      "**/.npmrc": "deny",
+      "**/.yarnrc*": "deny",
+      "**/credentials.json": "deny",
+      "**/*service-account*.json": "deny"
+    },
+    "edit": "deny",
+    "glob": "allow",
+    "grep": "allow",
+    "list": "allow",
+    "question": "allow",
+    "task": "deny",
+    "webfetch": "deny",
+    "websearch": "deny",
+    "external_directory": "deny",
+    "doom_loop": "deny",
+    "bash": {
+      "*": "deny",
+      "git status*": "allow",
+      "git diff*": "allow",
+      "npm run check*": "allow",
+      "npm run typecheck*": "allow",
+      "npm test*": "allow",
+      "npm --prefix functions run check*": "allow",
+      "npm install*": "deny",
+      "npm uninstall*": "deny",
+      "npm publish*": "deny",
+      "git push*": "deny",
+      "git merge*": "deny",
+      "gh pr merge*": "deny",
+      "firebase deploy*": "deny",
+      "npx firebase deploy*": "deny",
+      "eas deploy*": "deny",
+      "eas submit*": "deny",
+      "stripe *": "deny",
+      "rm -rf*": "deny"
+    }
+  }
+}

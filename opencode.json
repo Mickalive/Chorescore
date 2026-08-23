@@ -8,6 +8,7 @@
   "share": "disabled",
   "autoupdate": false,
   "instructions": [
+    "MAIN_PROMPT.md",
     "AGENTS.md",
     "docs/agent-workflow.md"
   ],

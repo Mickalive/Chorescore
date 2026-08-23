@@ -62,14 +62,19 @@ La démo ne contient ni secret, ni écriture réseau, ni donnée personnelle ré
 - `src/domain/` : règles métier pures et testées ;
 - `src/services/` : frontière entre données de démonstration et production ;
 - `functions/` : opérations privilégiées, validation et webhooks ;
+- `MAIN_PROMPT.md` : constitution produit et sécurité immuable pour les agents ;
+- `directives/` : missions réécrites par le directeur entre deux cycles ;
 - `.opencode/` : agents spécialisés et commandes OpenCode/Ox ;
 - `.github/` : CI, règles de contribution et automatisation de maintenance.
 
-La boucle GitHub multi-runner se lance manuellement avec le workflow
-`ChoreScore OpenCode Ox cycle`. Elle produit deux candidats isolés, un audit
-indépendant, puis une seule PR d'intégration jamais fusionnée automatiquement.
-Elle utilise uniquement la route publique du modèle gratuit Ox, sans clé API,
-OpenCode GitHub App ou secret de fournisseur. Son fonctionnement et ses
-barrières sont décrits dans [`docs/agent-workflow.md`](./docs/agent-workflow.md).
+La boucle GitHub `ChoreScore continuous OpenCode Ox loop` produit deux candidats
+isolés, un audit indépendant, puis une intégration dirigée. Le directeur réécrit
+les missions suivantes et le workflow relance automatiquement un nouveau cycle
+depuis la branche cumulative, jusqu'à décision d'arrêt ou limite bornée. Une
+seule PR brouillon sert de surface de revue et n'est jamais fusionnée
+automatiquement. La boucle utilise uniquement la route publique du modèle
+gratuit Ox, sans clé API, OpenCode GitHub App ou secret de fournisseur. Son
+fonctionnement et ses barrières sont décrits dans
+[`docs/agent-workflow.md`](./docs/agent-workflow.md).
 
 Ce projet est privé et propriétaire. Aucun droit de redistribution n'est accordé.

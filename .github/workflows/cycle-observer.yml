@@ -8,7 +8,7 @@ on:
       - .github/workflows/cycle-observer.yml
   workflow_run:
     workflows:
-      - ChoreScore OpenCode Ox cycle
+      - ChoreScore continuous OpenCode Ox loop
     types:
       - completed
 
@@ -31,7 +31,7 @@ jobs:
     timeout-minutes: 5
     env:
       GH_TOKEN: ${{ github.token }}
-      TARGET_SHA: ${{ github.event.before }}
+      TARGET_SHA: ${{ github.sha }}
     steps:
       - name: Locate and report the cycle run
         shell: bash
@@ -56,7 +56,7 @@ jobs:
           else
             run_id=$(jq -r '.databaseId' <<<"$run_json")
             status=$(jq -r '.status' <<<"$run_json")
-            conclusion=$(jq -r '.conclusion // "en attente"' <<<"$run_json")
+            conclusion=$(jq -r 'if .conclusion == null or .conclusion == "" then "en attente" else .conclusion end' <<<"$run_json")
             run_url=$(jq -r '.url' <<<"$run_json")
             body=$(printf '### Observateur du cycle ChoreScore\n\n- Run : [%s](%s)\n- Commit : `%s`\n- État : **%s**\n- Conclusion : **%s**\n\nAucune clé API externe n’est utilisée.' "$run_id" "$run_url" "$TARGET_SHA" "$status" "$conclusion")
           fi

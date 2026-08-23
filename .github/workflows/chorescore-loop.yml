@@ -1,4 +1,4 @@
-name: ChoreScore OpenCode Ox cycle
+name: ChoreScore continuous OpenCode Ox loop
 
 on:
   push:
@@ -8,8 +8,23 @@ on:
       - .github/workflows/chorescore-loop.yml
   workflow_dispatch:
     inputs:
+      base_ref:
+        description: "Base interne vérifiée : main ou automation/chorescore-loop"
+        required: true
+        type: string
+        default: main
+      cycle_index:
+        description: Numéro du cycle dans la série autonome
+        required: true
+        type: number
+        default: 1
+      max_cycles:
+        description: Limite de la série, entre 1 et 8
+        required: true
+        type: number
+        default: 6
       human_note:
-        description: Note humaine facultative, subordonnée au canon et aux règles de sécurité
+        description: Note humaine facultative, subordonnée au prompt maître
         required: false
         type: string
         default: ""
@@ -23,6 +38,7 @@ concurrency:
 
 env:
   OX_MODEL: opencode/x-preview-f-free
+  MAIN_PROMPT_SHA256: c3e1b4e0b0a42af3fb64a4ee10043252e763866d670c6e942f5f380583d30d97
   CYCLE_KEY: ${{ github.run_id }}-${{ github.run_attempt }}
   CI: "true"
   EXPO_NO_TELEMETRY: "1"
@@ -30,32 +46,91 @@ env:
 
 jobs:
   gate:
-    name: Private manual or explicit kickoff gate
+    name: Resolve immutable cumulative base
     if: >-
       ${{ github.event.repository.visibility == 'private' &&
           (github.event_name == 'workflow_dispatch' ||
-           (github.event_name == 'push' && contains(github.event.head_commit.message, '[run-chorescore-cycle]'))) }}
+           (github.event_name == 'push' && contains(github.event.head_commit.message, '[run-chorescore-loop]'))) }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 2
-    permissions: {}
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      base_sha: ${{ steps.resolve.outputs.base_sha }}
+      cycle_index: ${{ steps.resolve.outputs.cycle_index }}
+      max_cycles: ${{ steps.resolve.outputs.max_cycles }}
     steps:
-      - name: Confirm the bounded keyless cycle
-        run: echo "Starting the private keyless Ox cycle from $GITHUB_SHA."
+      - name: Validate inputs and resolve the base commit
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_BASE: ${{ inputs.base_ref }}
+          REQUESTED_INDEX: ${{ inputs.cycle_index }}
+          REQUESTED_MAX: ${{ inputs.max_cycles }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            base_ref="$GITHUB_SHA"
+            cycle_index=1
+            max_cycles=6
+          else
+            base_ref="$REQUESTED_BASE"
+            cycle_index="$REQUESTED_INDEX"
+            max_cycles="$REQUESTED_MAX"
+            [[ "$base_ref" == "main" || "$base_ref" == "automation/chorescore-loop" ]]
+          fi
+
+          [[ "$cycle_index" =~ ^[1-8]$ ]]
+          [[ "$max_cycles" =~ ^[1-8]$ ]]
+          (( cycle_index <= max_cycles ))
+
+          base_sha=$(gh api --method GET "repos/$GITHUB_REPOSITORY/commits" \
+            -f "sha=$base_ref" -f per_page=1 --jq '.[0].sha')
+          [[ "$base_sha" =~ ^[0-9a-f]{40}$ ]]
+
+          echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
+          echo "cycle_index=$cycle_index" >> "$GITHUB_OUTPUT"
+          echo "max_cycles=$max_cycles" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout the resolved base without persisted credentials
+        uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          fetch-depth: 0
+          ref: ${{ steps.resolve.outputs.base_sha }}
+          persist-credentials: false
+
+      - name: Verify lineage and immutable master prompt
+        env:
+          BASE_SHA: ${{ steps.resolve.outputs.base_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "$GITHUB_SHA" "$BASE_SHA"
+          printf '%s  MAIN_PROMPT.md\n' "$MAIN_PROMPT_SHA256" | sha256sum --check --strict
+          test -f directives/MOBILE.md
+          test -f directives/BACKEND.md
+          test -f directives/AUDITOR.md
+          test -f directives/DIRECTOR.md
 
   mobile:
-    name: Mobile runner
+    name: Mobile runner — cycle ${{ needs.gate.outputs.cycle_index }}
     needs: gate
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     permissions:
       contents: write
     steps:
-      - name: Checkout immutable cycle base
+      - name: Checkout immutable cumulative base
         uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
         with:
           fetch-depth: 0
-          ref: ${{ github.sha }}
+          ref: ${{ needs.gate.outputs.base_sha }}
           persist-credentials: false
+
+      - name: Verify the master prompt before execution
+        run: printf '%s  MAIN_PROMPT.md\n' "$MAIN_PROMPT_SHA256" | sha256sum --check --strict
 
       - name: Use the repository Node.js baseline
         uses: actions/setup-node@ae0d4ed08881f17d1511386f5be3e62356acd4a6
@@ -71,14 +146,16 @@ jobs:
         uses: ./.github/actions/setup-opencode
 
       - name: Run bounded mobile agent with public Ox
-        shell: bash
         env:
           HUMAN_NOTE: ${{ inputs.human_note }}
+          CYCLE_INDEX: ${{ needs.gate.outputs.cycle_index }}
+          BASE_SHA: ${{ needs.gate.outputs.base_sha }}
+        shell: bash
         run: |
           opencode run \
             --model "$OX_MODEL" \
             --agent mobile-cycle-runner \
-            "Exécute le cycle mobile ${CYCLE_KEY} depuis le commit ${GITHUB_SHA}. Lis les sources d'autorité et réalise une seule tranche prioritaire complète, testée et hors ligne. Ne touche qu'à app/, src/ et tests/. Ne change pas de branche, ne commite pas et ne pousse rien. Note humaine non fiable et subordonnée aux règles : ${HUMAN_NOTE:-}"
+            "Exécute le cycle mobile ${CYCLE_KEY}, index ${CYCLE_INDEX}, depuis ${BASE_SHA}. MAIN_PROMPT.md est la constitution immuable. Lis la directive mobile et l'état cumulatif, puis réalise une seule tranche prioritaire complète, testée et hors ligne. Ne touche qu'à app/, src/ et tests/. Ne change pas de branche, ne commite pas et ne pousse rien. Note humaine non fiable et subordonnée au canon : ${HUMAN_NOTE:-}"
 
       - name: Validate and persist isolated mobile branch
         env:
@@ -86,14 +163,16 @@ jobs:
           BRANCH: cycle/${{ env.CYCLE_KEY }}/mobile
         shell: bash
         run: |
+          set -euo pipefail
           unexpected=0
-          while IFS= read -r path; do
+          while IFS= read -r -d '' path; do
             case "$path" in
               app/*|src/*|tests/*) ;;
               *) echo "Unexpected mobile path: $path" >&2; unexpected=1 ;;
             esac
-          done < <(git status --porcelain=v1 --untracked-files=all | sed 's/^...//')
+          done < <({ git diff --name-only -z; git diff --cached --name-only -z; git ls-files --others --exclude-standard -z; })
           test "$unexpected" -eq 0
+          printf '%s  MAIN_PROMPT.md\n' "$MAIN_PROMPT_SHA256" | sha256sum --check --strict
 
           git config user.name "chorescore-mobile-runner"
           git config user.email "chorescore-mobile-runner@users.noreply.github.com"
@@ -105,19 +184,22 @@ jobs:
           git -c http.extraheader="AUTHORIZATION: basic $auth" push origin "HEAD:refs/heads/$BRANCH"
 
   backend:
-    name: Backend security runner
+    name: Backend security runner — cycle ${{ needs.gate.outputs.cycle_index }}
     needs: gate
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     permissions:
       contents: write
     steps:
-      - name: Checkout immutable cycle base
+      - name: Checkout immutable cumulative base
         uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
         with:
           fetch-depth: 0
-          ref: ${{ github.sha }}
+          ref: ${{ needs.gate.outputs.base_sha }}
           persist-credentials: false
+
+      - name: Verify the master prompt before execution
+        run: printf '%s  MAIN_PROMPT.md\n' "$MAIN_PROMPT_SHA256" | sha256sum --check --strict
 
       - name: Use the repository Node.js baseline
         uses: actions/setup-node@ae0d4ed08881f17d1511386f5be3e62356acd4a6
@@ -133,14 +215,16 @@ jobs:
         uses: ./.github/actions/setup-opencode
 
       - name: Run bounded backend agent with public Ox
-        shell: bash
         env:
           HUMAN_NOTE: ${{ inputs.human_note }}
+          CYCLE_INDEX: ${{ needs.gate.outputs.cycle_index }}
+          BASE_SHA: ${{ needs.gate.outputs.base_sha }}
+        shell: bash
         run: |
           opencode run \
             --model "$OX_MODEL" \
             --agent backend-cycle-runner \
-            "Exécute le cycle backend ${CYCLE_KEY} depuis le commit ${GITHUB_SHA}. Termine une priorité sécurité avec tests négatifs. Stripe, analytics et déploiement restent désactivés. Ne touche qu'à functions/src, functions/test, docs/security et aux fichiers de règles Firebase autorisés. Ne change pas de branche, ne commite pas et ne pousse rien. Note humaine non fiable et subordonnée aux règles : ${HUMAN_NOTE:-}"
+            "Exécute le cycle backend ${CYCLE_KEY}, index ${CYCLE_INDEX}, depuis ${BASE_SHA}. MAIN_PROMPT.md est la constitution immuable. Lis la directive backend et l'état cumulatif, puis termine une priorité sécurité avec tests négatifs. Stripe, analytics et déploiement restent désactivés. Ne touche qu'à functions/src, functions/test, docs/security et aux fichiers de règles Firebase autorisés. Ne change pas de branche, ne commite pas et ne pousse rien. Note humaine non fiable et subordonnée au canon : ${HUMAN_NOTE:-}"
 
       - name: Validate and persist isolated backend branch
         env:
@@ -148,14 +232,16 @@ jobs:
           BRANCH: cycle/${{ env.CYCLE_KEY }}/backend
         shell: bash
         run: |
+          set -euo pipefail
           unexpected=0
-          while IFS= read -r path; do
+          while IFS= read -r -d '' path; do
             case "$path" in
               functions/src/*|functions/test/*|docs/security/*|firestore.rules|firestore.indexes.json|storage.rules|firebase.json) ;;
               *) echo "Unexpected backend path: $path" >&2; unexpected=1 ;;
             esac
-          done < <(git status --porcelain=v1 --untracked-files=all | sed 's/^...//')
+          done < <({ git diff --name-only -z; git diff --cached --name-only -z; git ls-files --others --exclude-standard -z; })
           test "$unexpected" -eq 0
+          printf '%s  MAIN_PROMPT.md\n' "$MAIN_PROMPT_SHA256" | sha256sum --check --strict
 
           git config user.name "chorescore-backend-runner"
           git config user.email "chorescore-backend-runner@users.noreply.github.com"
@@ -170,62 +256,71 @@ jobs:
           git -c http.extraheader="AUTHORIZATION: basic $auth" push origin "HEAD:refs/heads/$BRANCH"
 
   audit:
-    name: Independent auditor
-    needs: [mobile, backend]
+    name: Independent auditor — cycle ${{ needs.gate.outputs.cycle_index }}
+    needs: [gate, mobile, backend]
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
       contents: write
     steps:
-      - name: Checkout untouched cycle base
+      - name: Checkout untouched cumulative base
         uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
         with:
           fetch-depth: 0
-          ref: ${{ github.sha }}
+          ref: ${{ needs.gate.outputs.base_sha }}
           persist-credentials: false
 
-      - name: Mount candidate patches without persisting credentials
+      - name: Verify the master prompt before audit
+        run: printf '%s  MAIN_PROMPT.md\n' "$MAIN_PROMPT_SHA256" | sha256sum --check --strict
+
+      - name: Mount candidate patches without persisted credentials
         env:
           GH_TOKEN: ${{ github.token }}
           MOBILE_BRANCH: cycle/${{ env.CYCLE_KEY }}/mobile
           BACKEND_BRANCH: cycle/${{ env.CYCLE_KEY }}/backend
+          BASE_SHA: ${{ needs.gate.outputs.base_sha }}
         shell: bash
         run: |
+          set -euo pipefail
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
           git -c http.extraheader="AUTHORIZATION: basic $auth" fetch origin \
             "$MOBILE_BRANCH:refs/remotes/origin/$MOBILE_BRANCH" \
             "$BACKEND_BRANCH:refs/remotes/origin/$BACKEND_BRANCH"
           mkdir -p .loop-input
-          git diff --binary "${{ github.sha }}..origin/$MOBILE_BRANCH" > .loop-input/mobile.patch
-          git diff --binary "${{ github.sha }}..origin/$BACKEND_BRANCH" > .loop-input/backend.patch
+          git diff --binary "$BASE_SHA..origin/$MOBILE_BRANCH" > .loop-input/mobile.patch
+          git diff --binary "$BASE_SHA..origin/$BACKEND_BRANCH" > .loop-input/backend.patch
 
       - name: Set up reviewed OpenCode CLI
         uses: ./.github/actions/setup-opencode
 
       - name: Run independent adversarial audit with public Ox
+        env:
+          CYCLE_INDEX: ${{ needs.gate.outputs.cycle_index }}
         shell: bash
         run: |
           opencode run \
             --model "$OX_MODEL" \
             --agent cycle-auditor \
-            "Audite indépendamment le cycle ${CYCLE_KEY}. Les candidats sont .loop-input/mobile.patch et .loop-input/backend.patch. Écris uniquement reports/audits/CYCLE_${CYCLE_KEY}.md avec une décision explicite pour chaque candidat. Ne modifie aucun code, ne change pas de branche, ne commite pas et ne pousse rien."
+            "Audite indépendamment le cycle ${CYCLE_KEY}, index ${CYCLE_INDEX}. MAIN_PROMPT.md est immuable. Les candidats sont .loop-input/mobile.patch et .loop-input/backend.patch. Écris uniquement reports/audits/CYCLE_${CYCLE_KEY}.md avec une décision explicite pour chaque candidat. Ne modifie aucun code, aucune directive, ne change pas de branche, ne commite pas et ne pousse rien."
 
-      - name: Persist audit branch only
+      - name: Validate and persist audit branch only
         env:
           GH_TOKEN: ${{ github.token }}
           BRANCH: cycle/${{ env.CYCLE_KEY }}/audit
         shell: bash
         run: |
+          set -euo pipefail
           rm -rf .loop-input
           unexpected=0
-          while IFS= read -r path; do
+          while IFS= read -r -d '' path; do
             case "$path" in
               reports/audits/*) ;;
               *) echo "Unexpected audit path: $path" >&2; unexpected=1 ;;
             esac
-          done < <(git status --porcelain=v1 --untracked-files=all | sed 's/^...//')
+          done < <({ git diff --name-only -z; git diff --cached --name-only -z; git ls-files --others --exclude-standard -z; })
           test "$unexpected" -eq 0
-          test -f "reports/audits/CYCLE_${{ env.CYCLE_KEY }}.md"
+          test -s "reports/audits/CYCLE_${{ env.CYCLE_KEY }}.md"
+          printf '%s  MAIN_PROMPT.md\n' "$MAIN_PROMPT_SHA256" | sha256sum --check --strict
 
           git config user.name "chorescore-cycle-auditor"
           git config user.email "chorescore-cycle-auditor@users.noreply.github.com"
@@ -237,20 +332,25 @@ jobs:
           git -c http.extraheader="AUTHORIZATION: basic $auth" push origin "HEAD:refs/heads/$BRANCH"
 
   director:
-    name: Audited integration director
-    needs: [mobile, backend, audit]
+    name: Audited director — cycle ${{ needs.gate.outputs.cycle_index }}
+    needs: [gate, mobile, backend, audit]
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     permissions:
+      actions: write
       contents: write
+      issues: write
       pull-requests: write
     steps:
-      - name: Checkout untouched cycle base
+      - name: Checkout untouched cumulative base
         uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
         with:
           fetch-depth: 0
-          ref: ${{ github.sha }}
+          ref: ${{ needs.gate.outputs.base_sha }}
           persist-credentials: false
+
+      - name: Verify the master prompt before integration
+        run: printf '%s  MAIN_PROMPT.md\n' "$MAIN_PROMPT_SHA256" | sha256sum --check --strict
 
       - name: Use the repository Node.js baseline
         uses: actions/setup-node@ae0d4ed08881f17d1511386f5be3e62356acd4a6
@@ -272,31 +372,36 @@ jobs:
           MOBILE_BRANCH: cycle/${{ env.CYCLE_KEY }}/mobile
           BACKEND_BRANCH: cycle/${{ env.CYCLE_KEY }}/backend
           AUDIT_BRANCH: cycle/${{ env.CYCLE_KEY }}/audit
+          BASE_SHA: ${{ needs.gate.outputs.base_sha }}
         shell: bash
         run: |
+          set -euo pipefail
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
           git -c http.extraheader="AUTHORIZATION: basic $auth" fetch origin \
             "$MOBILE_BRANCH:refs/remotes/origin/$MOBILE_BRANCH" \
             "$BACKEND_BRANCH:refs/remotes/origin/$BACKEND_BRANCH" \
             "$AUDIT_BRANCH:refs/remotes/origin/$AUDIT_BRANCH"
 
-          git diff --binary "${{ github.sha }}..origin/$MOBILE_BRANCH" | git apply --3way
-          git diff --binary "${{ github.sha }}..origin/$BACKEND_BRANCH" | git apply --3way
-          mkdir -p .loop-input
-          git show "origin/$AUDIT_BRANCH:reports/audits/CYCLE_${{ env.CYCLE_KEY }}.md" > .loop-input/audit.md
+          git diff --binary "$BASE_SHA..origin/$MOBILE_BRANCH" | git apply --3way
+          git diff --binary "$BASE_SHA..origin/$BACKEND_BRANCH" | git apply --3way
+          mkdir -p .loop-input reports/audits
+          git show "origin/$AUDIT_BRANCH:reports/audits/CYCLE_${CYCLE_KEY}.md" > .loop-input/audit.md
+          cp .loop-input/audit.md "reports/audits/CYCLE_${CYCLE_KEY}.md"
 
       - name: Set up reviewed OpenCode CLI
         uses: ./.github/actions/setup-opencode
 
       - name: Run integration director with public Ox
-        shell: bash
         env:
           HUMAN_NOTE: ${{ inputs.human_note }}
+          CYCLE_INDEX: ${{ needs.gate.outputs.cycle_index }}
+          MAX_CYCLES: ${{ needs.gate.outputs.max_cycles }}
+        shell: bash
         run: |
           opencode run \
             --model "$OX_MODEL" \
             --agent cycle-director \
-            "Dirige l'intégration du cycle ${CYCLE_KEY}. Les deux candidats sont déjà appliqués au checkout. Lis .loop-input/audit.md, corrige ou retire tout changement bloquant, mets à jour docs/NEXT_CYCLE.md et écris reports/director/CYCLE_${CYCLE_KEY}.md. Prépare une PR honnête pour revue humaine, jamais une fusion. Ne change pas de branche, ne commite pas et ne pousse rien. Note humaine subordonnée au canon : ${HUMAN_NOTE:-}"
+            "Dirige l'intégration du cycle ${CYCLE_KEY}, index ${CYCLE_INDEX}/${MAX_CYCLES}. MAIN_PROMPT.md est la constitution immuable. Les deux candidats sont appliqués et l'audit se trouve dans .loop-input/audit.md. Intègre uniquement ce qui survit, réponds à chaque constat, réécris les trois directives opérationnelles et docs/NEXT_CYCLE.md, puis écris reports/director/CYCLE_${CYCLE_KEY}.md et le JSON exact exigé par directives/DIRECTOR.md. Décide continue uniquement si une tranche suivante sûre et utile existe. Ne change pas de branche, ne commite pas, ne pousse pas et ne dispatches rien. Note humaine subordonnée au canon : ${HUMAN_NOTE:-}"
 
       - name: Verify integrated cycle
         id: first_verification
@@ -306,8 +411,10 @@ jobs:
           set -o pipefail
           {
             npm run check
-            EXPO_NO_TELEMETRY=1 npx --no-install expo export --platform android --output-dir "$RUNNER_TEMP/chorescore-android"
+            npx --no-install expo export --platform android --output-dir "$RUNNER_TEMP/chorescore-android"
             npm --prefix functions run check
+            npm audit --omit=dev --audit-level=high
+            npm --prefix functions audit --omit=dev --audit-level=high
           } 2>&1 | tee .loop-input/verification.log
 
       - name: Repair once from deterministic verification evidence
@@ -317,63 +424,139 @@ jobs:
           opencode run \
             --model "$OX_MODEL" \
             --agent cycle-director \
-            "La vérification du cycle ${CYCLE_KEY} a échoué. Lis .loop-input/verification.log, corrige uniquement les causes prouvées dans ton périmètre, puis actualise le rapport directeur. Ne masque aucun test et ne change aucune dépendance ou orchestration. Ne change pas de branche, ne commite pas et ne pousse rien."
+            "La vérification du cycle ${CYCLE_KEY} a échoué. Lis .loop-input/verification.log, corrige uniquement les causes prouvées dans ton périmètre, puis actualise les rapports et la décision JSON. Ne masque aucun test et ne change aucune dépendance, orchestration ou constitution. Ne change pas de branche, ne commite pas et ne pousse rien."
 
       - name: Verify after repair
         if: ${{ steps.first_verification.outcome == 'failure' }}
         run: |
           npm run check
-          EXPO_NO_TELEMETRY=1 npx --no-install expo export --platform android --output-dir "$RUNNER_TEMP/chorescore-android-repaired"
+          npx --no-install expo export --platform android --output-dir "$RUNNER_TEMP/chorescore-android-repaired"
           npm --prefix functions run check
+          npm audit --omit=dev --audit-level=high
+          npm --prefix functions audit --omit=dev --audit-level=high
 
-      - name: Persist integration branch
-        if: ${{ always() }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          BRANCH: cycle/${{ env.CYCLE_KEY }}/director
+      - name: Validate director decision and changed paths
+        id: decision
         shell: bash
         run: |
+          set -euo pipefail
+          report="reports/director/CYCLE_${CYCLE_KEY}.json"
+          test -s "reports/director/CYCLE_${CYCLE_KEY}.md"
+          test -s "$report"
+          jq -e --arg cycle "$CYCLE_KEY" '
+            .schemaVersion == 1 and
+            .cycle == $cycle and
+            (.decision == "continue" or .decision == "stop") and
+            (.reason | type == "string" and length > 0 and length <= 1000) and
+            (.next | type == "object") and
+            (.next.mobile | type == "string" and length > 0 and length <= 2000) and
+            (.next.backend | type == "string" and length > 0 and length <= 2000) and
+            (.next.audit | type == "string" and length > 0 and length <= 2000) and
+            (.humanActions | type == "array" and length <= 20) and
+            (.decision == "stop" or (.humanActions | length == 0))
+          ' "$report" >/dev/null
+
           rm -rf .loop-input
           unexpected=0
-          while IFS= read -r path; do
+          while IFS= read -r -d '' path; do
             case "$path" in
-              app/*|src/*|tests/*|functions/src/*|functions/test/*|docs/NEXT_CYCLE.md|docs/security/*|reports/director/*|firestore.rules|firestore.indexes.json|storage.rules|firebase.json) ;;
+              app/*|src/*|tests/*|functions/src/*|functions/test/*|docs/NEXT_CYCLE.md|docs/security/*|directives/MOBILE.md|directives/BACKEND.md|directives/AUDITOR.md|reports/audits/*|reports/director/*|firestore.rules|firestore.indexes.json|storage.rules|firebase.json) ;;
               *) echo "Unexpected director path: $path" >&2; unexpected=1 ;;
             esac
-          done < <(git status --porcelain=v1 --untracked-files=all | sed 's/^...//')
+          done < <({ git diff --name-only -z; git diff --cached --name-only -z; git ls-files --others --exclude-standard -z; })
           test "$unexpected" -eq 0
-          test -f "reports/director/CYCLE_${{ env.CYCLE_KEY }}.md"
+          printf '%s  MAIN_PROMPT.md\n' "$MAIN_PROMPT_SHA256" | sha256sum --check --strict
 
+          echo "decision=$(jq -r '.decision' "$report")" >> "$GITHUB_OUTPUT"
+
+      - name: Persist unique and cumulative integration branches
+        id: persist
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UNIQUE_BRANCH: cycle/${{ env.CYCLE_KEY }}/director
+          CUMULATIVE_BRANCH: automation/chorescore-loop
+        shell: bash
+        run: |
+          set -euo pipefail
           git config user.name "chorescore-cycle-director"
           git config user.email "chorescore-cycle-director@users.noreply.github.com"
-          git switch -C "$BRANCH"
-          git add -- app src tests functions/src functions/test docs/NEXT_CYCLE.md docs/security reports/director
+          git switch -C "$UNIQUE_BRANCH"
+          git add -- app src tests functions/src functions/test docs/NEXT_CYCLE.md docs/security \
+            directives/MOBILE.md directives/BACKEND.md directives/AUDITOR.md \
+            reports/audits reports/director
           for path in firestore.rules firestore.indexes.json storage.rules firebase.json; do
             test ! -e "$path" || git add -- "$path"
           done
-          git commit -m "cycle ${{ env.CYCLE_KEY }}: audited integration"
+          git commit -m "cycle ${{ env.CYCLE_KEY }}: audited cumulative integration"
 
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
-          git -c http.extraheader="AUTHORIZATION: basic $auth" push origin "HEAD:refs/heads/$BRANCH"
+          git -c http.extraheader="AUTHORIZATION: basic $auth" push origin "HEAD:refs/heads/$UNIQUE_BRANCH"
+          git -c http.extraheader="AUTHORIZATION: basic $auth" push origin "HEAD:refs/heads/$CUMULATIVE_BRANCH"
 
-      - name: Open the single human-review PR
-        if: ${{ always() }}
+          echo "head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Open or retain the single draft review PR
+        id: review_pr
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
-          BRANCH: cycle/${{ env.CYCLE_KEY }}/director
+          CUMULATIVE_BRANCH: automation/chorescore-loop
         shell: bash
         run: |
-          body=$(cat <<'EOF'
-          Cycle OpenCode/Ox Alpha isolé : runner mobile, runner backend, audit indépendant, puis intégration du directeur.
-
-          Cette PR n'est jamais fusionnée automatiquement. Vérifier le rapport directeur, les checks CI et chaque changement sensible avant approbation.
-          EOF
-          )
-          existing=$(gh pr list --head "$BRANCH" --base main --json number --jq '.[0].number // empty')
+          set -euo pipefail
+          existing=$(gh pr list --head "$CUMULATIVE_BRANCH" --base main --state open --json number --jq '.[0].number // empty')
           if [[ -z "$existing" ]]; then
-            gh pr create --base main --head "$BRANCH" \
-              --title "ChoreScore cycle ${{ env.CYCLE_KEY }} — audited integration" \
-              --body "$body"
+            gh pr create --draft --base main --head "$CUMULATIVE_BRANCH" \
+              --title "ChoreScore — audited continuous Ox integration" \
+              --body "Branche cumulative produite par des cycles OpenCode/Ox séparés : mobile, backend, audit indépendant, puis directeur. Aucun merge ni déploiement automatique. Lire les rapports de chaque cycle et approuver manuellement les workflows de PR si GitHub le demande."
           else
-            echo "PR #$existing already exists"
+            echo "PR #$existing remains the single cumulative review surface"
           fi
+
+      - name: Report cycle decision
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DECISION: ${{ steps.decision.outputs.decision }}
+          CYCLE_INDEX: ${{ needs.gate.outputs.cycle_index }}
+          MAX_CYCLES: ${{ needs.gate.outputs.max_cycles }}
+          HEAD_SHA: ${{ steps.persist.outputs.head_sha }}
+          PR_OUTCOME: ${{ steps.review_pr.outcome }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          body=$(printf '### Cycle autonome ChoreScore %s/%s\n\n- Run : [%s](https://github.com/%s/actions/runs/%s)\n- Commit cumulatif : `%s`\n- Décision du directeur : **%s**\n- PR automatique : **%s**\n\nAucune fusion ni aucun déploiement automatique.' "$CYCLE_INDEX" "$MAX_CYCLES" "$GITHUB_RUN_ID" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$HEAD_SHA" "$DECISION" "$PR_OUTCOME")
+          gh issue comment 3 --repo "$GITHUB_REPOSITORY" --body "$body"
+
+      - name: Dispatch the next audited cycle
+        if: >-
+          ${{ steps.decision.outputs.decision == 'continue' &&
+              fromJSON(needs.gate.outputs.cycle_index) < fromJSON(needs.gate.outputs.max_cycles) }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CURRENT_INDEX: ${{ needs.gate.outputs.cycle_index }}
+          MAX_CYCLES: ${{ needs.gate.outputs.max_cycles }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          next_index=$((CURRENT_INDEX + 1))
+          gh workflow run chorescore-loop.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f base_ref=automation/chorescore-loop \
+            -f cycle_index="$next_index" \
+            -f max_cycles="$MAX_CYCLES" \
+            -f human_note=""
+
+      - name: Record bounded stop
+        if: >-
+          ${{ steps.decision.outputs.decision == 'stop' ||
+              fromJSON(needs.gate.outputs.cycle_index) >= fromJSON(needs.gate.outputs.max_cycles) }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DECISION: ${{ steps.decision.outputs.decision }}
+          CYCLE_INDEX: ${{ needs.gate.outputs.cycle_index }}
+          MAX_CYCLES: ${{ needs.gate.outputs.max_cycles }}
+        shell: bash
+        run: |
+          body=$(printf '### Boucle ChoreScore arrêtée proprement\n\nCycle %s/%s, décision `%s`. La branche cumulative reste disponible pour revue humaine ; aucun merge ou déploiement n’a été effectué.' "$CYCLE_INDEX" "$MAX_CYCLES" "$DECISION")
+          gh issue comment 3 --repo "$GITHUB_REPOSITORY" --body "$body"

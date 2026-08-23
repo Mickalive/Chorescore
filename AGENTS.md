@@ -7,10 +7,12 @@ d'assistance utilisé.
 
 Lire avant toute modification :
 
-1. `docs/product-decisions.md` pour les décisions produit canoniques ;
-2. `docs/architecture.md` pour les frontières de confiance ;
-3. `SECURITY.md` pour les conditions préalables à une production réelle ;
-4. `docs/agent-workflow.md` pour la délégation, les branches et les contrôles.
+1. `MAIN_PROMPT.md`, constitution stable et non modifiable par les agents ;
+2. `docs/product-decisions.md` pour les décisions produit canoniques ;
+3. `docs/architecture.md` pour les frontières de confiance ;
+4. `SECURITY.md` pour les conditions préalables à une production réelle ;
+5. la directive active du rôle sous `directives/` et `docs/NEXT_CYCLE.md` ;
+6. `docs/agent-workflow.md` pour la délégation, les branches et les contrôles.
 
 En cas de contradiction, la sécurité et la confidentialité priment, puis les
 décisions produit canoniques. Ne réintroduisez pas une ancienne hypothèse issue
@@ -35,6 +37,9 @@ d'un prototype ou d'une conversation préparatoire.
   contrôles effectués, leurs résultats et les risques résiduels.
 - Aucun agent ne déploie, ne fusionne, ne pousse sur `main`, ne publie de paquet
   et ne déclenche un paiement.
+- Aucun agent ne modifie `MAIN_PROMPT.md`, `directives/DIRECTOR.md`, `.github/`,
+  `.opencode/`, `AGENTS.md`, `opencode.json` ou les lockfiles. Le directeur ne
+  peut réécrire que les trois directives opérationnelles explicitement prévues.
 
 ## Discipline de modification
 

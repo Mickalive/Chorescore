@@ -1,103 +1,23 @@
 import React, { createContext, useCallback, useContext, useMemo, useReducer } from 'react';
-import { getEffectiveWeight, getEntitlements } from '../domain/entitlements';
+import { getEntitlements } from '../domain/entitlements';
 import type {
-  AppSnapshot,
   ConsentState,
   PlanScenario,
   PremiumFeature,
   TaskCategory,
-  TaskDefinition,
-  TaskEntry,
 } from '../domain/types';
-import { validateManualMinutes, validateTaskInput } from '../domain/validation';
 import { analyticsService, appDataService } from '../services';
-
-type AppState = AppSnapshot & {
-  onboardingComplete: boolean;
-  consent: ConsentState;
-  paywallFeature: PremiumFeature | null;
-  notice: string | null;
-  analyticsEventCount: number;
-};
-
-type Action =
-  | { type: 'COMPLETE_ONBOARDING'; consent: ConsentState }
-  | { type: 'SET_ANALYTICS_CONSENT'; enabled: boolean; eventCount: number }
-  | { type: 'SET_PLAN'; plan: PlanScenario; maxMembers: number | null }
-  | { type: 'SET_USER'; userId: string }
-  | { type: 'ADD_TASK'; task: TaskDefinition }
-  | { type: 'ADD_ENTRY'; entry: TaskEntry; eventCount: number }
-  | { type: 'REPLACE_ENTRY'; entry: TaskEntry; eventCount: number }
-  | { type: 'SHOW_PAYWALL'; feature: PremiumFeature }
-  | { type: 'HIDE_PAYWALL' }
-  | { type: 'SET_NOTICE'; notice: string | null }
-  | { type: 'RESET_DEMO'; snapshot: AppSnapshot };
-
-function createInitialState(): AppState {
-  return {
-    ...appDataService.getInitialSnapshot(),
-    onboardingComplete: false,
-    consent: {
-      termsAccepted: false,
-      termsVersion: 'demo-v1',
-      acceptedAt: null,
-      analyticsOptIn: false,
-    },
-    paywallFeature: null,
-    notice: null,
-    analyticsEventCount: 0,
-  };
-}
-
-function reducer(state: AppState, action: Action): AppState {
-  switch (action.type) {
-    case 'COMPLETE_ONBOARDING':
-      return { ...state, onboardingComplete: true, consent: action.consent, notice: null };
-    case 'SET_ANALYTICS_CONSENT':
-      return {
-        ...state,
-        consent: { ...state.consent, analyticsOptIn: action.enabled },
-        analyticsEventCount: action.eventCount,
-      };
-    case 'SET_PLAN':
-      return {
-        ...state,
-        household: { ...state.household, plan: action.plan, maxMembers: action.maxMembers },
-        notice: `Scénario ${action.plan} activé pour tout le foyer.`,
-      };
-    case 'SET_USER':
-      return { ...state, currentUserId: action.userId, notice: null };
-    case 'ADD_TASK':
-      return { ...state, tasks: [action.task, ...state.tasks], notice: 'La tâche a été ajoutée.' };
-    case 'ADD_ENTRY':
-      return {
-        ...state,
-        entries: [action.entry, ...state.entries],
-        notice: action.entry.status === 'in_progress' ? 'Chrono démarré.' : 'Temps ajouté.',
-        analyticsEventCount: action.eventCount,
-      };
-    case 'REPLACE_ENTRY':
-      return {
-        ...state,
-        entries: state.entries.map((entry) => (entry.id === action.entry.id ? action.entry : entry)),
-        notice: 'Tâche terminée et score mis à jour.',
-        analyticsEventCount: action.eventCount,
-      };
-    case 'SHOW_PAYWALL':
-      return { ...state, paywallFeature: action.feature };
-    case 'HIDE_PAYWALL':
-      return { ...state, paywallFeature: null };
-    case 'SET_NOTICE':
-      return { ...state, notice: action.notice };
-    case 'RESET_DEMO':
-      return {
-        ...state,
-        ...action.snapshot,
-        paywallFeature: null,
-        notice: 'Les données fictives ont été réinitialisées.',
-      };
-  }
-}
+import {
+  createInitialState,
+  planAddTask,
+  planCompleteTimer,
+  planManualEntry,
+  planSetUser,
+  planStartTimer,
+  reducer,
+  TERMS_VERSION,
+} from './appReducer';
+import type { AppState } from './appReducer';
 
 type AddTaskInput = {
   name: string;
@@ -124,19 +44,21 @@ type AppContextValue = {
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, undefined, createInitialState);
+  const [state, dispatch] = useReducer(
+    reducer,
+    undefined,
+    () => createInitialState(appDataService.getInitialSnapshot()),
+  );
 
   const completeOnboarding = useCallback((analyticsOptIn: boolean) => {
     analyticsService.setConsent(analyticsOptIn);
-    dispatch({
-      type: 'COMPLETE_ONBOARDING',
-      consent: {
-        termsAccepted: true,
-        termsVersion: 'demo-v1',
-        acceptedAt: new Date().toISOString(),
-        analyticsOptIn,
-      },
-    });
+    const consent: ConsentState = {
+      termsAccepted: true,
+      termsVersion: TERMS_VERSION,
+      acceptedAt: new Date().toISOString(),
+      analyticsOptIn,
+    };
+    dispatch({ type: 'COMPLETE_ONBOARDING', consent });
   }, []);
 
   const setAnalyticsOptIn = useCallback((enabled: boolean) => {
@@ -153,70 +75,64 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_PLAN', plan, maxMembers: getEntitlements(plan).maxMembers });
   }, []);
 
-  const setCurrentUser = useCallback((userId: string) => {
-    if (state.users.some((user) => user.id === userId)) {
-      dispatch({ type: 'SET_USER', userId });
-    }
-  }, [state.users]);
+  const setCurrentUser = useCallback(
+    (userId: string) => {
+      const plan = planSetUser(state, userId);
+      if (!plan.ok) {
+        return;
+      }
+      dispatch({ type: 'SET_USER', userId: plan.value });
+    },
+    [state],
+  );
 
   const addTask = useCallback(
     (input: AddTaskInput) => {
-      const error = validateTaskInput(input);
-      if (error !== null) {
-        dispatch({ type: 'SET_NOTICE', notice: error });
+      const plan = planAddTask(state, input);
+      if (!plan.ok) {
+        dispatch({ type: 'SET_NOTICE', notice: plan.error });
         return false;
       }
-      const entitlements = getEntitlements(state.household.plan);
-      const effectiveWeight = entitlements.canCustomizeWeights ? input.weight : 1;
       const task = appDataService.createTask({
         householdId: state.household.id,
-        name: input.name,
-        category: input.category,
-        weight: effectiveWeight,
+        name: plan.value.name,
+        category: plan.value.category,
+        weight: plan.value.weight,
         now: new Date(),
       });
       dispatch({ type: 'ADD_TASK', task });
       return true;
     },
-    [state.household],
+    [state],
   );
 
   const startTimer = useCallback(
     (taskId: string) => {
-      const task = state.tasks.find((candidate) => candidate.id === taskId);
-      if (task === undefined) {
-        dispatch({ type: 'SET_NOTICE', notice: 'Cette tâche n’existe plus.' });
-        return;
-      }
-      const alreadyRunning = state.entries.some(
-        (entry) => entry.userId === state.currentUserId && entry.status === 'in_progress',
-      );
-      if (alreadyRunning) {
-        dispatch({ type: 'SET_NOTICE', notice: 'Termine le chrono actif avant d’en lancer un autre.' });
+      const plan = planStartTimer(state, taskId);
+      if (!plan.ok) {
+        dispatch({ type: 'SET_NOTICE', notice: plan.error });
         return;
       }
       const entry = appDataService.startTimer({
         householdId: state.household.id,
         userId: state.currentUserId,
-        task,
-        effectiveWeight: getEffectiveWeight(state.household.plan, task.weight),
+        task: plan.value.task,
+        effectiveWeight: plan.value.effectiveWeight,
         now: new Date(),
       });
       dispatch({ type: 'ADD_ENTRY', entry, eventCount: analyticsService.getInMemoryEventCount() });
     },
-    [state.currentUserId, state.entries, state.household, state.tasks],
+    [state],
   );
 
   const completeTimer = useCallback(
     (entryId: string) => {
-      const entry = state.entries.find(
-        (candidate) => candidate.id === entryId && candidate.userId === state.currentUserId,
-      );
-      if (entry === undefined || entry.status !== 'in_progress') {
-        dispatch({ type: 'SET_NOTICE', notice: 'Ce chrono n’est pas disponible.' });
+      const plan = planCompleteTimer(state, entryId);
+      if (!plan.ok) {
+        dispatch({ type: 'SET_NOTICE', notice: plan.error });
         return;
       }
-      const completed = appDataService.completeTimer({ entry, now: new Date() });
+      const completed = appDataService.completeTimer({ entry: plan.value.entry, now: new Date() });
       analyticsService.track({ name: 'task_completed', occurredAt: new Date().toISOString() });
       dispatch({
         type: 'REPLACE_ENTRY',
@@ -224,34 +140,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         eventCount: analyticsService.getInMemoryEventCount(),
       });
     },
-    [state.currentUserId, state.entries],
+    [state],
   );
 
   const addManualEntry = useCallback(
     (taskId: string, durationMinutes: number) => {
-      const error = validateManualMinutes(durationMinutes);
-      if (error !== null) {
-        dispatch({ type: 'SET_NOTICE', notice: error });
-        return false;
-      }
-      const task = state.tasks.find((candidate) => candidate.id === taskId);
-      if (task === undefined) {
-        dispatch({ type: 'SET_NOTICE', notice: 'Cette tâche n’existe plus.' });
+      const plan = planManualEntry(state, taskId, durationMinutes);
+      if (!plan.ok) {
+        dispatch({ type: 'SET_NOTICE', notice: plan.error });
         return false;
       }
       const entry = appDataService.createManualEntry({
         householdId: state.household.id,
         userId: state.currentUserId,
-        task,
-        effectiveWeight: getEffectiveWeight(state.household.plan, task.weight),
-        durationMinutes,
+        task: plan.value.task,
+        effectiveWeight: plan.value.effectiveWeight,
+        durationMinutes: plan.value.durationMinutes,
         now: new Date(),
       });
       analyticsService.track({ name: 'task_completed', occurredAt: new Date().toISOString() });
       dispatch({ type: 'ADD_ENTRY', entry, eventCount: analyticsService.getInMemoryEventCount() });
       return true;
     },
-    [state.currentUserId, state.household, state.tasks],
+    [state],
   );
 
   const showPaywall = useCallback((feature: PremiumFeature) => {
@@ -306,3 +217,4 @@ export function useApp(): AppContextValue {
   }
   return value;
 }
+

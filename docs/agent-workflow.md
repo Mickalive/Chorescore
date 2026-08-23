@@ -5,6 +5,12 @@ Ce dépôt reprend le principe exploré sur SPIDER — OpenCode et le modèle gr
 modèle est `opencode/x-preview-f-free`. Il est réservé ici aux tâches courtes,
 bornées et vérifiables ; une revue humaine reste obligatoire.
 
+`MAIN_PROMPT.md` est la constitution stable commune à tous les rôles. Son
+empreinte est épinglée dans le workflow et vérifiée avant chaque appel au
+modèle. Les priorités qui doivent évoluer sont séparées sous `directives/` : le
+directeur peut réécrire les directives mobile, backend et audit, mais pas son
+propre contrat ni le prompt maître.
+
 ## Organisation des agents
 
 | Agent | Mission | Écriture | Exécution |
@@ -86,8 +92,8 @@ Dependabot propose leurs mises à jour par PR ; il ne les fusionne pas.
 
 ## Boucle GitHub OpenCode/Ox Alpha
 
-`.github/workflows/chorescore-loop.yml` reprend la boucle multi-runner de SPIDER
-en l'adaptant à une application mobile :
+`.github/workflows/chorescore-loop.yml` reprend la séparation des contextes de
+SPIDER en l'adaptant à une application mobile et en ajoutant une relance bornée :
 
 1. le runner mobile et le runner backend partent en parallèle du même commit
    immuable et ne peuvent écrire que dans des périmètres disjoints ;
@@ -96,10 +102,21 @@ en l'adaptant à une application mobile :
 3. un auditeur indépendant reçoit seulement les patches, les traite comme des
    entrées hostiles et produit un rapport sans intégrer de code ;
 4. le directeur reçoit les deux candidats et l'audit, corrige ou retire les
-   éléments bloquants, exécute les contrôles et dispose d'une seule tentative de
-   réparation fondée sur les logs réels ;
-5. le workflow pousse une branche d'intégration et ouvre une unique PR. Il ne
-   fusionne et ne déploie jamais.
+   éléments bloquants, réécrit les directives du cycle suivant et produit une
+   décision JSON `continue` ou `stop` ;
+5. le workflow exécute les contrôles complets et dispose d'une seule tentative
+   de réparation fondée sur les logs réels ;
+6. une étape shell de confiance met à jour la branche cumulative
+   `automation/chorescore-loop` et une unique PR brouillon ;
+7. si la décision vaut `continue`, que les checks passent et que la limite n'est
+   pas atteinte, cette étape déclenche le workflow suivant avec le
+   `GITHUB_TOKEN` éphémère et le commit cumulatif comme nouvelle base.
+
+Le directeur transmet donc de nouvelles informations par
+`directives/MOBILE.md`, `directives/BACKEND.md`, `directives/AUDITOR.md` et
+`docs/NEXT_CYCLE.md`. Il ne possède pas le jeton qui effectue le dispatch : le
+modèle ne fait qu'écrire une décision validée par `jq`, puis le shell borné
+choisit ou non de relancer.
 
 La note humaine est transmise comme donnée au modèle, jamais interpolée dans une
 commande shell. Les agents ne reçoivent pas le `GITHUB_TOKEN` servant aux pushes ;
@@ -112,12 +129,26 @@ sélectionné peut être utilisé. Les identifiants Git ne sont pas conservés d
 le checkout. Aucun secret applicatif, Firebase ou Stripe n'est fourni au
 workflow.
 
-Le workflow est manuel et limité aux dépôts privés. Le commit d'installation
-peut provoquer un premier démarrage explicite si son message contient
-`[run-chorescore-cycle]` et si ce même commit modifie le fichier du workflow.
-Les pushes ordinaires ne lancent rien. Sur `main`, les protections de branche et
-la revue humaine restent la barrière finale ; la permission d'écrire des
-branches ne vaut jamais permission de fusionner.
+Le workflow est limité aux dépôts privés. Une série démarre manuellement, ou par
+un commit d'installation explicite contenant `[run-chorescore-loop]` qui
+modifie le workflow. Les pushes ordinaires ne lancent rien. Une série comprend
+au maximum six cycles par défaut et huit au maximum ; elle s'arrête plus tôt sur
+décision du directeur, échec déterministe, blocage humain ou risque non résolu.
+Une nouvelle série peut être lancée manuellement après revue. Sur `main`, les
+protections de branche et la revue humaine restent la barrière finale ; la
+permission d'écrire des branches ne vaut jamais permission de fusionner.
+
+GitHub autorise explicitement un événement `workflow_dispatch` créé avec le
+`GITHUB_TOKEN` à démarrer un nouveau run. Les pushes produits par ce même jeton
+ne sont pas utilisés comme mécanisme récursif. Aucune clé personnelle, clé
+OpenCode ou GitHub App supplémentaire n'est nécessaire.
+
+La création automatique d'une PR peut dépendre du réglage GitHub autorisant les
+Actions à créer des pull requests. Son échec ne doit ni élargir les permissions
+ni provoquer une fusion ; la branche cumulative et les rapports restent la
+source de revue. Les checks complets sont exécutés dans le directeur avant toute
+relance, car les workflows de PR créées avec `GITHUB_TOKEN` peuvent demander une
+approbation humaine distincte.
 
 ## Pilote d'audit en lecture seule
 

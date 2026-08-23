@@ -102,10 +102,20 @@ en l'adaptant à une application mobile :
    fusionne et ne déploie jamais.
 
 La note humaine est transmise comme donnée au modèle, jamais interpolée dans une
-commande shell. Les agents ne reçoivent pas le jeton GitHub servant aux pushes ;
+commande shell. Les agents ne reçoivent pas le `GITHUB_TOKEN` servant aux pushes ;
 ce jeton éphémère n'est exposé qu'aux étapes de persistance après leur exécution.
+L'action OpenCode échange toutefois son jeton OIDC contre un jeton d'installation
+éphémère de l'OpenCode GitHub App, puis configure Git avec ce jeton pendant la
+session. Les permissions OpenCode interdisent les commandes de push, et les
+chemins sont de nouveau contrôlés par des étapes de confiance après l'agent.
 Les identifiants Git ne sont pas conservés dans le checkout. Aucun secret
 applicatif, Firebase ou Stripe n'est fourni au workflow.
+
+Ox Alpha est gratuit au niveau des jetons pendant sa période promotionnelle,
+mais l'accès OpenCode Zen n'est pas anonyme. Le secret Actions
+`OPENCODE_API_KEY` reste nécessaire. Il doit provenir d'une clé Zen dédiée à ce
+dépôt, sans autre usage, et être révoqué lorsque le pilote se termine. Un job
+`preflight` arrête le cycle avant toute exécution d'agent si le secret manque.
 
 Le workflow est manuel, limité aux dépôts privés et **désactivé par défaut**. Il
 faut créer la variable de dépôt `ENABLE_OPENCODE_OX_ALPHA=true` pour le rendre
@@ -133,12 +143,14 @@ Cette même limite de chaîne d'approvisionnement concerne la boucle. Ne régler
 
 1. revue d'un nouveau commit officiel ou remplacement par une action dont toutes
    les dépendances et l'outil installé sont épinglés et vérifiés ;
-2. installation/configuration du chemin OIDC OpenCode sur ce seul dépôt privé,
-   sans clé de modèle statique ;
-3. activation des protections de `main`, checks CI et revue CODEOWNER ;
-4. vérification des permissions des quatre runners et du pilote
+2. installation de l'OpenCode GitHub App sur ce seul dépôt privé afin que l'OIDC
+   fournisse un jeton GitHub éphémère, sans PAT GitHub statique ;
+3. création d'une clé OpenCode Zen dédiée et enregistrement exclusif dans le
+   secret Actions `OPENCODE_API_KEY` ;
+4. activation des protections de `main`, checks CI et revue CODEOWNER ;
+5. vérification des permissions des quatre runners et du pilote
    `github-auditor`, notamment absence de push/merge/déploiement côté agent ;
-5. approbation explicite du propriétaire et exécution pilote sur des données
+6. approbation explicite du propriétaire et exécution pilote sur des données
    exclusivement synthétiques.
 
 Même activé, ce workflow ne crée pas de commit, commentaire, PR, merge ou

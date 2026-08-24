@@ -5,11 +5,18 @@ set -euo pipefail
 repository="${GITHUB_REPOSITORY:?}"
 workflow="${CHORESCORE_LOOP_WORKFLOW:-chorescore-loop.yml}"
 tracking_issue="${CHORESCORE_TRACKING_ISSUE:-3}"
+rollover_attempt="${CHORESCORE_RERUN_ROLLOVER_ATTEMPT:-45}"
 summary_file="${GITHUB_STEP_SUMMARY:-/dev/null}"
 
-runs=$(gh run list --repo "$repository" --workflow "$workflow" --limit 30 \
-  --json databaseId,status,conclusion,createdAt,url)
+[[ "$rollover_attempt" =~ ^[0-9]+$ ]]
+(( rollover_attempt >= 2 && rollover_attempt <= 49 ))
 
+list_runs() {
+  gh run list --repo "$repository" --workflow "$workflow" --limit 30 \
+    --json databaseId,status,conclusion,createdAt,url
+}
+
+runs=$(list_runs)
 active_count=$(jq '[.[] | select(.status != "completed")] | length' <<<"$runs")
 if (( active_count > 0 )); then
   active_url=$(jq -r '[.[] | select(.status != "completed")] | sort_by(.createdAt) | last | .url' <<<"$runs")
@@ -88,36 +95,115 @@ if (( ${#transient_jobs[@]} == 0 || ${#unsafe_jobs[@]} > 0 )); then
 fi
 
 old_attempt=$(gh api "repos/$repository/actions/runs/$run_id" --jq '.run_attempt')
-gh api --method POST "repos/$repository/actions/runs/$run_id/rerun-failed-jobs" >/dev/null
+transient_list=$(IFS=', '; echo "${transient_jobs[*]}")
 
-new_attempt=$((old_attempt + 1))
-confirmed=false
-for _ in {1..15}; do
-  state=$(gh api "repos/$repository/actions/runs/$run_id" --jq '[.status, .run_attempt] | @tsv')
-  IFS=$'\t' read -r status observed_attempt <<<"$state"
-  if [[ "$status" != completed || "$observed_attempt" -gt "$old_attempt" ]]; then
-    new_attempt="$observed_attempt"
-    confirmed=true
-    break
+if (( old_attempt < rollover_attempt )); then
+  gh api --method POST "repos/$repository/actions/runs/$run_id/rerun-failed-jobs" >/dev/null
+
+  new_attempt=$((old_attempt + 1))
+  confirmed=false
+  for _ in {1..15}; do
+    state=$(gh api "repos/$repository/actions/runs/$run_id" --jq '[.status, .run_attempt] | @tsv')
+    IFS=$'\t' read -r status observed_attempt <<<"$state"
+    if [[ "$status" != completed || "$observed_attempt" -gt "$old_attempt" ]]; then
+      new_attempt="$observed_attempt"
+      confirmed=true
+      break
+    fi
+    sleep 2
+  done
+
+  if [[ "$confirmed" != true ]]; then
+    echo "::warning::GitHub a accepté la reprise du run $run_id, mais son nouvel état n'est pas encore observable."
   fi
+
+  {
+    echo "### Watchdog ChoreScore"
+    echo
+    echo "Reprise automatique déclenchée : $run_url"
+    echo
+    echo "- Tentative GitHub : $old_attempt → $new_attempt"
+    echo "- Jobs : $transient_list"
+  } >>"$summary_file"
+
+  body=$(printf '### Reprise automatique après panne OX\n\n- Run : [%s](%s)\n- Tentative GitHub : `%s → %s`\n- Jobs relancés : %s\n\nLe watchdog a conservé le même cycle et ses snapshots. Aucun échec de code non transitoire n’a été relancé.' \
+    "$run_id" "$run_url" "$old_attempt" "$new_attempt" "$transient_list")
+  gh issue comment "$tracking_issue" --repo "$repository" --body "$body" ||
+    echo "::warning::Reprise lancée, mais commentaire de suivi impossible."
+  exit 0
+fi
+
+comments=$(gh issue view "$tracking_issue" --repo "$repository" --json comments)
+state_b64=$(jq -r --arg needle "actions/runs/$run_id" '
+  [.comments[].body
+   | select(contains($needle))
+   | (capture("<!-- chorescore-control-state:(?<state>[A-Za-z0-9+/=]+) -->")? // empty)
+   | .state] | last // empty
+' <<<"$comments")
+
+control_state=""
+if [[ -n "$state_b64" ]]; then
+  control_state=$(printf '%s' "$state_b64" | base64 -d 2>/dev/null || true)
+fi
+
+if jq -e --arg run "$run_id" '
+  .schemaVersion == 1 and
+  (.run_id | tostring) == $run and
+  (.cycle_index | type == "number" and floor == . and . >= 1 and . <= 10000) and
+  (.max_cycles | type == "number" and floor == . and . >= 0 and . <= 10000) and
+  (.human_note | type == "string" and length <= 4000)
+' <<<"$control_state" >/dev/null 2>&1; then
+  cycle_index=$(jq -r '.cycle_index' <<<"$control_state")
+  max_cycles=$(jq -r '.max_cycles' <<<"$control_state")
+  human_note=$(jq -r '.human_note' <<<"$control_state")
+  state_source=structured
+else
+  related_comment=$(jq -r --arg needle "actions/runs/$run_id"     '[.comments[].body | select(contains($needle))] | last // empty' <<<"$comments")
+  cycle_index=$(grep -Eo -- '- Cycle : `[0-9]+`' <<<"$related_comment" |
+    grep -Eo '[0-9]+' | tail -1 || true)
+  [[ "$cycle_index" =~ ^[1-9][0-9]*$ ]] || cycle_index=1
+  max_cycles=0
+  human_note=""
+  state_source=legacy-fallback
+fi
+
+runs=$(list_runs)
+if (( $(jq '[.[] | select(.status != "completed")] | length' <<<"$runs") > 0 )); then
+  echo "Une boucle est apparue pendant l'analyse; rollover annulé sans erreur." >>"$summary_file"
+  exit 0
+fi
+
+gh workflow run "$workflow" --repo "$repository" --ref main \
+  -f human_note="$human_note" -f cycle_index="$cycle_index" -f max_cycles="$max_cycles" \
+  -f recovery_cycle_key="$run_id"
+
+new_run=""
+for _ in {1..20}; do
+  runs=$(list_runs)
+  new_run=$(jq -c --argjson old "$run_id"     '[.[] | select(.status != "completed" and .databaseId != $old)] | sort_by(.createdAt) | last // empty' <<<"$runs")
+  [[ -n "$new_run" ]] && break
   sleep 2
 done
 
-if [[ "$confirmed" != true ]]; then
-  echo "::warning::GitHub a accepté la reprise du run $run_id, mais son nouvel état n'est pas encore observable."
+if [[ -z "$new_run" ]]; then
+  echo "::error::Le rollover du run $run_id a été demandé mais aucun nouveau run n'est observable."
+  exit 1
 fi
 
-transient_list=$(IFS=', '; echo "${transient_jobs[*]}")
+new_run_id=$(jq -r '.databaseId' <<<"$new_run")
+new_run_url=$(jq -r '.url' <<<"$new_run")
 {
   echo "### Watchdog ChoreScore"
   echo
-  echo "Reprise automatique déclenchée : $run_url"
+  echo "Rollover de récupération déclenché : $new_run_url"
   echo
-  echo "- Tentative GitHub : $old_attempt → $new_attempt"
-  echo "- Jobs : $transient_list"
+  echo "- Ancien run : $run_url (tentative $old_attempt)"
+  echo "- Cycle logique : $cycle_index"
+  echo "- Source d'état : $state_source"
+  echo "- Jobs transitoires : $transient_list"
 } >>"$summary_file"
 
-body=$(printf '### Reprise automatique après panne OX\n\n- Run : [%s](%s)\n- Tentative GitHub : `%s → %s`\n- Jobs relancés : %s\n\nLe watchdog a conservé le même cycle et ses snapshots. Aucun échec de code non transitoire n’a été relancé.' \
-  "$run_id" "$run_url" "$old_attempt" "$new_attempt" "$transient_list")
+body=$(printf '### Rollover automatique après panne OX prolongée\n\n- Ancien run : [%s](%s)\n- Nouveau run : [%s](%s)\n- Cycle logique conservé : `%s`\n- Récupération : `%s`\n\nLa limite GitHub de rerun est contournée proprement par un nouveau run qui remonte les snapshots précédents.' \
+  "$run_id" "$run_url" "$new_run_id" "$new_run_url" "$cycle_index" "$run_id")
 gh issue comment "$tracking_issue" --repo "$repository" --body "$body" ||
-  echo "::warning::Reprise lancée, mais commentaire de suivi impossible."
+  echo "::warning::Rollover lancé, mais commentaire de suivi impossible."

@@ -1,0 +1,4 @@
+{
+  "requestedAt": "2026-08-25T00:00:00+02:00",
+  "reason": "Remove superseded CI and setup runs after immutable governance v1; preserve the active autonomous cycle and CI for the cleanup commit."
+}

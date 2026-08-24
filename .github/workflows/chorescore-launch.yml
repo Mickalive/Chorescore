@@ -12,6 +12,10 @@ permissions:
   contents: read
   actions: write
 
+concurrency:
+  group: chorescore-launch-bridge
+  cancel-in-progress: false
+
 jobs:
   dispatch:
     name: Dispatch requested autonomous build
@@ -56,7 +60,8 @@ jobs:
             echo "CHORESCORE_NOTE"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Launch continuous ChoreScore loop
+      - name: Launch or reuse continuous ChoreScore loop
+        id: loop
         if: steps.request.outputs.kind == 'launch'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -66,9 +71,43 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gh workflow run chorescore-loop.yml --repo "$GITHUB_REPOSITORY" --ref main \
-            -f human_note="$NOTE" -f cycle_index=1 -f max_cycles="$CYCLES" \
-            -f recovery_cycle_key="$RECOVERY"
+          find_active() {
+            gh run list --repo "$GITHUB_REPOSITORY" --workflow chorescore-loop.yml --limit 20 \
+              --json databaseId,status,url,createdAt \
+              --jq '[.[] | select(.status != "completed")] | sort_by(.createdAt) | last // empty'
+          }
+          active=$(find_active)
+          if [[ -z "$active" ]]; then
+            gh workflow run chorescore-loop.yml --repo "$GITHUB_REPOSITORY" --ref main \
+              -f human_note="$NOTE" -f cycle_index=1 -f max_cycles="$CYCLES" \
+              -f recovery_cycle_key="$RECOVERY"
+            for attempt in {1..15}; do
+              active=$(find_active)
+              [[ -n "$active" ]] && break
+              sleep 2
+            done
+          fi
+          test -n "$active"
+          run_id=$(jq -r '.databaseId' <<<"$active")
+          run_status=$(jq -r '.status' <<<"$active")
+          run_url=$(jq -r '.url' <<<"$active")
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "run_status=$run_status" >> "$GITHUB_OUTPUT"
+          echo "run_url=$run_url" >> "$GITHUB_OUTPUT"
+
+      - name: Report resolved loop run
+        if: steps.request.outputs.kind == 'launch' && steps.loop.outputs.run_id != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ steps.loop.outputs.run_id }}
+          RUN_STATUS: ${{ steps.loop.outputs.run_status }}
+          RUN_URL: ${{ steps.loop.outputs.run_url }}
+          RECOVERY: ${{ steps.request.outputs.recovery }}
+        shell: bash
+        run: |
+          body=$(printf '### Boucle ChoreScore résolue\n\n- Run : [%s](%s)\n- État : **%s**\n- Récupération demandée : `%s`\n\nAucun agent local ni clé API externe.' "$RUN_ID" "$RUN_URL" "$RUN_STATUS" "$RECOVERY")
+          gh issue comment 3 --repo "$GITHUB_REPOSITORY" --body "$body"
 
       - name: Delete superseded completed workflow runs
         if: steps.request.outputs.kind == 'cleanup'

@@ -24,3 +24,10 @@
 Le directeur peut changer cet ordre seulement pour une régression prouvée, un
 constat de sécurité obligatoire ou une dépendance réelle entre critères. Il
 n'invente pas de travail backend lorsque le poste est désactivé.
+
+## Constats conservés pour les critères suivants
+
+Les constats du cycle 32781937768 sont conservés dans
+`docs/RELEASE_STATUS.json.openFindings`. Les deux constats mobiles obligatoires
+seront traités sous DRC-05 ; le test de câblage backend obligatoire sous DRC-07.
+Ils ne sont pas perdus lors du bootstrap de gouvernance.

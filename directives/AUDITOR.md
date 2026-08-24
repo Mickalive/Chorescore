@@ -31,3 +31,10 @@ Tenter notamment : premier lancement, réhydratation, migration, stockage
 corrompu, écriture concurrente, horloge modifiée, redémarrage avec timer actif,
 annulation, données excessives, réseau implicite et annonce accessible de
 l'état de chargement/erreur.
+
+## Constats hérités
+
+Les constats non résolus de `docs/RELEASE_STATUS.json.openFindings` doivent être
+rejoués quand leur critère devient actif. Un constat
+`mustFixBeforeRelease: true` interdit de terminer ce critère sans preuve de
+résolution et nouvel audit.

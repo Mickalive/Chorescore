@@ -63,14 +63,14 @@ jobs:
       - name: Validate request and immutable constitution
         id: inputs
         env:
-          REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
           CYCLE_INDEX: ${{ inputs.cycle_index }}
           MAX_CYCLES: ${{ inputs.max_cycles }}
           RECOVERY_CYCLE_KEY: ${{ inputs.recovery_cycle_key }}
         shell: bash
         run: |
           set -euo pipefail
-          test "$REPOSITORY_VISIBILITY" = private
+          test "$GITHUB_REPOSITORY" = "Mickalive/Chorescore"
+          test "${{ github.event.repository.fork }}" = false
           [[ "$CYCLE_INDEX" =~ ^[1-9][0-9]*$ ]]
           [[ "$MAX_CYCLES" =~ ^[0-9]+$ ]]
           [[ "$RECOVERY_CYCLE_KEY" == none || "$RECOVERY_CYCLE_KEY" =~ ^[1-9][0-9]*$ ]]

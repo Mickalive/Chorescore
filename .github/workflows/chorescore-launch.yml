@@ -14,7 +14,6 @@ on:
 permissions:
   contents: read
   actions: write
-  issues: write
 
 concurrency:
   group: chorescore-launch-bridge
@@ -111,7 +110,7 @@ jobs:
         shell: bash
         run: |
           body=$(printf '### Boucle ChoreScore résolue\n\n- Run : [%s](%s)\n- État : **%s**\n- Récupération demandée : `%s`\n\nAucun agent local ni clé API externe.' "$RUN_ID" "$RUN_URL" "$RUN_STATUS" "$RECOVERY")
-          gh issue comment 3 --repo "$GITHUB_REPOSITORY" --body "$body"
+          printf '%s\n' "$body"
 
       - name: Delete superseded completed workflow runs
         if: steps.request.outputs.kind == 'cleanup'
@@ -153,7 +152,7 @@ jobs:
             deleted_list=$(IFS=', '; echo "${deleted_ids[*]}")
           fi
           body=$(printf '### Nettoyage GitHub Actions terminé\n\n- Runs obsolètes supprimés : **%s**\n- Identifiants : `%s`\n- Dernier cycle autonome préservé : `%s`\n\nBranches, commits, snapshots et rapports inchangés.' "$deleted_count" "$deleted_list" "$latest_loop")
-          gh issue comment 3 --repo "$GITHUB_REPOSITORY" --body "$body" ||
+          printf '%s\n' "$body" ||
             echo "::warning::Nettoyage terminé, mais commentaire de suivi impossible."
 
   watchdog:

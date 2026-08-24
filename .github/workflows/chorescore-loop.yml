@@ -141,6 +141,15 @@ jobs:
             git show "$GITHUB_SHA:$path" > "$path"
           done
 
+          control_paths=(
+            .github/actions/setup-opencode/action.yml
+            .github/scripts/run-opencode-with-retry.sh
+          )
+          for path in "${control_paths[@]}"; do
+            mkdir -p "$(dirname "$path")"
+            git show "$GITHUB_SHA:$path" > "$path"
+          done
+
           version=$(cat governance/VERSION)
           marker=".chorescore/governance-version"
           current_version=$(test -f "$marker" && cat "$marker" || true)
@@ -172,7 +181,7 @@ jobs:
             git rm -f --ignore-unmatch ".opencode/agents/$agent.md"
           done
 
-          governance_paths=(.github/immutable-files.sha256 "${immutable_paths[@]}" "$marker" "${bootstrap_paths[@]}")
+          governance_paths=(.github/immutable-files.sha256 "${immutable_paths[@]}" "${control_paths[@]}" "$marker" "${bootstrap_paths[@]}")
           git add -- "${governance_paths[@]}"
           if ! git diff --cached --quiet; then
             git config user.name chorescore-governance

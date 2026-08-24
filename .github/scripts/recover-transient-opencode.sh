@@ -128,7 +128,7 @@ if (( old_attempt < rollover_attempt )); then
 
   body=$(printf '### Reprise automatique après panne OX\n\n- Run : [%s](%s)\n- Tentative GitHub : `%s → %s`\n- Jobs relancés : %s\n\nLe watchdog a conservé le même cycle et ses snapshots. Aucun échec de code non transitoire n’a été relancé.' \
     "$run_id" "$run_url" "$old_attempt" "$new_attempt" "$transient_list")
-  gh issue comment "$tracking_issue" --repo "$repository" --body "$body" ||
+  printf '%s\n' "$body" ||
     echo "::warning::Reprise lancée, mais commentaire de suivi impossible."
   exit 0
 fi
@@ -205,5 +205,5 @@ new_run_url=$(jq -r '.url' <<<"$new_run")
 
 body=$(printf '### Rollover automatique après panne OX prolongée\n\n- Ancien run : [%s](%s)\n- Nouveau run : [%s](%s)\n- Cycle logique conservé : `%s`\n- Récupération : `%s`\n\nLa limite GitHub de rerun est contournée proprement par un nouveau run qui remonte les snapshots précédents.' \
   "$run_id" "$run_url" "$new_run_id" "$new_run_url" "$cycle_index" "$run_id")
-gh issue comment "$tracking_issue" --repo "$repository" --body "$body" ||
+printf '%s\n' "$body" ||
   echo "::warning::Rollover lancé, mais commentaire de suivi impossible."

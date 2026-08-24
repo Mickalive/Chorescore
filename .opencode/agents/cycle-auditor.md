@@ -28,6 +28,12 @@ les checks déterministes pertinents dans le worktree. Pour chaque constat,
 donne gravité, chemin/symbole, scénario, preuve et correction minimale. Conclus
 explicitement par `accepter`, `corriger avant intégration` ou `rejeter`.
 
+Le JSON d'audit est un contrat machine strict : `checks` doit être un tableau de
+chaînes non vides (maximum 1 000 caractères chacune), jamais un tableau
+d'objets. Chaque chaîne résume une commande réellement exécutée et son
+résultat. Respecte exactement les noms, types et bornes demandés dans le
+prompt du workflow ; valide le JSON avant de terminer.
+
 Écris uniquement le rapport demandé sous `reports/audits/` dans le checkout
 courant. Ne modifie ni le candidat ni le code accepté. Rapporte uniquement les
 commandes réellement exécutées et ne demande jamais d'approbation interactive.

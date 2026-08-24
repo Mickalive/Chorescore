@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "milestone": "demo-rc",
+  "title": "Démo RC installable, locale et honnête",
+  "objective": "Une application Android de démonstration cohérente, persistante, testée et réellement utilisable sans compte, secret, paiement ni réseau.",
+  "completionRule": "Tous les critères DRC doivent être complete avec chaque type de preuve exigé. Une production réelle reste hors périmètre.",
+  "criteria": [
+    {
+      "id": "DRC-01",
+      "priority": 10,
+      "title": "Parcours cœur hors ligne",
+      "outcome": "Onboarding, tâches manuelles/chronométrées, classement, historique et profil fonctionnent de bout en bout sans placeholder ni réseau.",
+      "allowedRoles": [
+        "mobile"
+      ],
+      "requiredEvidence": [
+        "tests",
+        "audit"
+      ]
+    },
+    {
+      "id": "DRC-02",
+      "priority": 20,
+      "title": "Persistance et reprise",
+      "outcome": "Les données de démonstration survivent au redémarrage avec schéma versionné, migration sûre, hydratation explicite et reprise cohérente d'un chronomètre actif.",
+      "allowedRoles": [
+        "mobile"
+      ],
+      "requiredEvidence": [
+        "tests",
+        "audit"
+      ]
+    },
+    {
+      "id": "DRC-03",
+      "priority": 30,
+      "title": "Correction et contrôle des données",
+      "outcome": "Modifier/archiver une tâche, corriger/supprimer une entrée et annuler un chronomètre sont réels, confirmés et couverts par invariants.",
+      "allowedRoles": [
+        "mobile"
+      ],
+      "requiredEvidence": [
+        "tests",
+        "audit"
+      ]
+    },
+    {
+      "id": "DRC-04",
+      "priority": 40,
+      "title": "Fonctions premium honnêtes en démo",
+      "outcome": "Filtres et synthèses semaine/mois, foyers locaux multiples et export local produisent un vrai résultat; aucun bouton ne simule un succès ou un achat.",
+      "allowedRoles": [
+        "mobile"
+      ],
+      "requiredEvidence": [
+        "tests",
+        "audit"
+      ]
+    },
+    {
+      "id": "DRC-05",
+      "priority": 50,
+      "title": "Qualité de parcours et accessibilité",
+      "outcome": "Les parcours critiques, erreurs, états vides, navigation et annonces accessibles possèdent des preuves déterministes; les contrôles manuels restants sont explicités.",
+      "allowedRoles": [
+        "mobile"
+      ],
+      "requiredEvidence": [
+        "tests",
+        "audit"
+      ]
+    },
+    {
+      "id": "DRC-07",
+      "priority": 60,
+      "title": "Livraison révisable et documentation publique",
+      "outcome": "Une seule PR brouillon expose l'état accepté, les instructions sont exactes pour un dépôt public, les workflows actifs sont utiles et aucun risque critique/élevé connu ne reste ouvert.",
+      "allowedRoles": [
+        "mobile",
+        "backend"
+      ],
+      "requiredEvidence": [
+        "documentation",
+        "audit"
+      ]
+    },
+    {
+      "id": "DRC-06",
+      "priority": 70,
+      "title": "Artefact Android installable",
+      "outcome": "Un APK de démonstration reproductible est construit par GitHub Actions depuis l'état accepté, identifié par SHA et conservé comme artefact.",
+      "allowedRoles": [
+        "mobile"
+      ],
+      "requiredEvidence": [
+        "artifact",
+        "audit"
+      ]
+    }
+  ],
+  "productionBeta": {
+    "status": "out-of-scope",
+    "reason": "La démo RC n'active aucun service réel.",
+    "humanPrerequisites": [
+      "projet Firebase et environnements protégés",
+      "secrets et compte Stripe de test",
+      "tests émulateur Firestore/Storage et revue des règles",
+      "validation juridique confidentialité/conditions",
+      "revue humaine sécurité et test d'intrusion avant données réelles"
+    ]
+  }
+}

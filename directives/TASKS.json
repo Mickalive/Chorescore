@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "milestone": "demo-rc",
+  "updatedBy": "human-governance-2026-08-25-v1",
+  "activeCriteria": [
+    "DRC-02"
+  ],
+  "assignments": {
+    "mobile": {
+      "enabled": true,
+      "criterionId": "DRC-02",
+      "objective": "Implémenter une persistance AsyncStorage versionnée et la reprise cohérente du chronomètre actif.",
+      "acceptance": [
+        "hydratation explicite sans clignotement de données fictives",
+        "sauvegarde des changements métier avec sérialisation stable",
+        "migration et corruption traitées sans perte silencieuse",
+        "reprise ou expiration déterministe du chronomètre après redémarrage",
+        "tests succès, migration, corruption et reprise"
+      ]
+    },
+    "backend": {
+      "enabled": false,
+      "criterionId": "DRC-02",
+      "objective": "STOP — aucun travail backend nécessaire pour ce critère mobile.",
+      "acceptance": []
+    }
+  }
+}

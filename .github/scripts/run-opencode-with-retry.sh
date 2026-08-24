@@ -4,11 +4,14 @@ set -euo pipefail
 
 max_attempts="${OPENCODE_MAX_ATTEMPTS:-6}"
 retry_delay="${OPENCODE_RETRY_DELAY_SECONDS:-300}"
+attempt_timeout="${OPENCODE_ATTEMPT_TIMEOUT_SECONDS:-2400}"
 label="${OPENCODE_RETRY_LABEL:-agent}"
 
 [[ "$max_attempts" =~ ^([1-9]|1[0-2])$ ]]
 [[ "$retry_delay" =~ ^[0-9]+$ ]]
+[[ "$attempt_timeout" =~ ^[0-9]+$ ]]
 (( retry_delay >= 30 && retry_delay <= 900 ))
+(( attempt_timeout >= 600 && attempt_timeout <= 7200 ))
 (( $# > 0 ))
 
 log_file=$(mktemp "${RUNNER_TEMP:?}/opencode-${label}.XXXXXX.log")
@@ -66,12 +69,16 @@ for ((attempt = 1; attempt <= max_attempts; attempt++)); do
   echo "OpenCode ${label}: tentative ${attempt}/${max_attempts}."
 
   set +e
-  "$@" 2>&1 | tee "$log_file"
+  timeout --signal=TERM --kill-after=30s "$attempt_timeout" "$@" 2>&1 | tee "$log_file"
   command_status=${PIPESTATUS[0]}
   set -e
 
   if (( command_status == 0 )); then
     exit 0
+  fi
+
+  if (( command_status == 124 || command_status == 137 )); then
+    echo "OpenCode ${label}: attempt timed out after ${attempt_timeout}s." | tee -a "$log_file" >&2
   fi
 
   if ! grep -Eqi \

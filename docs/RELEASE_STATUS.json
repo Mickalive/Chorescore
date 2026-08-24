@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "milestone": "demo-rc",
+  "governanceVersion": "2026-08-25-v1",
+  "lastCycle": "human-bootstrap",
+  "activeCriteria": [
+    "DRC-02"
+  ],
+  "stalledCycles": 0,
+  "progressSummary": "Socle accepté avant intégration du cycle 32781937768 : 71 tests mobile et 93 tests backend. Les candidats courants portent les batteries à 78 et 98 tests ; leur directeur doit encore les intégrer.",
+  "blocker": null,
+  "criteria": [
+    {
+      "id": "DRC-01",
+      "status": "complete",
+      "evidence": [
+        {
+          "kind": "tests",
+          "reference": "npm run check — 71 tests mobile acceptés au cycle 32692689814",
+          "cycle": "32692689814"
+        },
+        {
+          "kind": "audit",
+          "reference": "audits mobile cycle 32692689814, décision accept",
+          "cycle": "32692689814"
+        }
+      ]
+    },
+    {
+      "id": "DRC-02",
+      "status": "in_progress",
+      "evidence": []
+    },
+    {
+      "id": "DRC-03",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "DRC-04",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "DRC-05",
+      "status": "in_progress",
+      "evidence": [
+        {
+          "kind": "tests",
+          "reference": "tests domaine et annonces accessibles acceptés au cycle 32692689814",
+          "cycle": "32692689814"
+        }
+      ]
+    },
+    {
+      "id": "DRC-06",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "DRC-07",
+      "status": "pending",
+      "evidence": []
+    }
+  ],
+  "pendingArtifact": null,
+  "openFindings": [
+    {
+      "id": "MOB-C4-F1",
+      "criterionId": "DRC-05",
+      "role": "mobile",
+      "severity": "low",
+      "mustFixBeforeRelease": true,
+      "status": "unresolved",
+      "requiredFix": "Rendre le filtre membre utilisable sur petit écran et grandes tailles de texte (repli, défilement ou sélection dédiée) et fournir une preuve."
+    },
+    {
+      "id": "MOB-C4-F2",
+      "criterionId": "DRC-05",
+      "role": "mobile",
+      "severity": "low",
+      "mustFixBeforeRelease": true,
+      "status": "unresolved",
+      "requiredFix": "Ajouter les tests de frontière année et borne haute now pour les filtres d'historique."
+    },
+    {
+      "id": "MOB-C4-F3",
+      "criterionId": "DRC-05",
+      "role": "mobile",
+      "severity": "info",
+      "mustFixBeforeRelease": false,
+      "status": "unresolved",
+      "requiredFix": "Documenter ou rafraîchir le passage semaine/mois pendant une session longue."
+    },
+    {
+      "id": "BE-C4-F1",
+      "criterionId": "DRC-07",
+      "role": "backend",
+      "severity": "low",
+      "mustFixBeforeRelease": true,
+      "status": "unresolved",
+      "requiredFix": "Épingler par test le câblage observedInviteCaller(request) afin qu'un retour aux constantes soit détecté."
+    },
+    {
+      "id": "BE-C4-F2",
+      "criterionId": "DRC-07",
+      "role": "backend",
+      "severity": "info",
+      "mustFixBeforeRelease": false,
+      "status": "unresolved",
+      "requiredFix": "Appliquer l'identité observée à completeTask lors du prochain incrément backend pertinent."
+    }
+  ]
+}

@@ -2,12 +2,13 @@
 
 set -euo pipefail
 
-max_attempts="${OPENCODE_MAX_ATTEMPTS:-3}"
-retry_delay="${OPENCODE_RETRY_DELAY_SECONDS:-15}"
+max_attempts="${OPENCODE_MAX_ATTEMPTS:-6}"
+retry_delay="${OPENCODE_RETRY_DELAY_SECONDS:-300}"
 label="${OPENCODE_RETRY_LABEL:-agent}"
 
-[[ "$max_attempts" =~ ^[1-5]$ ]]
-[[ "$retry_delay" =~ ^([1-9]|[1-5][0-9]|60)$ ]]
+[[ "$max_attempts" =~ ^([1-9]|1[0-2])$ ]]
+[[ "$retry_delay" =~ ^[0-9]+$ ]]
+(( retry_delay >= 30 && retry_delay <= 900 ))
 (( $# > 0 ))
 
 log_file=$(mktemp "${RUNNER_TEMP:?}/opencode-${label}.XXXXXX.log")
@@ -34,11 +35,10 @@ for ((attempt = 1; attempt <= max_attempts; attempt++)); do
   fi
 
   if (( attempt == max_attempts )); then
-    echo "::error::OpenCode ${label} reste indisponible après ${max_attempts} tentatives." >&2
+    echo "::error::OpenCode ${label} reste indisponible après ${max_attempts} tentatives espacées." >&2
     exit "$command_status"
   fi
 
-  delay=$((retry_delay * attempt))
-  echo "::warning::Panne fournisseur transitoire pour ${label}; nouvelle tentative dans ${delay}s." >&2
-  sleep "$delay"
+  echo "::warning::Panne fournisseur transitoire pour ${label}; nouvelle tentative dans ${retry_delay}s (5 min par défaut)." >&2
+  sleep "$retry_delay"
 done

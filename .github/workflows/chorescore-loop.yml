@@ -40,7 +40,9 @@ concurrency:
 env:
   OX_MODEL: opencode/x-preview-f-free
   MAIN_PROMPT_SHA256: c3e1b4e0b0a42af3fb64a4ee10043252e763866d670c6e942f5f380583d30d97
-  CYCLE_KEY: ${{ github.run_id }}-${{ github.run_attempt }}
+  # Stable across GitHub "re-run failed jobs" attempts so successful agent
+  # branches remain addressable by the jobs that are retried later.
+  CYCLE_KEY: ${{ github.run_id }}
   CI: "true"
   EXPO_NO_TELEMETRY: "1"
   EXPO_PUBLIC_DATA_MODE: demo

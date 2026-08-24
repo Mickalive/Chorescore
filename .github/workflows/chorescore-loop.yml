@@ -130,24 +130,37 @@ jobs:
             git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin "HEAD:refs/heads/$LANE_BRANCH"
           fi
 
-          # Human-owned governance is copied from the workflow commit before any
-          # agent starts. Mutable task files are bootstrapped only when the
-          # governance version changes; later cycles preserve Director updates.
-          mkdir -p .github
-          git show "$GITHUB_SHA:.github/immutable-files.sha256" > .github/immutable-files.sha256
-          mapfile -t immutable_paths < <(awk '{print $2}' .github/immutable-files.sha256)
-          for path in "${immutable_paths[@]}"; do
-            mkdir -p "$(dirname "$path")"
-            git show "$GITHUB_SHA:$path" > "$path"
-          done
+          # Record the current human control commit as an ancestor of the
+          # accepted lane. The "ours" merge preserves accepted product code;
+          # the trusted control surface is then replaced explicitly from main.
+          # This keeps the review PR clean and prevents deleted workflows or
+          # agents from surviving indefinitely on lab/chorescore.
+          git config user.name chorescore-governance
+          git config user.email chorescore-governance@users.noreply.github.com
+          alignment_required=false
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" HEAD; then
+            git merge --no-ff --no-commit -s ours "$GITHUB_SHA"
+            alignment_required=true
+          fi
 
-          control_paths=(
-            .github/actions/setup-opencode/action.yml
-            .github/scripts/run-opencode-with-retry.sh
+          human_owned_paths=(
+            .github
+            .opencode
+            AGENTS.md
+            CLAUDE.md
+            MAIN_PROMPT.md
+            README.md
+            SECURITY.md
+            opencode.json
+            governance
+            directives/DIRECTOR.md
+            docs/agent-workflow.md
+            docs/architecture.md
+            docs/product-decisions.md
           )
-          for path in "${control_paths[@]}"; do
-            mkdir -p "$(dirname "$path")"
-            git show "$GITHUB_SHA:$path" > "$path"
+          for path in "${human_owned_paths[@]}"; do
+            git rm -r -f --ignore-unmatch -- "$path"
+            git checkout "$GITHUB_SHA" -- "$path"
           done
 
           version=$(cat governance/VERSION)
@@ -172,24 +185,16 @@ jobs:
             bootstrap_paths=()
           fi
 
-          obsolete_agents=(
-            chorescore-orchestrator product-guardian expo-ui-engineer
-            domain-data-engineer firebase-security-engineer
-            privacy-security-reviewer qa-accessibility github-auditor
-          )
-          for agent in "${obsolete_agents[@]}"; do
-            git rm -f --ignore-unmatch ".opencode/agents/$agent.md"
-          done
-
-          governance_paths=(.github/immutable-files.sha256 "${immutable_paths[@]}" "${control_paths[@]}" "$marker" "${bootstrap_paths[@]}")
-          git add -- "${governance_paths[@]}"
-          if ! git diff --cached --quiet; then
-            git config user.name chorescore-governance
-            git config user.email chorescore-governance@users.noreply.github.com
-            git commit -m "chore: apply human-owned governance $version"
+          git add -A -- "${human_owned_paths[@]}" "$marker" "${bootstrap_paths[@]}"
+          if [[ "$alignment_required" == true ]] || ! git diff --cached --quiet; then
+            git commit -m "chore: align accepted lane with human controls $version"
+            auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
             git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin "HEAD:refs/heads/$LANE_BRANCH"
           fi
+
           bash .github/scripts/verify-immutable-governance.sh
+          test "$(find .opencode/agents -maxdepth 1 -type f -name '*.md' | wc -l)" -eq 4
+          test "$(find .github/workflows -maxdepth 1 -type f -name '*.yml' | wc -l)" -eq 3
 
       - name: Resolve active role assignments
         id: assignments
@@ -1203,28 +1208,58 @@ jobs:
           test -x android/gradlew
           (
             cd android
-            ./gradlew :app:assembleDebug --no-daemon --stacktrace
+            ./gradlew :app:assembleRelease --no-daemon --stacktrace
           )
-          apk="android/app/build/outputs/apk/debug/app-debug.apk"
+          apk="android/app/build/outputs/apk/release/app-release.apk"
           test -s "$apk"
           echo "apk_path=$apk" >> "$GITHUB_OUTPUT"
           echo "apk_sha256=$(sha256sum "$apk" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
 
+      - name: Enable Android emulator acceleration
+        id: android_kvm
+        if: ${{ steps.apk_source.outputs.required == 'true' && steps.apk_build.outcome == 'success' }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' |
+            sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -r /dev/kvm
+          test -w /dev/kvm
+
+      - name: Launch standalone APK without Metro or network
+        id: apk_smoke
+        if: ${{ steps.apk_source.outputs.required == 'true' && steps.apk_build.outcome == 'success' && steps.android_kvm.outcome == 'success' }}
+        continue-on-error: true
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 35
+          target: default
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash .github/scripts/smoke-android-apk.sh "${{ steps.apk_build.outputs.apk_path }}" com.mickalive.chorescore "$RUNNER_TEMP/chorescore-runtime-smoke"
+
       - name: Upload installable Android demo
         id: apk_upload
-        if: ${{ steps.apk_source.outputs.required == 'true' && steps.apk_build.outcome == 'success' }}
+        if: ${{ steps.apk_source.outputs.required == 'true' && steps.apk_build.outcome == 'success' && steps.android_kvm.outcome == 'success' && steps.apk_smoke.outcome == 'success' }}
         continue-on-error: true
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: chorescore-demo-rc-${{ steps.apk_source.outputs.source_sha }}
-          path: ${{ steps.apk_build.outputs.apk_path }}
+          path: |
+            ${{ steps.apk_build.outputs.apk_path }}
+            ${{ runner.temp }}/chorescore-runtime-smoke
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
 
       - name: Record successful APK evidence
         id: finalize_apk
-        if: ${{ steps.apk_source.outputs.required == 'true' && steps.apk_build.outcome == 'success' && steps.apk_upload.outcome == 'success' }}
+        if: ${{ steps.apk_source.outputs.required == 'true' && steps.apk_build.outcome == 'success' && steps.android_kvm.outcome == 'success' && steps.apk_smoke.outcome == 'success' && steps.apk_upload.outcome == 'success' }}
         continue-on-error: true
         env:
           SOURCE_SHA: ${{ steps.apk_source.outputs.source_sha }}
@@ -1235,24 +1270,31 @@ jobs:
           mkdir -p reports/artifacts
           artifact_name="chorescore-demo-rc-$SOURCE_SHA"
           report="reports/artifacts/DEMO_APK_$SOURCE_SHA.json"
-          jq -n             --arg sourceSha "$SOURCE_SHA"             --arg runId "$GITHUB_RUN_ID"             --arg artifactName "$artifact_name"             --arg apkSha256 "$APK_SHA256"             '{schemaVersion:1, sourceSha:$sourceSha, workflowRun:$runId, artifactName:$artifactName, apkSha256:$apkSha256, installable:true}'             > "$report"
+          jq -n             --arg sourceSha "$SOURCE_SHA"             --arg runId "$GITHUB_RUN_ID"             --arg artifactName "$artifact_name"             --arg apkSha256 "$APK_SHA256"             '{schemaVersion:1, sourceSha:$sourceSha, workflowRun:$runId, artifactName:$artifactName, apkSha256:$apkSha256, installable:true, standalone:true, runtimeSmoke:{apiLevel:35, networkDisabled:true, metroRequired:false, renderedText:"ChoreScore"}}'             > "$report"
 
           tmp=$(mktemp)
           jq --arg cycle "$CYCLE_KEY" --arg report "$report" --arg sha "$APK_SHA256" '
             .criteria |= map(
               if .id == "DRC-06" then
                 .status = "complete" |
-                .evidence += [{
-                  kind: "artifact",
-                  reference: ($report + " — APK SHA-256 " + $sha),
-                  cycle: $cycle
-                }]
+                .evidence += [
+                  {
+                    kind: "artifact",
+                    reference: ($report + " — APK SHA-256 " + $sha),
+                    cycle: $cycle
+                  },
+                  {
+                    kind: "runtime-smoke",
+                    reference: ($report + " — démarrage Android API 35 sans Metro, réseau désactivé, interface ChoreScore rendue"),
+                    cycle: $cycle
+                  }
+                ]
               else . end
             ) |
             .pendingArtifact = null |
             .activeCriteria = [] |
             .stalledCycles = 0 |
-            .progressSummary = "Tous les critères demo-rc sont terminés ; APK installable construit et attesté par GitHub Actions."
+            .progressSummary = "Tous les critères demo-rc sont terminés ; APK standalone construit, installé et lancé sans Metro ni réseau par GitHub Actions."
           ' docs/RELEASE_STATUS.json > "$tmp"
           mv "$tmp" docs/RELEASE_STATUS.json
           jq -e 'all(.criteria[]; .status == "complete") and .pendingArtifact == null' docs/RELEASE_STATUS.json >/dev/null
@@ -1263,14 +1305,14 @@ jobs:
           jq --arg report "$report" '
             .decision = "stop" |
             .activeCriteria = [] |
-            .reason = "Jalon demo-rc terminé avec APK installable attesté." |
+            .reason = "Jalon demo-rc terminé avec APK standalone construit, installé et lancé sans Metro ni réseau." |
             .progressEvidence += [("Artefact Android: " + $report)]
           ' "$director_json" > "$tmp"
           mv "$tmp" "$director_json"
           printf '\n## Artefact final\n\n- Source : `%s`\n- APK SHA-256 : `%s`\n- Run : %s\n'             "$SOURCE_SHA" "$APK_SHA256" "$GITHUB_RUN_ID" >> "$director_md"
 
       - name: Preserve rejected Director state for recovery
-        if: ${{ always() && (steps.decision.outcome == 'failure' || steps.apk_build.outcome == 'failure' || steps.apk_upload.outcome == 'failure' || steps.finalize_apk.outcome == 'failure') }}
+        if: ${{ always() && (steps.decision.outcome == 'failure' || steps.apk_build.outcome == 'failure' || steps.android_kvm.outcome == 'failure' || steps.apk_smoke.outcome == 'failure' || steps.apk_upload.outcome == 'failure' || steps.finalize_apk.outcome == 'failure') }}
         env:
           GH_TOKEN: ${{ github.token }}
           SNAPSHOT_BRANCH: cycle/chorescore/${{ github.run_id }}/director-recovery
@@ -1292,9 +1334,9 @@ jobs:
           echo "::warning::Director state preserved on $SNAPSHOT_BRANCH; accepted lane unchanged."
 
       - name: Fail closed when final APK evidence is incomplete
-        if: ${{ steps.apk_source.outputs.required == 'true' && (steps.apk_build.outcome != 'success' || steps.apk_upload.outcome != 'success' || steps.finalize_apk.outcome != 'success') }}
+        if: ${{ steps.apk_source.outputs.required == 'true' && (steps.apk_build.outcome != 'success' || steps.android_kvm.outcome != 'success' || steps.apk_smoke.outcome != 'success' || steps.apk_upload.outcome != 'success' || steps.finalize_apk.outcome != 'success') }}
         run: |
-          echo "::error::The final APK was not built, uploaded and recorded; accepted state remains unchanged."
+          echo "::error::The final APK was not built, launched offline, uploaded and recorded; accepted state remains unchanged."
           exit 1
 
       - name: Advance persistent accepted lane

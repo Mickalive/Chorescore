@@ -26,8 +26,9 @@ plus un backend inutile pour une tranche purement mobile.
 
 ## Cycle
 
-1. Le shell synchronise la gouvernance humaine sur `lab/chorescore`, vérifie
-   toutes ses empreintes et valide les tâches.
+1. Le shell rattache `lab/chorescore` à l'historique de `main`, remplace
+   toute la surface de contrôle humaine, supprime les workflows/agents obsolètes,
+   vérifie les empreintes et valide les tâches.
 2. Seuls les codeurs activés partent de l'état accepté, chacun dans son snapshot.
 3. Un auditeur distinct contrôle chaque candidat et produit un JSON strict.
 4. Tout constat `mustFix: true` déclenche le même codeur en correction.
@@ -72,8 +73,10 @@ terminés sont élagués automatiquement, sans supprimer le code ou les audits.
 - démo sans réseau, secret, compte ou paiement ;
 - aucun auto-merge ni déploiement ;
 - audit contradictoire et checks application/Functions avant relance ;
-- construction finale d'un APK debug installable depuis un commit source figé,
-  avec SHA-256 et artefact GitHub conservé 14 jours ;
+- construction finale d'un APK standalone depuis un commit source figé,
+  installation et lancement sur un émulateur Android API 35 sans Metro ni
+  réseau, contrôle du rendu « ChoreScore », SHA-256, capture et journaux
+  conservés avec l'artefact GitHub pendant 14 jours ;
 - une unique PR brouillon `lab/chorescore → main` pour la revue humaine.
 
 Le dépôt est public. Ne jamais y placer de donnée réelle ou de secret. La

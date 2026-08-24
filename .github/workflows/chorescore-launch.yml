@@ -159,21 +159,23 @@ jobs:
             echo "::warning::Nettoyage terminé, mais commentaire de suivi impossible."
 
   watchdog:
-    name: Recover transient Ox outage
-    if: ${{ github.repository == 'Mickalive/Chorescore' && !github.event.repository.fork && ((github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure') || github.event_name == 'workflow_dispatch') }}
+    name: Keep unfinished autonomous loop alive
+    if: ${{ github.repository == 'Mickalive/Chorescore' && !github.event.repository.fork && (github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    timeout-minutes: 20
     steps:
       - name: Checkout watchdog
         uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
         with:
           persist-credentials: false
 
-      - name: Wait five minutes after a failed autonomous run
+      - name: Wait five minutes after a completed autonomous run
         if: ${{ github.event_name == 'workflow_run' }}
         run: sleep 300
 
       - name: Re-run only transiently failed jobs
+        if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure' }}
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           CHORESCORE_LOOP_WORKFLOW: chorescore-loop.yml
@@ -181,3 +183,11 @@ jobs:
           CHORESCORE_RERUN_ROLLOVER_ATTEMPT: "45"
         shell: bash
         run: bash .github/scripts/recover-transient-opencode.sh
+
+      - name: Guarantee a successor until the release is complete
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHORESCORE_LOOP_WORKFLOW: chorescore-loop.yml
+        shell: bash
+        run: bash .github/scripts/ensure-continuous-loop.sh

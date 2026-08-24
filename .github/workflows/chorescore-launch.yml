@@ -7,6 +7,9 @@ on:
     paths:
       - ".chorescore/launch/*.json"
       - ".chorescore/cleanup/*.json"
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -20,7 +23,7 @@ concurrency:
 jobs:
   dispatch:
     name: Dispatch requested autonomous build
-    if: ${{ github.event.repository.visibility == 'private' }}
+    if: ${{ github.event_name == 'push' && github.event.repository.visibility == 'private' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -134,3 +137,22 @@ jobs:
             gh run delete "$id" --repo "$GITHUB_REPOSITORY" || \
               echo "::warning::Unable to delete run $id"
           done
+
+  watchdog:
+    name: Recover transient Ox outage
+    if: ${{ github.event.repository.visibility == 'private' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout watchdog
+        uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          persist-credentials: false
+
+      - name: Re-run only transiently failed jobs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHORESCORE_LOOP_WORKFLOW: chorescore-loop.yml
+          CHORESCORE_TRACKING_ISSUE: "3"
+        shell: bash
+        run: bash .github/scripts/recover-transient-opencode.sh

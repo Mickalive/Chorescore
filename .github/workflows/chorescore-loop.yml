@@ -830,6 +830,70 @@ jobs:
             fi
           done
 
+      - name: Require complete structured audit evidence
+        env:
+          MOBILE_FOUND: ${{ steps.mount.outputs.mobile_found }}
+          BACKEND_FOUND: ${{ steps.mount.outputs.backend_found }}
+          MOBILE_REPAIRED_FOUND: ${{ steps.mount.outputs.mobile_repaired_found }}
+          BACKEND_REPAIRED_FOUND: ${{ steps.mount.outputs.backend_repaired_found }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          validate_audit() {
+            local file="$1" role="$2" round="$3"
+            test -s "$file" || return 1
+            jq -e --arg cycle "$CYCLE_KEY" --arg role "$role" --argjson round "$round" '
+              .schemaVersion == 1 and
+              (.cycle | tostring) == $cycle and
+              .role == $role and
+              .round == $round and
+              (.decision == "accept" or .decision == "repair" or .decision == "reject") and
+              (.summary | type == "string" and length > 0 and length <= 1000) and
+              (.findings | type == "array" and length <= 50 and all(
+                (.id | type == "string" and length > 0 and length <= 100) and
+                (.severity == "critical" or .severity == "high" or .severity == "medium" or .severity == "low" or .severity == "info") and
+                (.path | type == "string" and length <= 500) and
+                (.problem | type == "string" and length > 0 and length <= 2000) and
+                (.evidence | type == "string" and length > 0 and length <= 2000) and
+                (.requiredFix | type == "string" and length > 0 and length <= 2000) and
+                (.verification | type == "string" and length > 0 and length <= 2000)
+              )) and
+              (.checks | type == "array" and length <= 50 and all(type == "string" and length <= 1000)) and
+              (.decision == "accept" or (.findings | length) > 0)
+            ' "$file" >/dev/null
+          }
+
+          for role in mobile backend; do
+            role_upper=$(tr '[:lower:]' '[:upper:]' <<<"$role")
+            if [[ "$role" == mobile ]]; then
+              found="$MOBILE_FOUND"
+              repaired_found="$MOBILE_REPAIRED_FOUND"
+            else
+              found="$BACKEND_FOUND"
+              repaired_found="$BACKEND_REPAIRED_FOUND"
+            fi
+            [[ "$found" == true ]] || continue
+
+            initial="/tmp/chorescore_audit_${role}/reports/audits/CYCLE_${CYCLE_KEY}_${role_upper}.json"
+            if ! validate_audit "$initial" "$role" 1; then
+              echo "::error::Audit structuré $role absent ou invalide; le directeur et le cycle suivant restent bloqués pour permettre une nouvelle tentative."
+              exit 1
+            fi
+
+            decision=$(jq -r '.decision' "$initial")
+            if [[ "$decision" != accept ]]; then
+              if [[ "$repaired_found" != true ]]; then
+                echo "::error::L'audit $role exige une correction, mais aucun candidat corrigé n'est disponible."
+                exit 1
+              fi
+              final="/tmp/chorescore_audit_${role}_final/reports/audits/CYCLE_${CYCLE_KEY}_${role_upper}_FINAL.json"
+              if ! validate_audit "$final" "$role" 2; then
+                echo "::error::Le candidat $role corrigé n'a pas de second audit structuré valide."
+                exit 1
+              fi
+            fi
+          done
+
       - name: Set up reviewed OpenCode CLI
         uses: ./.github/actions/setup-opencode
 

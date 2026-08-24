@@ -1,0 +1,5 @@
+{
+  "cycles": 0,
+  "recovery_cycle_key": "32680607423",
+  "human_note": "Recover and re-evaluate all applicable work from failed cycle 32680607423 using its matching independent audits, then continue building the complete secure offline-ready ChoreScore demo from the persistent accepted lane. Do not activate real Firebase, Stripe, analytics, secrets, deployment, auto-merge, or production data."
+}

@@ -120,6 +120,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          latest_loop=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow chorescore-loop.yml --limit 1 \
+            --json databaseId --jq '.[0].databaseId // empty')
           gh run list --repo "$GITHUB_REPOSITORY" --limit 100 \
             --json databaseId,status,workflowName,headSha,createdAt |
           jq -c '.[]' |
@@ -130,6 +132,7 @@ jobs:
             head_sha=$(jq -r '.headSha' <<<"$run")
 
             [[ "$id" == "$GITHUB_RUN_ID" ]] && continue
+            [[ -n "$latest_loop" && "$id" == "$latest_loop" ]] && continue
             [[ "$status" != completed ]] && continue
             [[ "$workflow" == CI && "$head_sha" == "$GITHUB_SHA" ]] && continue
 

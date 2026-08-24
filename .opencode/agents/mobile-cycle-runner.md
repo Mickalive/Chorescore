@@ -3,7 +3,6 @@ description: Développe une tranche mobile ChoreScore bornée à partir du proch
 mode: primary
 model: opencode/x-preview-f-free
 temperature: 0.1
-steps: 40
 permission:
   edit:
     "*": deny

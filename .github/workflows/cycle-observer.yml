@@ -7,10 +7,12 @@ on:
     paths:
       - .github/workflows/cycle-observer.yml
       - .github/workflows/chorescore-loop.yml
+      - .github/workflows/chorescore-launch.yml
       - .github/scripts/run-opencode-with-retry.sh
+      - .chorescore/launch/*.json
   workflow_run:
     workflows:
-      - ChoreScore continuous OpenCode Ox loop
+      - ChoreScore Autonomous App Loop
     types:
       - completed
 
@@ -41,7 +43,7 @@ jobs:
           set -euo pipefail
 
           run_json=""
-          for attempt in 1 2 3 4 5; do
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
             run_json=$(gh run list \
               --repo "$GITHUB_REPOSITORY" \
               --workflow chorescore-loop.yml \

@@ -1,0 +1,4 @@
+{
+  "cycles": 0,
+  "human_note": "Build ChoreScore continuously from the persistent accepted state toward the complete secure offline-ready demo described by MAIN_PROMPT.md. Reuse all applicable prior audited work, including the mounted legacy backend evidence. Prioritize executable end-to-end product slices over prose. Continue while a safe useful slice remains; do not activate real Firebase, Stripe, analytics, secrets, deployment, auto-merge, or production data."
+}

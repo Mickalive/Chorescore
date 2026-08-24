@@ -1,0 +1,56 @@
+name: ChoreScore Launch Bridge
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".chorescore/launch/*.json"
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  dispatch:
+    name: Dispatch requested autonomous build
+    if: ${{ github.event.repository.visibility == 'private' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout launch request
+        uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Resolve and validate launch request
+        id: request
+        shell: bash
+        run: |
+          set -euo pipefail
+          file=$(git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA" |
+            grep -E '^\.chorescore/launch/[^/]+\.json$' | tail -1)
+          test -n "$file"
+          test -f "$file"
+          jq -e 'type == "object"' "$file" >/dev/null
+
+          cycles=$(jq -er '.cycles // 0 | if type == "number" and floor == . and . >= 0 and . <= 10000 then . else error("invalid cycles") end' "$file")
+          note=$(jq -er '.human_note // "" | if type == "string" and length <= 4000 then . else error("invalid human_note") end' "$file")
+          echo "cycles=$cycles" >> "$GITHUB_OUTPUT"
+          {
+            echo "note<<CHORESCORE_NOTE"
+            echo "$note"
+            echo "CHORESCORE_NOTE"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Launch continuous ChoreScore loop
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOTE: ${{ steps.request.outputs.note }}
+          CYCLES: ${{ steps.request.outputs.cycles }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run chorescore-loop.yml --repo "$GITHUB_REPOSITORY" --ref main \
+            -f human_note="$NOTE" -f cycle_index=1 -f max_cycles="$CYCLES"

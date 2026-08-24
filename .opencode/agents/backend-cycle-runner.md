@@ -3,7 +3,6 @@ description: Développe une tranche backend et sécurité bornée, sans activer 
 mode: primary
 model: opencode/x-preview-f-free
 temperature: 0.05
-steps: 40
 permission:
   edit:
     "*": deny

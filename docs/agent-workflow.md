@@ -25,8 +25,8 @@ propre contrat ni le prompt maître.
 | `github-auditor` | audit GitHub manuel, hostile-input safe | aucune | aucune |
 | `mobile-cycle-runner` | tranche mobile autonome d'un cycle | `app/`, `src/`, `tests/` | checks applicatifs |
 | `backend-cycle-runner` | tranche backend/sécurité autonome | Functions, règles, tests sécurité | checks backend |
-| `cycle-auditor` | audit indépendant des deux candidats | rapport d'audit uniquement | aucune |
-| `cycle-director` | intégration auditée et préparation de PR | produit + rapport directeur | checks complets |
+| `cycle-auditor` | audit indépendant d'un snapshot complet | rapport d'audit uniquement | checks ciblés dans le worktree |
+| `cycle-director` | intégration dans la branche acceptée et relance | produit + rapport directeur | checks complets |
 
 Les sous-agents ne peuvent ni déléguer, ni pousser, ni fusionner, ni déployer.
 L'orchestrateur ne peut pas éditer : il répartit les tâches sans transformer son
@@ -92,25 +92,26 @@ Dependabot propose leurs mises à jour par PR ; il ne les fusionne pas.
 
 ## Boucle GitHub OpenCode/Ox Alpha
 
-`.github/workflows/chorescore-loop.yml` reprend la séparation des contextes de
-SPIDER en l'adaptant à une application mobile et en ajoutant une relance bornée :
+`.github/workflows/chorescore-loop.yml` porte directement l'architecture qui
+fonctionne dans SPIDER, adaptée aux frontières mobile/backend de ChoreScore :
 
-1. le runner mobile et le runner backend partent en parallèle du même commit
-   immuable et ne peuvent écrire que dans des périmètres disjoints ;
-2. chaque candidat est poussé sur sa propre branche `cycle/<id>/<rôle>` par une
-   étape shell de confiance, après validation de tous les chemins modifiés ;
-3. un auditeur indépendant reçoit seulement les patches, les traite comme des
-   entrées hostiles et produit un rapport sans intégrer de code ;
-4. le directeur reçoit les deux candidats et l'audit, corrige ou retire les
-   éléments bloquants, réécrit les directives du cycle suivant et produit une
-   décision JSON `continue` ou `stop` ;
-5. le workflow exécute les contrôles complets et dispose d'une seule tentative
-   de réparation fondée sur les logs réels ;
-6. une étape shell de confiance met à jour la branche cumulative
-   `automation/chorescore-loop` et une unique PR brouillon ;
-7. si la décision vaut `continue`, que les checks passent et que la limite n'est
-   pas atteinte, cette étape déclenche le workflow suivant avec le
-   `GITHUB_TOKEN` éphémère et le commit cumulatif comme nouvelle base.
+1. `lab/chorescore` est l'unique branche acceptée persistante ; chaque cycle en
+   hérite et ne repart donc jamais de zéro ;
+2. les runners mobile et backend partent en parallèle de cette branche et
+   poussent des snapshots complets sous
+   `cycle/chorescore/<run>/<rôle>`, même si leur étape agent échoue ;
+3. deux auditeurs indépendants montent immédiatement les worktrees complets,
+   inspectent les vrais diffs et persistent chacun leur propre rapport ;
+4. le directeur s'exécute avec `always()`, monte les quatre snapshots complets
+   et travaille directement sur `lab/chorescore` ;
+5. il n'intègre que le code qui survit à son audit, peut récupérer un ancien
+   backend déjà audité, puis les checks application, export Android et Functions
+   valident l'état accepté ;
+6. le shell de confiance pousse la branche persistante et un snapshot directeur,
+   conserve une unique PR brouillon, puis relance le cycle si la décision JSON
+   vaut `continue` ;
+7. `max_cycles: 0` signifie que la boucle continue jusqu'à l'arrêt motivé du
+   directeur. Une limite positive reste disponible pour un lot borné.
 
 Le directeur transmet donc de nouvelles informations par
 `directives/MOBILE.md`, `directives/BACKEND.md`, `directives/AUDITOR.md` et
@@ -129,14 +130,12 @@ sélectionné peut être utilisé. Les identifiants Git ne sont pas conservés d
 le checkout. Aucun secret applicatif, Firebase ou Stripe n'est fourni au
 workflow.
 
-Le workflow est limité aux dépôts privés. Une série démarre manuellement, ou par
-un commit d'installation explicite contenant `[run-chorescore-loop]` qui
-modifie le workflow. Les pushes ordinaires ne lancent rien. Une série comprend
-au maximum six cycles par défaut et huit au maximum ; elle s'arrête plus tôt sur
-décision du directeur, échec déterministe, blocage humain ou risque non résolu.
-Une nouvelle série peut être lancée manuellement après revue. Sur `main`, les
-protections de branche et la revue humaine restent la barrière finale ; la
-permission d'écrire des branches ne vaut jamais permission de fusionner.
+Le workflow est limité aux dépôts privés. Il démarre manuellement ou par le
+bridge `.github/workflows/chorescore-launch.yml` lorsqu'un commit ajoute une
+requête validée sous `.chorescore/launch/*.json`. Les pushes ordinaires ne
+lancent pas la boucle. Sur `main`, les protections de branche et la revue
+humaine restent la barrière finale ; la permission d'écrire des branches ne
+vaut jamais permission de fusionner.
 
 GitHub autorise explicitement un événement `workflow_dispatch` créé avec le
 `GITHUB_TOKEN` à démarrer un nouveau run. Les pushes produits par ce même jeton
@@ -145,8 +144,8 @@ OpenCode ou GitHub App supplémentaire n'est nécessaire.
 
 La création automatique d'une PR peut dépendre du réglage GitHub autorisant les
 Actions à créer des pull requests. Son échec ne doit ni élargir les permissions
-ni provoquer une fusion ; la branche cumulative et les rapports restent la
-source de revue. Les checks complets sont exécutés dans le directeur avant toute
+ni provoquer une fusion ; la branche acceptée et les rapports restent la source
+de revue. Les checks complets sont exécutés dans le directeur avant toute
 relance, car les workflows de PR créées avec `GITHUB_TOKEN` peuvent demander une
 approbation humaine distincte.
 

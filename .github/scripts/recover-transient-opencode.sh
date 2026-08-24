@@ -79,7 +79,11 @@ while IFS= read -r encoded_job; do
     continue
   fi
 
-  if grep -Fq 'CHORESCORE_OPENCODE_FAILURE_KIND=permanent' "$log_file"; then
+  if grep -Eqi 'endpoint is unavailable|service unavailable|upstream request failed|provider[^[:cntrl:]]*unavailable' "$log_file"; then
+    # Older retry classifiers could label an explicit provider outage as
+    # permanent. The provider evidence is authoritative for recovery.
+    transient_jobs+=("$job_name (panne fournisseur explicite)")
+  elif grep -Fq 'CHORESCORE_OPENCODE_FAILURE_KIND=permanent' "$log_file"; then
     unsafe_jobs+=("$job_name")
   elif grep -Fq 'CHORESCORE_OPENCODE_FAILURE_KIND=transient' "$log_file"; then
     transient_jobs+=("$job_name")

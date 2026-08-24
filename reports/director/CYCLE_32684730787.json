@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "cycle": "32684730787",
+  "decision": "continue",
+  "reason": "Checks deterministes verts sur l'etat integre (58/58 tests application, export Android demo OK, audits npm exit 0, 37/37 tests Functions) ; mobile courant accepte et integre ; backend courant et recuperation mobile rejetes comme snapshots vides ; recuperation backend 32680607423 et legacy 32675726760-1, deja audites acceptes, reverifies puis integres en gardes Stripe composees ; constat C1 corrige avec tests negatifs ; aucun constat critique ou eleve sans reponse.",
+  "next": {
+    "mobile": "Tranche accessibilite et etats : reformuler l'intitule obsolete de tests/validation.test.ts, evaluer la gestion de focus de TaskFormModal sans nouvelle dependance, ajouter libelles/roles restants et tests d'etats vides/erreurs des quatre onglets ; corriger uniquement les defauts reveles.",
+    "backend": "Tranche logique pure des fonctions appelables : extraire la decision d'autorisation d'un seul domaine (invitations OU completion de taches) en module pur avec tests negatifs Auth/App Check/role/appartenance entre deux foyers et idempotence ; ne pas recreeer les regles Firestore en quarantaine ; garder Stripe desactive.",
+    "audit": "Tenter de casser la combinaison des deux gardes Stripe integrees : sequence ou un evenement ancien ecraserait un etat plus recent, semantique du doublon status ignored vs rejected, placement de la validation d'enveloppe avant le controle client ; verifier qu'aucune integration n'a cree de contournement."
+  },
+  "humanActions": []
+}

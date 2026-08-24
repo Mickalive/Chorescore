@@ -17,7 +17,12 @@ import {
   requireHttpsBaseUrl,
 } from "./config";
 import {
+  decideSubscriptionEventOrder,
+  storedBillingStateIsUnreadable,
+} from "./billingOrder";
+import {
   PaidTier,
+  decideSubscriptionEventApplication,
   resolvePlan,
   StripeSubscriptionStatus,
 } from "./domain";
@@ -274,6 +279,39 @@ async function applySubscriptionState(
     }
 
     const billingData = billingSnapshot.data();
+
+    // Invariant : aucun événement ancien ne peut écraser un état
+    // d'abonnement plus récent. La décision est prise dans la transaction,
+    // sur le marqueur du dernier événement appliqué.
+    const orderDecision = decideSubscriptionEventOrder(
+      { eventId: event.id, eventCreatedSeconds: event.created },
+      {
+        lastStripeEventId: billingData?.lastStripeEventId,
+        lastStripeEventCreated: billingData?.lastStripeEventCreated,
+      },
+    );
+    if (orderDecision.outcome === "duplicate") {
+      transaction.create(eventReference, {
+        type: event.type,
+        stripeCreated: event.created,
+        status: "ignored",
+        reason: "duplicate_event",
+        processedAt: now,
+      });
+      return;
+    }
+    if (orderDecision.outcome === "reject") {
+      transaction.create(eventReference, {
+        type: event.type,
+        stripeCreated: event.created,
+        status: "rejected",
+        reason: orderDecision.reason,
+        householdId,
+        processedAt: now,
+      });
+      return;
+    }
+
     const existingCustomerId = billingData?.stripeCustomerId;
     if (
       typeof existingCustomerId === "string" &&
@@ -285,6 +323,76 @@ async function applySubscriptionState(
         stripeCreated: event.created,
         status: "rejected",
         reason: "stripe_customer_mismatch",
+        processedAt: now,
+      });
+      return;
+    }
+
+    // Échec fermé : un champ d'ordre présent mais illisible désactiverait les
+    // gardes ; l'événement est rejeté plutôt qu'appliqué sans protection.
+    const rawStoredSubscriptionId = billingData?.stripeSubscriptionId;
+    const rawStoredLastCreated = billingData?.lastStripeEventCreated;
+    const rawStoredTier = billingData?.paidTier;
+    const rawStoredPeriodEnd = billingData?.stripeCurrentPeriodEnd;
+    const rawStoredStatus = billingData?.stripeStatus;
+    const storedStateCorrupted = storedBillingStateIsUnreadable(
+      {
+        stripeSubscriptionId: rawStoredSubscriptionId,
+        lastStripeEventCreated: rawStoredLastCreated,
+        paidTier: rawStoredTier,
+        stripeCurrentPeriodEnd: rawStoredPeriodEnd,
+        stripeStatus: rawStoredStatus,
+      },
+      (value) => value instanceof Timestamp,
+    );
+    if (storedStateCorrupted) {
+      transaction.create(eventReference, {
+        type: event.type,
+        stripeCreated: event.created,
+        status: "rejected",
+        reason: "billing_state_unparseable",
+        processedAt: now,
+      });
+      return;
+    }
+
+    // Garde d'ordre : un événement ancien, résiliant un abonnement remplacé ou
+    // rétrogradant un abonnement vivant ne doit jamais écraser un état
+    // d'abonnement plus récent.
+    const decision = decideSubscriptionEventApplication(
+      {
+        eventCreatedSeconds: event.created,
+        subscriptionId: subscription.id,
+        stripeStatus,
+        tier: paidTier,
+      },
+      {
+        stripeSubscriptionId:
+          typeof rawStoredSubscriptionId === "string"
+            ? rawStoredSubscriptionId
+            : null,
+        lastStripeEventCreatedSeconds:
+          typeof rawStoredLastCreated === "number" ? rawStoredLastCreated : null,
+        stripeStatus: mapStripeStatus(
+          typeof rawStoredStatus === "string" ? rawStoredStatus : "",
+        ),
+        stripeCurrentPeriodEndMs:
+          rawStoredPeriodEnd instanceof Timestamp
+            ? rawStoredPeriodEnd.toMillis()
+            : null,
+        tier:
+          rawStoredTier === "standard" || rawStoredTier === "pro"
+            ? rawStoredTier
+            : null,
+      },
+      now.toMillis(),
+    );
+    if (decision.action === "ignore") {
+      transaction.create(eventReference, {
+        type: event.type,
+        stripeCreated: event.created,
+        status: "rejected",
+        reason: decision.reason,
         processedAt: now,
       });
       return;

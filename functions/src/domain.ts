@@ -100,6 +100,95 @@ export function getEffectiveWeight(
   return plan === "free" ? 1 : configuredWeight;
 }
 
+export type SubscriptionEventRejectionReason =
+  | "stale_event_ordering"
+  | "superseded_subscription_terminal"
+  | "superseded_subscription_live";
+
+export type SubscriptionEventDecision =
+  | { readonly action: "apply" }
+  | {
+      readonly action: "ignore";
+      readonly reason: SubscriptionEventRejectionReason;
+    };
+
+export interface IncomingSubscriptionEventOrdering {
+  readonly eventCreatedSeconds: number;
+  readonly subscriptionId: string;
+  readonly stripeStatus: StripeSubscriptionStatus;
+  readonly tier: PaidTier | null;
+}
+
+export interface StoredSubscriptionOrdering {
+  readonly stripeSubscriptionId: string | null;
+  readonly lastStripeEventCreatedSeconds: number | null;
+  readonly stripeStatus: StripeSubscriptionStatus;
+  readonly stripeCurrentPeriodEndMs: number | null;
+  readonly tier: PaidTier | null;
+}
+
+const TIER_RANK: Record<PaidTier, number> = { standard: 0, pro: 1 };
+
+/**
+ * Décide si un événement d'abonnement Stripe peut mettre à jour l'état de
+ * facturation d'un foyer. Garantie visée : un événement ancien ne remplace
+ * jamais un état plus récent.
+ *
+ * - Un événement strictement plus ancien que le dernier appliqué est ignoré ;
+ *   l'égalité de seconde reste admise car plusieurs événements légitimes
+ *   partagent la même seconde et le contenu est revalidé auprès de Stripe.
+ * - Un événement non vivant (résiliation, impayé définitif…) portant sur un
+ *   abonnement différent de celui suivi est ignoré : la résiliation d'un
+ *   ancien abonnement ne doit pas effacer le droit d'un abonnement plus récent.
+ * - Entre deux abonnements vivants différents, la bascule n'est admise que si
+ *   elle ne rétrograde pas le niveau connu : le renouvellement tardif d'un
+ *   ancien abonnement ne doit pas réduire silencieusement un droit supérieur.
+ *   Un rang inconnu est refusé tant que l'abonnement suivi est vivant.
+ * - Un abonnement vivant différent prend le relais dès que l'accès suivi n'est
+ *   plus courant (reprise après expiration).
+ * - À défaut d'abonnement suivi, l'événement s'applique ; il ne peut alors que
+ *   retirer un accès, jamais en accorder un faux.
+ */
+export function decideSubscriptionEventApplication(
+  incoming: IncomingSubscriptionEventOrdering,
+  stored: StoredSubscriptionOrdering,
+  nowMs: number,
+): SubscriptionEventDecision {
+  if (
+    stored.lastStripeEventCreatedSeconds !== null &&
+    incoming.eventCreatedSeconds < stored.lastStripeEventCreatedSeconds
+  ) {
+    return { action: "ignore", reason: "stale_event_ordering" };
+  }
+
+  const tracksDifferentSubscription =
+    stored.stripeSubscriptionId !== null &&
+    stored.stripeSubscriptionId !== incoming.subscriptionId;
+  if (!tracksDifferentSubscription) {
+    return { action: "apply" };
+  }
+
+  if (!ACTIVE_STRIPE_STATUSES.has(incoming.stripeStatus)) {
+    return { action: "ignore", reason: "superseded_subscription_terminal" };
+  }
+
+  const storedAccessIsCurrent =
+    ACTIVE_STRIPE_STATUSES.has(stored.stripeStatus) &&
+    stored.stripeCurrentPeriodEndMs !== null &&
+    stored.stripeCurrentPeriodEndMs > nowMs;
+
+  if (
+    storedAccessIsCurrent &&
+    (incoming.tier === null ||
+      stored.tier === null ||
+      TIER_RANK[incoming.tier] < TIER_RANK[stored.tier])
+  ) {
+    return { action: "ignore", reason: "superseded_subscription_live" };
+  }
+
+  return { action: "apply" };
+}
+
 export function calculateScore(durationSeconds: number, weightSnapshot: number): number {
   if (!Number.isInteger(durationSeconds) || durationSeconds < 1 || durationSeconds > 86_400) {
     throw new Error("INVALID_DURATION");

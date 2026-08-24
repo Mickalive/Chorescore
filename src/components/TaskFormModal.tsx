@@ -66,6 +66,7 @@ export function TaskFormModal({
             <Text style={styles.label}>Nom</Text>
             <TextInput
               accessibilityLabel="Nom de la tâche"
+              autoFocus
               value={name}
               onChangeText={setName}
               maxLength={60}
@@ -76,13 +77,13 @@ export function TaskFormModal({
             />
 
             <Text style={styles.label}>Catégorie</Text>
-            <View style={styles.chips}>
+            <View accessibilityRole="radiogroup" accessibilityLabel="Catégorie de la tâche" style={styles.chips}>
               {CATEGORY_OPTIONS.map((option) => {
                 const selected = category === option.value;
                 return (
                   <Pressable
                     key={option.value}
-                    accessibilityRole="button"
+                    accessibilityRole="radio"
                     accessibilityState={{ selected }}
                     onPress={() => setCategory(option.value)}
                     style={[styles.chip, selected && styles.selectedChip]}

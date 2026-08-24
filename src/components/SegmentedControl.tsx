@@ -18,13 +18,17 @@ export function SegmentedControl({
   accessibilityLabel: string;
 }) {
   return (
-    <View style={styles.container} accessibilityLabel={accessibilityLabel}>
+    <View
+      style={styles.container}
+      accessibilityRole="radiogroup"
+      accessibilityLabel={accessibilityLabel}
+    >
       {options.map((option) => {
         const selected = value === option.value;
         return (
           <Pressable
             key={option.value}
-            accessibilityRole="button"
+            accessibilityRole="radio"
             accessibilityState={{ selected }}
             onPress={() => onChange(option.value)}
             style={[styles.option, selected && styles.selected]}

@@ -17,7 +17,9 @@ export type TaskInput = {
 };
 
 export function normalizeTaskName(value: string): string {
-  return value.replace(/[\u0000-\u001F\u007F]/g, '').trim().replace(/\s+/g, ' ');
+  // Les caractères de contrôle (C0, DEL, C1) deviennent des séparateurs afin
+  // qu'un nom collé avec un saut de ligne ne soude pas deux mots.
+  return value.replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ').trim().replace(/\s+/g, ' ');
 }
 
 export function validateTaskInput(input: TaskInput): string | null {

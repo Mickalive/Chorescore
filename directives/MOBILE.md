@@ -2,27 +2,38 @@
 
 Autorité : directeur ChoreScore, sous réserve de `MAIN_PROMPT.md`.
 
-## État actuel
+## État actuel (après cycle 32684730787)
 
-La démo Expo possède quatre onglets et un store local synthétique. Le domaine
-et les interactions principales doivent rester exécutables sans réseau.
+La démo hors ligne possède quatre onglets, un store local synthétique et
+**58 tests passants**. Ont été intégrés et audités : tests d'interaction des
+quatre onglets (`tests/tab-flows.test.ts`), rôles `radiogroup`/`radio` sur
+`SegmentedControl` et les chips de catégorie, regroupement d'annonce de
+`MetricCard`, exposition du pourcentage de `ContributionBar`, et correction de
+`normalizeTaskName` (les caractères de contrôle C0/DEL/C1 deviennent des
+séparateurs au lieu de souder les mots).
 
-## Mission prioritaire
+## Mission prioritaire — une seule tranche bornée
 
-1. Ajouter des tests d'interaction utiles pour les quatre onglets, les modales,
-   les erreurs et les limites de plan déjà implémentées.
-2. Corriger uniquement les défauts mobiles réellement révélés par ces tests.
-3. Renforcer l'accessibilité : libellés, rôles, focus, grandes tailles de texte
-   et petits écrans, sans nouvelle dépendance.
-4. Préserver strictement le calcul canonique, le ton non culpabilisant et le
-   mode `demo` hors ligne.
+Accessibilité restante et états, sans nouvelle dépendance :
 
-Choisir une seule tranche verticale qui puisse être terminée dans le cycle. Ne
-pas anticiper Auth, Firebase ou Stripe tant que les portes backend ne sont pas
-prêtes.
+1. Reformuler l'intitulé obsolète de `tests/validation.test.ts:5` (« retirés » →
+   « remplacés par une espace ») ; l'assertion reste vraie, seul le libellé
+   ment.
+2. Évaluer la gestion du focus de `TaskFormModal` (`autoFocus` possiblement
+   inopérant sur Android) : soit focus explicite fiable sans dépendance, soit
+   suppression documentée du `autoFocus`. Conclure dans le rapport.
+3. Ajouter libellés/rôles manquants sur les actions des quatre onglets et
+   couvrir par tests les états vides et erreurs encore silencieux.
+4. Corriger uniquement les défauts réellement révélés par ces tests.
+
+Interdits inchangés : pas d'Auth/Firebase/Stripe, pas de réseau, pas de
+nouvelle dépendance, calcul canonique `(durée/60) × poidsFigé` intact, ton non
+culpabilisant.
 
 ## Preuves attendues
 
-- tests ciblés succès/erreur ;
-- `npm run check` ;
-- liste exacte des comportements non vérifiés.
+- tests ciblés succès/erreur nouveaux ou adaptés ;
+- `npm run check` vert ;
+- export Android démo reproductible ;
+- liste exacte des comportements non vérifiés (TalkBack/VoiceOver restent hors
+  portée déterministe).

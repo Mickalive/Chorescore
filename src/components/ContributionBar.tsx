@@ -4,7 +4,11 @@ import { COLORS, RADIUS, SPACING } from './theme';
 export function ContributionBar({ value, color }: { value: number; color: string }) {
   const safeValue = Math.max(0, Math.min(100, value));
   return (
-    <View accessibilityLabel={`${Math.round(safeValue)} pour cent`} style={styles.row}>
+    <View
+      accessible
+      accessibilityLabel={`${Math.round(safeValue)} pour cent`}
+      style={styles.row}
+    >
       <View style={styles.track}>
         <View style={[styles.fill, { width: `${safeValue}%`, backgroundColor: color }]} />
       </View>

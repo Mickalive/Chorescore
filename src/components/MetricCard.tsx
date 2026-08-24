@@ -3,11 +3,15 @@ import { Card } from './Card';
 import { COLORS, SPACING } from './theme';
 
 export function MetricCard({ label, value, detail }: { label: string; value: string; detail?: string }) {
+  // Un seul point de focus : l'écran de lecture annonce libellé, valeur et détail ensemble.
+  const accessibilityLabel = detail === undefined ? `${label} : ${value}` : `${label} : ${value}, ${detail}`;
   return (
     <Card style={styles.card}>
-      <Text style={styles.label}>{label}</Text>
-      <Text style={styles.value}>{value}</Text>
-      {detail === undefined ? null : <Text style={styles.detail}>{detail}</Text>}
+      <View accessible accessibilityLabel={accessibilityLabel}>
+        <Text style={styles.label}>{label}</Text>
+        <Text style={styles.value}>{value}</Text>
+        {detail === undefined ? null : <Text style={styles.detail}>{detail}</Text>}
+      </View>
     </Card>
   );
 }

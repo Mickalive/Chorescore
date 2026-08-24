@@ -2,32 +2,55 @@
 
 Autorité : directeur ChoreScore, sous réserve de `MAIN_PROMPT.md`.
 
-## État actuel
+## État actuel (après cycle 32684730787)
 
-Les Functions restent un socle non déployé. Le cycle ponctuel
-`32672898477-1` a produit un candidat de règles Firebase, mais l'audit l'a classé
-élevé et bloquant tant que l'émulateur ne les a pas réellement exécutées. Ce
-candidat reste en quarantaine sur sa branche et ne fait pas partie de la base
-cumulative. Aucun projet Firebase, secret ou paiement réel n'est fourni.
+**37/37 tests Functions passent**, 0 ignoré, sans émulateur. Ont été intégrés
+et audités :
 
-## Mission prioritaire
+- garde d'ordre legacy : `decideSubscriptionEventOrder`
+  (`functions/src/billingOrder.ts`) — enveloppe validée en échec fermé,
+  rejeu exact → doublon, événement antérieur au marqueur → `stale_event` ;
+- garde d'application récupérée : `decideSubscriptionEventApplication`
+  (`functions/src/domain.ts`) — résiliation d'un abonnement remplacé ignorée,
+  bascule vivant→vivant refusée si elle rétrograde le niveau ou si le rang est
+  inconnu tant que l'accès suivi est courant ;
+- échec fermé sur état de facturation illisible via
+  `storedBillingStateIsUnreadable` (y compris `stripeStatus` non textuel,
+  correction C1) ;
+- identité appelant extraite (`callerIdentity.ts`), tests négatifs
+  Auth/App Check/email vérifié/nom borné.
 
-1. Ne pas recréer ni importer les règles Firebase non prouvées dans un cycle qui
-   ne dispose pas de l'émulateur.
-2. Tester en logique pure Auth, App Check, appartenance, rôle, validation de taille,
-   idempotence et concurrence lorsque le code correspondant existe.
-3. Pour Stripe, rester en logique pure ou mode test : signature, rejeu,
-   ancienneté et événements désordonnés ; un événement ancien ne remplace jamais
-   un état récent.
-4. Documenter rétention, suppression et export si une tranche de code sûre ne
-   peut pas être prouvée sans nouvel outillage.
+Les deux gardes sont composées dans la transaction de `applySubscriptionState`.
+`STRIPE_ENABLED`, `STRIPE_LIVE_MODE`, `ANALYTICS_AGGREGATION_ENABLED` restent
+fermés. Les règles Firestore restent en quarantaine (jamais recréées sans
+émulateur).
 
-Choisir une seule priorité achevable avec les dépendances déjà verrouillées. Si
-les émulateurs ou données nécessaires manquent, produire une tranche plus petite
-mais réellement testée plutôt que simuler une preuve.
+## Mission prioritaire — une seule tranche bornée
+
+Logique pure des fonctions appelables, **un seul domaine au choix** :
+
+- **invitations** : création/acceptation — validation d'entrée, entropie et
+  borne du jeton, expiration, rôle attribué, appartenance au foyer ; ou
+- **completion de tâches** : décision d'autorisation (rôle, appartenance,
+  propriété de l'entrée) et idempotence de la soumission.
+
+Extraire la décision dans un module pur (sans SDK Firestore), avec tests
+négatifs couvrant au minimum : sans Auth, sans App Check, email non vérifié,
+rôle insuffisant, hors foyer, entre **deux foyers** pour prouver l'isolation,
+et double soumission. Aucune activation de service, aucun émulateur requis,
+aucune dépendance nouvelle.
+
+S'interdire : recréer les règles quarantainées, toucher le client mobile,
+modifier les gardes Stripe intégrées sauf défaut prouvé par test.
+
+Résidus consignés à ne pas traiter ce cycle (prérequis pré-Stripe uniquement) :
+départage des événements de même seconde (C2/B1), repli
+`customer.subscription.deleted` (B7), uniformisation des documents
+`stripeEvents/{id}` et test de borne d'identifiant > 256 (B4/B5).
 
 ## Preuves attendues
 
-- tests négatifs ciblés ;
-- `npm --prefix functions run check` ;
-- séparation claire entre contrôles exécutés et contrôles encore bloqués.
+- module(s) purs + tests négatifs nouveaux (succès et refus) ;
+- `npm --prefix functions run check` vert, 0 test ignoré ;
+- `npm --prefix functions audit --omit=dev --audit-level=high` exit 0 ;
+- liste exacte de ce qui reste non prouvé sans émulateur.

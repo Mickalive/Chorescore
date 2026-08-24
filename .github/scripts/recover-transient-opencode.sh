@@ -146,13 +146,31 @@ if (( old_attempt < rollover_attempt )); then
   exit 0
 fi
 
-comments=$(gh issue view "$tracking_issue" --repo "$repository" --json comments)
-state_b64=$(jq -r --arg needle "actions/runs/$run_id" '
-  [.comments[].body
-   | select(contains($needle))
-   | (capture("<!-- chorescore-control-state:(?<state>[A-Za-z0-9+/=]+) -->")? // empty)
-   | .state] | last // empty
-' <<<"$comments")
+state_b64=""
+prepare_job_id=$(jq -r '
+  [.jobs[] | select(.name == "Prepare persistent accepted state") | .id] | first // empty
+' <<<"$jobs")
+if [[ -n "$prepare_job_id" ]]; then
+  prepare_log="$tmp_dir/prepare-$prepare_job_id.log"
+  if gh run view "$run_id" --repo "$repository" --job "$prepare_job_id" --log >"$prepare_log" 2>/dev/null; then
+    state_b64=$(grep -Eo 'chorescore-control-state:[A-Za-z0-9+/=]+' "$prepare_log" |
+      tail -1 | cut -d: -f2- || true)
+  fi
+fi
+
+# Backward-compatible fallback for runs created before the control marker was
+# recoverable from the Prepare job log.
+comments='{"comments":[]}'
+if [[ -z "$state_b64" ]]; then
+  comments=$(gh issue view "$tracking_issue" --repo "$repository" --json comments 2>/dev/null ||
+    printf '{"comments":[]}')
+  state_b64=$(jq -r --arg needle "actions/runs/$run_id" '
+    [.comments[].body
+     | select(contains($needle))
+     | (capture("<!-- chorescore-control-state:(?<state>[A-Za-z0-9+/=]+) -->")? // empty)
+     | .state] | last // empty
+  ' <<<"$comments")
+fi
 
 control_state=""
 if [[ -n "$state_b64" ]]; then

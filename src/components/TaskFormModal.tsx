@@ -1,5 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import type { ErrorAnnouncement } from '../domain/formFeedback';
+import { computeErrorAnnouncement } from '../domain/formFeedback';
 import type { TaskCategory } from '../domain/types';
 import { validateTaskInput } from '../domain/validation';
 import { AppButton } from './AppButton';
@@ -30,40 +43,69 @@ export function TaskFormModal({
   const [name, setName] = useState('');
   const [category, setCategory] = useState<TaskCategory>('other');
   const [weight, setWeight] = useState('2');
-  const [localError, setLocalError] = useState<string | null>(null);
+  const [errorAnnouncement, setErrorAnnouncement] = useState<ErrorAnnouncement | null>(null);
   const nameInputRef = useRef<TextInput>(null);
+  // Miroir de visibilité consulté par `onShow` : si la modale est fermée
+  // pendant son animation d'ouverture, un `onShow` tardif ne doit pas focus
+  // un TextInput monté mais invisible (le clavier surgirait au-dessus de
+  // l'écran sous-jacent). Le ref évite toute closure périmée.
+  const isOpenRef = useRef(false);
+  isOpenRef.current = visible;
 
   useEffect(() => {
     if (!visible) {
       setName('');
       setCategory('other');
       setWeight('2');
-      setLocalError(null);
+      setErrorAnnouncement(null);
+    }
+  }, [visible]);
+
+  // Annonce impérative pour VoiceOver : `accessibilityLiveRegion` est ignoré
+  // sur iOS. L'identité de `errorAnnouncement` change à chaque nouvelle erreur
+  // (même identique), donc l'effet se rejoue exactement une fois par annonce.
+  // Sur Android la région live ci-dessous suffit ; sur web aucun des deux
+  // mécanismes n'est garanti (repli documenté dans le rapport de tranche).
+  useEffect(() => {
+    if (Platform.OS !== 'ios' || errorAnnouncement === null) {
       return;
     }
-    // `autoFocus` est inopérant dans une modale Android tant que la fenêtre
-    // n'est pas attachée : focus explicite après l'animation d'ouverture,
-    // annulé si la modale se referme entre-temps.
-    const timer = setTimeout(() => nameInputRef.current?.focus(), 200);
-    return () => clearTimeout(timer);
-  }, [visible]);
+    AccessibilityInfo.announceForAccessibility(errorAnnouncement.message);
+  }, [errorAnnouncement]);
 
   const submit = () => {
     const parsedWeight = canCustomizeWeight ? Number(weight) : 1;
     const input = { name, category, weight: parsedWeight };
     const error = validateTaskInput(input);
     if (error !== null) {
-      setLocalError(error);
+      setErrorAnnouncement(computeErrorAnnouncement(errorAnnouncement, error));
       return;
     }
-    setLocalError(null);
+    setErrorAnnouncement(null);
     if (onSubmit(input)) {
       onClose();
     }
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} accessibilityViewIsModal>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+      accessibilityViewIsModal
+      // `onShow` remplace l'ancien délai magique de 200 ms : il ne se déclenche
+      // qu'une fois la fenêtre de la modale réellement attachée, ce qui rend le
+      // focus du champ fiable sur iOS et Android. Repli documenté : si une
+      // plateforme ne déclenche pas `onShow` (ex. react-native-web), le focus
+      // ne bouge pas automatiquement — échec bénin identique à l'ancien
+      // comportement Android, le champ reste atteignable au clavier.
+      onShow={() => {
+        if (isOpenRef.current) {
+          nameInputRef.current?.focus();
+        }
+      }}
+    >
       <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.sheet}>
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -125,8 +167,14 @@ export function TaskFormModal({
               </Pressable>
             )}
             <Text style={styles.footnote}>Le poids doit rester compris entre 1 et 1000. Il ne mesure pas une vérité absolue.</Text>
-            {localError === null ? null : (
-              <Text accessibilityLiveRegion="assertive" style={styles.errorText}>{localError}</Text>
+            {errorAnnouncement === null ? null : (
+              // `key` = jeton : une erreur identique répétée remonte un nœud
+              // frais, donc la région live Android re-annonce l'énoncé. Niveau
+              // `assertive` voulu : erreur bloquante interrompant l'énoncé en
+              // cours, à la différence d'une région `polite` qui attend son tour.
+              <View key={errorAnnouncement.token} accessibilityLiveRegion="assertive">
+                <Text style={styles.errorText}>{errorAnnouncement.message}</Text>
+              </View>
             )}
 
             <View style={styles.actions}>

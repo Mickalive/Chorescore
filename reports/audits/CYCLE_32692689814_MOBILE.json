@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "cycle": "32692689814",
+  "role": "mobile",
+  "round": 1,
+  "decision": "accept",
+  "summary": "Snapshot be11a8a vs base acceptee 5b3aebc : 4 fichiers (+230/-28), strictement src/ et tests/. Remplacement du delai de focus de 200 ms par onShow dans TaskFormModal et ManualEntryModal (suite du constat F2 du cycle 32688156479), nouveau module pur formFeedback.ts avec jeton croissant forçant la re-annonce des erreurs identiques (region live Android + annonce imperative iOS), 8 nouveaux tests honnetes sur conditions de donnees pures. Checks verts : typecheck OK, 71/71 tests, export Android demo OK, npm audit sans haute/critique. Aucun secret, aucune dependance, aucun reseau ajoute ; palette et contrastes intacts. Trois constats faibles/informationnels non bloquants (commentaire invoquant a tort un motif TaskRow inexistant, handler onShow sans garde de visibilite pour une fermeture pendant l'ouverture, cablage UI non couvert par test automatise). Decision : accepter.",
+  "findings": [
+    {
+      "id": "MOB-C3-F1",
+      "severity": "low",
+      "path": "src/components/ManualEntryModal.tsx (~ligne 93) ; src/components/TaskFormModal.tsx (~ligne 162)",
+      "problem": "Les commentaires attribuent a tort le motif de remontage de noeud frais par key/jeton a un « motif TaskRow » : TaskRow accepte n'utilise qu'une region live polite sans aucun remontage par key, et aucun tel motif n'existe dans le code accepte. Precedent fabrique qui fausse la tracabilite, contrairement a la discipline d'honnetete du depot.",
+      "evidence": "Lecture de src/components/TaskRow.tsx lignes 85-95 (region live polite, aucune key/jeton) ; git grep 'key={' 5b3aebc -- src ne montre que des cles de liste sans rapport ; historique de TaskRow.tsx limite au bootstrap pour accessibilityLiveRegion.",
+      "requiredFix": "Reformuler les deux commentaires pour decrire le mecanisme pour lui-meme (jeton -> key fraiche -> re-annonce Android) et ne conserver que la comparaison exacte assertive/polite avec le chrono de TaskRow.",
+      "verification": "Plus aucune reference a « motif TaskRow » comme source du remontage dans les deux modales ; relecture des commentaires apres correction."
+    },
+    {
+      "id": "MOB-C3-F2",
+      "severity": "low",
+      "path": "src/components/ManualEntryModal.tsx (onShow) ; src/components/TaskFormModal.tsx (onShow)",
+      "problem": "Le handler onShow focus le champ sans verifier la visibilite courante. Si la modale est fermee pendant l'animation d'ouverture, un onShow tardif peut encore se declencher sur certaines plateformes/versions RN et focus un TextInput monte mais invisible, faisant surgir le clavier au-dessus de l'ecran sous-jacent. L'ancien code couvrait cette course via clearTimeout dans le cleanup ; la protection a disparu avec le timer.",
+      "evidence": "Diff supprimant 'const timer = setTimeout(...); return () => clearTimeout(timer);' sans replacement ; handlers 'onShow={() => ref.current?.focus()}' sans test de visibilite ; TextInput reste monte dans l'arbre React quand visible passe a faux.",
+      "requiredFix": "Conserver un ref miroir de la visibilite courante (task !== null / visible) et n'executer le focus dans onShow que si la modale est encore ouverte.",
+      "verification": "Test de condition de donnees ou inspection montrant qu'aucun focus n'est demande quand la modale est fermee au moment de onShow."
+    },
+    {
+      "id": "MOB-C3-F3",
+      "severity": "info",
+      "path": "tests/form-feedback.test.ts",
+      "problem": "Le cablage UI des annonces (appel de computeErrorAnnouncement dans submit, key={token} sur la vue live) n'est couvert par aucun test automatise ; les tests prouvent uniquement les conditions de donnees pures avec les vrais validateurs, sans surclaim documente.",
+      "evidence": "Contenu integral de tests/form-feedback.test.ts : aucune assertion de rendu ni de composant ; commentaires explicites « aucun lecteur d'ecran n'est simule » ; depot sans infrastructure de test de composants.",
+      "requiredFix": "Lors de la passe accessibilite planifiee : tests de composants du cablage ou validation manuelle TalkBack/VoiceOver consignee.",
+      "verification": "Presence d'un test de composant ou d'un compte rendu de validation manuelle dans l'etat cumulatif."
+    }
+  ],
+  "checks": [
+    "git -C /tmp/chorescore_mobile diff 5b3aebc..be11a8a : diff reel inspecte integralement, 4 fichiers (+230/-28), strictement src/ et tests/, aucun fichier interdit ni lockfile touche.",
+    "node --version (worktree candidat) : v22.13.0, conforme a l'environnement impose.",
+    "npm run check (worktree candidat) : typecheck tsc --noEmit OK puis 71/71 tests node:test pass, 0 echec, 0 ignore (63 precedents + 8 nouveaux).",
+    "EXPO_PUBLIC_DATA_MODE=demo npx --no-install expo export --platform android (worktree candidat) : export Android reussi, bundle ~2,8 Mo, demo hors ligne intacte.",
+    "npm audit --omit=dev --audit-level=high (worktree candidat) : 11 vulnerabilites moderees, aucune haute/critique, porte passee ; lockfiles inchanges.",
+    "git -C /home/runner/work/Chorescore/Chorescore diff --stat 5b3aebc..f763ddc : les commits intermediaires de la branche acceptee ne touchent que .github/scripts/run-opencode-with-retry.sh et .opencode/agents/cycle-auditor.md, aucun code produit.",
+    "Recherche accessibilityLiveRegion/announceForAccessibility/key={ dans src/ de l'etat accepte (grep + git grep 5b3aebc) : aucun motif de re-annonce par jeton/key preexistant ; TaskRow n'utilise qu'une region live polite (base du constat MOB-C3-F1)."
+  ]
+}

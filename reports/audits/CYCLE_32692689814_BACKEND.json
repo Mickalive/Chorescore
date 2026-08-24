@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "cycle": "32692689814",
+  "role": "backend",
+  "round": 1,
+  "decision": "accept",
+  "summary": "Candidat backend du cycle 32692689814 : extraction des décisions d'autorisation des invitations vers le module pur functions/src/invitations.ts (création ; acceptation en deux phases à capacité différée), réécriture de invites.ts en câblage mince et ajout de 36 tests node:test. Parité d'erreur vérifiée porte par porte : codes et messages historiques conservés, erreurs de facturation relancées telles quelles. Jeton 256 bits borné à 43 caractères base64url, condensat SHA-256 seul stocké, rôle attribué figé à « member », cible issue du document stocké, rejeu idempotent sans écriture, échecs fermés sans coercion, module pur sans SDK Firestore, gardes Stripe intactes. Checks exécutés : npm ci --ignore-scripts, npm run check 93/93 (0 ignoré), audit --omit=dev sans avis high/critical. Deux remarques non bloquantes : portes d'identité décoratives côté câblage (F1) et concurrence couverte par les seules transactions Firestore (F2). Décision : accepter.",
+  "findings": [
+    {
+      "id": "F1-identite-decorative-cablage",
+      "severity": "low",
+      "path": "functions/src/invites.ts",
+      "problem": "Les indicateurs d'identité et d'adhésion transmis aux décisions pures sont des constantes (authenticated/appCheckAttested/emailVerified à true, membership exists/status à true/« active ») car requireCaller et requireActiveMembershipInTransaction ont déjà lancé sinon. Les portes correspondantes de decideInviteCreation et decideInviteRedemption ne peuvent donc jamais fire en production : la défense en profondeur réelle pour ces propriétés repose uniquement sur les deux gardes amont. Un affaiblissement futur de requireCaller (par exemple retrait du contrôle email_verified dans callerIdentity.ts) ne serait détecté par aucune porte d'exécution, seulement par les tests unitaires du module pur.",
+      "evidence": "invites.ts, createInvite : caller:{authenticated:true,appCheckAttested:true,emailVerified:true} et membership:{exists:true,status:\"active\",role:activeMembership.role} ; redeemInvite : mêmes constantes côté caller. Compromis documenté dans les commentaires du candidat ; aucune faille exploitable aujourd'hui puisque callerIdentity.ts exige Auth, App Check et email vérifié.",
+      "requiredFix": "Transmettre aux décisions les valeurs réellement observées plutôt que des constantes (par exemple request.auth !== undefined, request.app !== undefined, request.auth?.token.email_verified === true), ou consigner explicitement dans docs/NEXT_CYCLE.md que ces portes restent décoratives côté câblage et que toute modification de requireCaller exige une revue croisée avec invitations.ts.",
+      "verification": "Après correction : npm --prefix functions run check vert (build + tests) et lecture confirmant qu'aucune constante n'alimente plus les portes d'identité ; après simple consignation : mention explicite présente dans docs/NEXT_CYCLE.md."
+    },
+    {
+      "id": "F2-concurrence-sans-emulateur",
+      "severity": "info",
+      "path": "functions/src/invites.ts",
+      "problem": "La protection contre la double acceptation concurrente repose uniquement sur la sérialisation des transactions Firestore autour du document invites/{condensat} (lecture de useCount puis transaction.update conditionné à la transaction). Aucun test d'émulateur ne verrouille ce comportement pour les invitations ; la décision pure est testée mais pas la course réelle entre deux transactions.",
+      "evidence": "redeemInvite lit useCount dans la transaction puis écrit {status:\"redeemed\",useCount:1,redeemedBy,redeemedAt} ; invitations.test.ts couvre le rejeu séquentiel (« une seconde personne ne peut pas consommer une invitation déjà utilisée ») mais aucun test d'émulateur concurrent n'existe. Risque résiduel de même classe que celui déjà consigné pour completeTask au cycle précédent.",
+      "requiredFix": "Au prochain incrément backend disposant de l'émulateur Firestore, ajouter un test négatif de double acceptation concurrente (deux utilisateurs sur la même invitation, dont un entre deux foyers) prouvant qu'une seule transaction applique le rattachement et l'incrémentation du compteur.",
+      "verification": "Test d'émulateur exécuté localement montrant exactement une incrémentation de memberCount et une erreur « Cette invitation est invalide ou indisponible. » pour le perdant de la course."
+    }
+  ],
+  "checks": [
+    "git -C /tmp/chorescore_backend diff 5b3aebc..7c39e4f --stat — périmètre réel : functions/src/invitations.ts (+513), functions/src/invites.ts (+322/-74), functions/test/invitations.test.ts (+671)",
+    "git -C /tmp/chorescore_backend diff 5b3aebc..7c39e4f --name-only et diff -- . ':!functions' — aucune modification hors functions/, aucune dépendance ni lockfile touchés",
+    "git -C /tmp/chorescore_backend rev-parse '7c39e4f^' — parent 5b3aebc égal au merge-base avec lab/chorescore : fork propre depuis l'état accepté",
+    "sha256sum MAIN_PROMPT.md (candidat vs checkout accepté) — empreintes identiques c3e1b4e0…d97 : constitution intacte",
+    "Grep \\.skip|\\.todo|\\.only|xit\\(|xdescribe dans functions/test — 0 occurrence : aucun test ignoré ou filtré",
+    "Grep fetch\\(|XMLHttpRequest|axios|node-fetch|https?:// sur functions/src/invitations.ts — 0 occurrence : module pur sans accès réseau ni SDK Firestore/Admin",
+    "npm --prefix functions ci --ignore-scripts — installation complète réussie, lockfile inchangé",
+    "npm --prefix functions run check — exit 0 : build TypeScript OK, 93/93 tests passants (57 préexistants + 36 nouveaux), 0 échec, 0 ignoré",
+    "npm --prefix functions audit --omit=dev --audit-level=high — 7 vulnérabilités modérées préexistantes (chaîne firebase-functions), 0 avis high/critique : porte passée",
+    "Lecture comparée validation.ts (firestoreId, inviteToken, integer 1–72) vs gardes invitations.ts (isValidStoredHouseholdId, isValidInviteTokenShape, bornes expiration) — règles strictement identiques, aucun rejet de donnée légitime"
+  ]
+}

@@ -1,5 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import type { ErrorAnnouncement } from '../domain/formFeedback';
+import { computeErrorAnnouncement } from '../domain/formFeedback';
 import type { TaskDefinition } from '../domain/types';
 import { validateManualMinutes } from '../domain/validation';
 import { AppButton } from './AppButton';
@@ -15,37 +26,62 @@ export function ManualEntryModal({
   onSubmit: (minutes: number) => boolean;
 }) {
   const [minutes, setMinutes] = useState('');
-  const [localError, setLocalError] = useState<string | null>(null);
+  const [errorAnnouncement, setErrorAnnouncement] = useState<ErrorAnnouncement | null>(null);
   const minutesInputRef = useRef<TextInput>(null);
+  // Miroir de visibilité consulté par `onShow` : si la modale est fermée
+  // pendant son animation d'ouverture, un `onShow` tardif ne doit pas focus
+  // un TextInput monté mais invisible (le clavier surgirait au-dessus de
+  // l'écran sous-jacent). Le ref évite toute closure périmée.
+  const isOpenRef = useRef(false);
+  isOpenRef.current = task !== null;
 
   useEffect(() => {
     if (task === null) {
       setMinutes('');
-      setLocalError(null);
+      setErrorAnnouncement(null);
+    }
+  }, [task]);
+
+  // Annonce impérative pour VoiceOver : `accessibilityLiveRegion` est ignoré
+  // sur iOS. Même motif que TaskFormModal ; sur Android la région live
+  // ci-dessous suffit, sur web aucun mécanisme n'est garanti (repli documenté).
+  useEffect(() => {
+    if (Platform.OS !== 'ios' || errorAnnouncement === null) {
       return;
     }
-    // Même motif que TaskFormModal : focus explicite après l'ouverture de la
-    // modale, car `autoFocus` est inopérant sur Android tant que la fenêtre
-    // de la modale n'est pas attachée.
-    const timer = setTimeout(() => minutesInputRef.current?.focus(), 200);
-    return () => clearTimeout(timer);
-  }, [task]);
+    AccessibilityInfo.announceForAccessibility(errorAnnouncement.message);
+  }, [errorAnnouncement]);
 
   const submit = () => {
     const parsedMinutes = Number(minutes);
     const error = validateManualMinutes(parsedMinutes);
     if (error !== null) {
-      setLocalError(error);
+      setErrorAnnouncement(computeErrorAnnouncement(errorAnnouncement, error));
       return;
     }
-    setLocalError(null);
+    setErrorAnnouncement(null);
     if (onSubmit(parsedMinutes)) {
       onClose();
     }
   };
 
   return (
-    <Modal visible={task !== null} transparent animationType="fade" onRequestClose={onClose} accessibilityViewIsModal>
+    <Modal
+      visible={task !== null}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      accessibilityViewIsModal
+      // `onShow` remplace l'ancien délai magique de 200 ms : il ne se
+      // déclenche qu'une fois la fenêtre de la modale réellement attachée.
+      // Repli documenté : sans `onShow`, le focus ne bouge pas
+      // automatiquement — échec bénin, le champ reste atteignable au clavier.
+      onShow={() => {
+        if (isOpenRef.current) {
+          minutesInputRef.current?.focus();
+        }
+      }}
+    >
       <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.dialog}>
           <Text accessibilityRole="header" style={styles.title}>Ajouter un temps</Text>
@@ -63,8 +99,14 @@ export function ManualEntryModal({
             style={styles.input}
           />
           <Text style={styles.help}>Entre 1 minute et 24 heures.</Text>
-          {localError === null ? null : (
-            <Text accessibilityLiveRegion="assertive" style={styles.errorText}>{localError}</Text>
+          {errorAnnouncement === null ? null : (
+            // `key` = jeton : une erreur identique répétée remonte un nœud
+            // frais, donc la région live Android re-annonce l'énoncé. Niveau
+            // `assertive` voulu : erreur bloquante interrompant l'énoncé en
+            // cours, à la différence d'une région `polite` qui attend son tour.
+            <View key={errorAnnouncement.token} accessibilityLiveRegion="assertive">
+              <Text style={styles.errorText}>{errorAnnouncement.message}</Text>
+            </View>
           )}
           <View style={styles.actions}>
             <AppButton label="Annuler" variant="ghost" onPress={onClose} style={styles.action} />

@@ -23,24 +23,26 @@ Rechercher notamment :
 
 ## Cibles prioritaires du prochain cycle
 
-1. **Backend — casser le module invitations attendu** : jeton à entropie
-   insuffisante ou non borné, acceptation expirée ou déjà consommée, rôle
-   attribué hors de la liste admise, isolation entre deux foyers, double
-   acceptation concurrente ; vérifier l'absence de SDK Firestore dans le
-   module pur et l'absence de contournement des gardes Stripe intégrées.
-2. **Backend — fausse positivité de la garde durcie** :
-   `storedBillingStateIsUnreadable` échoue désormais fermé sur statut stocké
-   inconnu et marqueur négatif ; chercher un état **légitime** écrit par le
-   système (`households.ts`, `billing.ts`) que la garde rejetterait à tort,
-   et toute coercion résiduelle en « none » hors de la garde.
-3. **Mobile — motif de focus** : si le candidat remplace le délai de 200 ms
-   par `onShow`, vérifier le nettoyage à la fermeture, l'absence de focus
-   volé au retour arrière et le comportement si la modale se referme pendant
-   l'ouverture ; contester tout test qui simule l'accessibilité sans la
-   prouver. Vérifier que les textes d'état vide restent non culpabilisants et
-   que le contraste `textPrimary`/`surfaceAlt` (~9,56:1) n'a pas régressé.
-4. **Périmètre** : tout nouveau module pur backend doit rester sans SDK
-   Firestore ; tout test ignoré est un constat, jamais une acceptation.
+1. **Mobile — casser la tranche synthèses/filtres de l'Historique** :
+   frontières de semaine/mois (changement de mois, années différentes, fin de
+   semaine locale), entrées exactement aux bornes comptées une seule fois,
+   filtre qui n'exclut pas silencieusement des entrées légitimes, limites de
+   plan expliquées sans bloquer une fonction gratuite ni simuler un achat.
+   Vérifier que tout nouveau sélecteur reste pur et testé hors UI.
+2. **Backend — vérifier la vérité du câblage d'identité** : le candidat doit
+   remplacer les constantes `true` des portes d'identité par les valeurs
+   réellement observées de la requête. Contester toute constante résiduelle,
+   toute porte devenue inatteignable sans raison documentée, et toute dérive
+   des messages d'erreur historiques. Vérifier que les tests négatifs nouveaux
+   exercent réellement les portes du module pur via le câblage.
+3. **Backend — fausse positivité de la garde durcie** :
+   `storedBillingStateIsUnreadable` doit continuer d'échouer fermé sur statut
+   stocké inconnu et marqueur négatif ; chercher un état légitime écrit par le
+   système que la garde rejetterait à tort.
+4. **Honnêteté des commentaires et des tests** : le cycle 32692689814 a
+   montré un précédent fabriqué (« motif TaskRow » inexistant). Traiter toute
+   référence de commentaire à un motif externe non vérifié comme un constat ;
+   tout test ignoré reste un constat, jamais une acceptation.
 
 Chaque constat matériel contient gravité, chemin/symbole, scénario, preuve,
 correction minimale et décision. Rapporter les checks réellement exécutés et

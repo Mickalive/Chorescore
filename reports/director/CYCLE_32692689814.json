@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "cycle": "32692689814",
+  "decision": "continue",
+  "reason": "Deux couples candidat/audit round 1 apparies et valides (mobile be11a8a, backend 7c39e4f, decision accept, aucun repair ni final audit), integres puis re-verifies : 71/71 tests application, export Android demo vert, 93/93 tests Functions, audits npm sans high/critical. Constats faibles MOB-C3-F1 et MOB-C3-F2 corriges par le directeur ; MOB-C3-F3 reporte en action humaine ; F1 transforme en mission backend prioritaire ; F2 consigne en prerequis emulateur. Legacy prose-only non integrable et deja contenu dans l'etat accepte. Aucun constat critique ou eleve ouvert.",
+  "next": {
+    "mobile": "Historique : syntheses semaine/mois et filtres via selecteurs purs testes (frontieres de periode, etats vides calmes, limites de plan expliquees), sans nouvelle dependance.",
+    "backend": "Verite du cablage d'identite des invitations (constat F1) : transmettre les valeurs reellement observees aux decisions pures avec tests negatifs prouvant l'execution des portes ; parite d'erreur preservee.",
+    "audit": "Tenter de casser les frontieres de periode des syntheses Historique (bornes semaine/mois comptees une seule fois) et toute constante d'identite residuelle ou message d'erreur derive dans le cablage invitations."
+  },
+  "humanActions": [
+    "Validation manuelle TalkBack/VoiceOver avant toute livraison (clore aussi MOB-C3-F3).",
+    "Revue humaine de la PR cumulative ; fusion interdite aux agents.",
+    "Avant production reelle : emulateurs, regles testees, revue des frontieres sensibles, puis test d'intrusion independant."
+  ]
+}

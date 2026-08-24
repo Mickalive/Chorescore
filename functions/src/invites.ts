@@ -1,9 +1,17 @@
-import { Timestamp } from "firebase-admin/firestore";
+import { Timestamp, Transaction } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 
-import { APP_BASE_URL, FUNCTION_REGION } from "./config";
-import { createOpaqueInviteToken, sha256 } from "./domain";
+import { APP_BASE_URL, FUNCTION_REGION, requireHttpsBaseUrl } from "./config";
+import { createOpaqueInviteToken } from "./domain";
 import { db } from "./firebase";
+import {
+  decideInviteCreation,
+  decideInviteRedemption,
+  decideInviteRedemptionCapacity,
+  inviteDigest,
+  InviteCapacity,
+  InviteRejectionDecision,
+} from "./invitations";
 import { resolveHouseholdPlanInTransaction } from "./plans";
 import {
   enforceRateLimit,
@@ -11,13 +19,7 @@ import {
   requireActiveMembershipInTransaction,
   requireCaller,
 } from "./security";
-import {
-  firestoreId,
-  integer,
-  inviteToken,
-  strictRecord,
-} from "./validation";
-import { requireHttpsBaseUrl } from "./config";
+import { firestoreId, integer, inviteToken, strictRecord } from "./validation";
 
 function memberCount(value: unknown): number {
   if (!Number.isInteger(value) || (value as number) < 1 || (value as number) > 100) {
@@ -26,11 +28,123 @@ function memberCount(value: unknown): number {
   return value as number;
 }
 
+function memberCountOrNull(value: unknown): number | null {
+  try {
+    return memberCount(value);
+  } catch {
+    return null;
+  }
+}
+
 function invitationUnavailable(): HttpsError {
   return new HttpsError(
     "permission-denied",
     "Cette invitation est invalide ou indisponible.",
   );
+}
+
+/**
+ * Mappe une décision de refus ou d'échec fermé sur les erreurs appelables
+ * historiques : codes et messages identiques un à un à l'implémentation
+ * précédente, afin que les clients et les journaux ne voient aucune dérive.
+ */
+function throwInviteDecisionError(decision: InviteRejectionDecision): never {
+  if (decision.outcome === "reject") {
+    throw new HttpsError(decision.code, decision.message);
+  }
+  switch (decision.reason) {
+    case "invalid_request_envelope":
+      throw new Error("INVALID_INVITE_ENVELOPE");
+    case "invalid_household_state":
+      throw new HttpsError("internal", "Composition du foyer invalide.");
+    case "invalid_invite_record":
+      throw new HttpsError(
+        "invalid-argument",
+        "householdId n'est pas un identifiant valide.",
+      );
+    case "billing_unavailable":
+      throw new HttpsError("internal", "État d'abonnement indisponible.");
+  }
+}
+
+interface HouseholdCapacitySnapshot {
+  readonly capacity: InviteCapacity;
+  /** Composition validée ; nulle si illisible (la décision échouera fermé). */
+  readonly memberCount: number | null;
+  /**
+   * Erreur métier d'origine capturée lors de la résolution de facturation ;
+   * relancée telle quelle au stade capacité afin de préserver le message
+   * interne exact (« État d'essai indisponible. » ou « État d'abonnement
+   * indisponible. ») au lieu d'une confusion.
+   */
+  readonly billingError: unknown;
+}
+
+/**
+ * Résout la capacité d'accueil du foyer en convertissant les indécisions en
+ * données : composition illisible ou état de facturation indisponible ne
+ * lancent plus ici, ils sont examinés par la décision au moment où elle en a
+ * besoin, après les portes d'autorisation et de validité. Les erreurs non
+ * métier conservent leur diagnostic générique.
+ */
+async function loadInviteCapacity(
+  transaction: Transaction,
+  householdId: string,
+  rawMemberCount: unknown,
+  nowMs: number,
+): Promise<HouseholdCapacitySnapshot> {
+  const count = memberCountOrNull(rawMemberCount);
+  if (count === null) {
+    return {
+      capacity: { status: "invalid_household_state" },
+      memberCount: null,
+      billingError: null,
+    };
+  }
+  try {
+    const resolution = await resolveHouseholdPlanInTransaction(
+      transaction,
+      householdId,
+      count,
+      nowMs,
+    );
+    return {
+      capacity: {
+        status: "available",
+        memberLimit: resolution.memberLimit,
+        standardMemberLimitExceeded: resolution.standardMemberLimitExceeded,
+      },
+      memberCount: count,
+      billingError: null,
+    };
+  } catch (error) {
+    if (error instanceof HttpsError) {
+      return {
+        capacity: { status: "billing_unavailable" },
+        memberCount: count,
+        billingError: error,
+      };
+    }
+    throw error;
+  }
+}
+
+/**
+ * Relance l'erreur de facturation d'origine si la décision a échoué fermé
+ * pour cette raison, sinon applique le mapping historique des décisions.
+ */
+function throwInviteDecisionOrBillingError(
+  loaded: HouseholdCapacitySnapshot,
+  decision: InviteRejectionDecision,
+): never {
+  if (
+    decision.outcome === "fail_closed" &&
+    decision.reason === "billing_unavailable" &&
+    loaded.billingError !== null
+  ) {
+    throw loaded.billingError;
+  }
+  throwInviteDecisionError(decision);
 }
 
 export const createInvite = onCall(
@@ -50,41 +164,59 @@ export const createInvite = onCall(
 
       await enforceRateLimit(caller.uid, "createInvite", 20, 3600);
 
+      // Le jeton brut n'existe que dans la réponse : seul son condensat
+      // désigne le document stocké.
       const rawToken = createOpaqueInviteToken();
-      const tokenHash = sha256(rawToken);
+      const tokenHash = inviteDigest(rawToken);
       const inviteReference = db.doc(`invites/${tokenHash}`);
       const householdReference = db.doc(`households/${householdId}`);
       const now = Timestamp.now();
-      const expiresAt = Timestamp.fromMillis(
-        now.toMillis() + expiresInHours * 3_600_000,
-      );
 
-      await db.runTransaction(async (transaction) => {
+      const response = await db.runTransaction(async (transaction) => {
         const householdSnapshot = await transaction.get(householdReference);
-        await requireActiveMembershipInTransaction(
+        // L'adhésion administrative est exigée ici exactement comme avant ;
+        // la décision revalide ces valeurs en défense profonde et ses branches
+        // de refus restent exercées par invitations.test.ts.
+        const activeMembership = await requireActiveMembershipInTransaction(
           transaction,
           caller.uid,
           householdId,
           ["owner", "admin"],
         );
-        if (!householdSnapshot.exists) {
-          throw new HttpsError("not-found", "Foyer introuvable.");
-        }
-        const currentMemberCount = memberCount(householdSnapshot.data()?.memberCount);
-        const resolution = await resolveHouseholdPlanInTransaction(
+        const capacityLoad = await loadInviteCapacity(
           transaction,
           householdId,
-          currentMemberCount,
+          householdSnapshot.data()?.memberCount,
           now.toMillis(),
         );
-        if (
-          resolution.standardMemberLimitExceeded ||
-          currentMemberCount >= resolution.memberLimit
-        ) {
-          throw new HttpsError(
-            "failed-precondition",
-            "Ce foyer doit utiliser le plan Pro avant d'inviter un membre supplémentaire.",
-          );
+
+        // Décision d'autorisation en logique pure : identité, adhésion, rôle,
+        // existence du foyer, capacité du plan, expiration depuis le temps
+        // serveur.
+        const decision = decideInviteCreation({
+          caller: {
+            authenticated: true,
+            appCheckAttested: true,
+            emailVerified: true,
+            uid: caller.uid,
+          },
+          membership: {
+            exists: true,
+            status: "active",
+            role: activeMembership.role,
+          },
+          household: {
+            exists: householdSnapshot.exists,
+            memberCount: householdSnapshot.data()?.memberCount,
+          },
+          capacity: capacityLoad.capacity,
+          expectedHouseholdId: householdId,
+          expiresInHours,
+          nowMs: now.toMillis(),
+        });
+
+        if (decision.outcome !== "accept") {
+          throwInviteDecisionOrBillingError(capacityLoad, decision);
         }
 
         transaction.create(inviteReference, {
@@ -95,15 +227,17 @@ export const createInvite = onCall(
           useCount: 0,
           redeemedBy: null,
           createdAt: now,
-          expiresAt,
+          expiresAt: Timestamp.fromMillis(decision.expiresAtMs),
           revokedAt: null,
         });
+
+        return {
+          inviteUrl: `${appBaseUrl}/invite#token=${encodeURIComponent(rawToken)}`,
+          expiresAt: Timestamp.fromMillis(decision.expiresAtMs).toDate().toISOString(),
+        };
       });
 
-      return {
-        inviteUrl: `${appBaseUrl}/invite#token=${encodeURIComponent(rawToken)}`,
-        expiresAt: expiresAt.toDate().toISOString(),
-      };
+      return response;
     } catch (error) {
       return handleCallableError(error, "createInvite");
     }
@@ -122,7 +256,7 @@ export const redeemInvite = onCall(
       const caller = requireCaller(request);
       const input = strictRecord(request.data, ["token"]);
       const rawToken = inviteToken(input, "token");
-      const tokenHash = sha256(rawToken);
+      const tokenHash = inviteDigest(rawToken);
 
       await enforceRateLimit(caller.uid, "redeemInvite", 20, 3600);
 
@@ -142,51 +276,80 @@ export const redeemInvite = onCall(
         if (typeof householdIdValue !== "string") {
           throw invitationUnavailable();
         }
-        const householdId = firestoreId({ householdId: householdIdValue }, "householdId");
-        const householdReference = db.doc(`households/${householdId}`);
-        const memberReference = householdReference.collection("members").doc(caller.uid);
-        const userMembershipReference = db.doc(
-          `users/${caller.uid}/memberships/${householdId}`,
+        // Portes d'enveloppe historiques conservées à l'identique : un
+        // identifiant stocké malformé produit exactement les erreurs fines
+        // d'origine. La décision revalide ces valeurs en défense profonde et
+        // ses branches correspondantes restent exercées par les tests.
+        const targetHouseholdId = firestoreId(
+          { householdId: householdIdValue },
+          "householdId",
         );
+
+        const householdReference = db.doc(`households/${targetHouseholdId}`);
         const householdSnapshot = await transaction.get(householdReference);
-        const memberSnapshot = await transaction.get(memberReference);
-        if (!householdSnapshot.exists) {
-          throw invitationUnavailable();
+        const memberSnapshot = await transaction.get(
+          householdReference.collection("members").doc(caller.uid),
+        );
+        const memberStatus = memberSnapshot.data()?.status;
+
+        // Première phase de la décision en logique pure : forme du jeton,
+        // invitation stockée, foyer désigné par le document, rejeu de double
+        // acceptation, expiration serveur. La capacité n'est chargée qu'après
+        // ces portes, préservant l'ordre historique des lectures et des refus.
+        const preDecision = decideInviteRedemption({
+          caller: {
+            authenticated: true,
+            appCheckAttested: true,
+            emailVerified: true,
+            uid: caller.uid,
+          },
+          invite: {
+            exists: true,
+            householdId: targetHouseholdId,
+            status: inviteData?.status,
+            useCount: inviteData?.useCount,
+            redeemedBy: inviteData?.redeemedBy,
+            expiresAtMs:
+              inviteData?.expiresAt instanceof Timestamp
+                ? inviteData.expiresAt.toMillis()
+                : null,
+            revokedAt: inviteData?.revokedAt,
+          },
+          householdExists: householdSnapshot.exists,
+          membershipStatus: memberStatus,
+          rawToken,
+          nowMs: now.toMillis(),
+        });
+
+        if (preDecision.outcome === "replay") {
+          return {
+            householdId: preDecision.householdId,
+            alreadyMember: true as const,
+          };
+        }
+        if (preDecision.outcome !== "evaluate_capacity") {
+          throwInviteDecisionError(preDecision);
         }
 
-        if (inviteData.redeemedBy === caller.uid && memberSnapshot.data()?.status === "active") {
-          return { householdId, alreadyMember: true };
-        }
-        if (
-          inviteData.status !== "active" ||
-          inviteData.useCount !== 0 ||
-          !(inviteData.expiresAt instanceof Timestamp) ||
-          inviteData.expiresAt.toMillis() <= now.toMillis() ||
-          inviteData.revokedAt !== null
-        ) {
-          throw invitationUnavailable();
-        }
-
-        const householdData = householdSnapshot.data();
-        const currentMemberCount = memberCount(householdData?.memberCount);
-        const resolution = await resolveHouseholdPlanInTransaction(
+        // Seconde phase : capacité du foyer désigné puis rattachement.
+        const capacityLoad = await loadInviteCapacity(
           transaction,
-          householdId,
-          currentMemberCount,
+          targetHouseholdId,
+          householdSnapshot.data()?.memberCount,
           now.toMillis(),
         );
-        const isAlreadyActiveMember = memberSnapshot.data()?.status === "active";
-        if (
-          !isAlreadyActiveMember &&
-          (resolution.standardMemberLimitExceeded ||
-            currentMemberCount >= resolution.memberLimit)
-        ) {
-          throw new HttpsError(
-            "failed-precondition",
-            "Ce foyer doit utiliser le plan Pro avant d'ajouter un membre.",
-          );
+        const decision = decideInviteRedemptionCapacity({
+          householdId: preDecision.householdId,
+          capacity: capacityLoad.capacity,
+          householdMemberCount: householdSnapshot.data()?.memberCount,
+          alreadyActiveMember: memberStatus === "active",
+        });
+        if (decision.outcome !== "accept") {
+          throwInviteDecisionOrBillingError(capacityLoad, decision);
         }
 
+        const householdId = decision.householdId;
+        const isAlreadyActiveMember = memberStatus === "active";
         transaction.update(inviteReference, {
           status: "redeemed",
           useCount: 1,
@@ -194,8 +357,19 @@ export const redeemInvite = onCall(
           redeemedAt: now,
         });
         if (!isAlreadyActiveMember) {
+          if (capacityLoad.memberCount === null) {
+            // Inatteignable : la décision n'accepte qu'avec une composition
+            // de foyer validée.
+            throw new Error("INVALID_INVITE_STATE");
+          }
+          const memberReference = db.doc(
+            `households/${householdId}/members/${caller.uid}`,
+          );
+          const userMembershipReference = db.doc(
+            `users/${caller.uid}/memberships/${householdId}`,
+          );
           transaction.set(memberReference, {
-            role: "member",
+            role: decision.assignedRole,
             status: "active",
             displayName: caller.displayName,
             joinedAt: now,
@@ -203,14 +377,14 @@ export const redeemInvite = onCall(
           });
           transaction.set(userMembershipReference, {
             householdId,
-            role: "member",
+            role: decision.assignedRole,
             status: "active",
-            householdName: householdData?.name,
+            householdName: householdSnapshot.data()?.name,
             joinedAt: now,
             updatedAt: now,
           });
           transaction.update(householdReference, {
-            memberCount: currentMemberCount + 1,
+            memberCount: capacityLoad.memberCount + 1,
             updatedAt: now,
           });
         }

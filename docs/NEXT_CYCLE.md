@@ -3,67 +3,78 @@
 Ce fichier est la mémoire opérationnelle réécrite par le directeur après chaque
 cycle. Il ne remplace jamais `MAIN_PROMPT.md` ni les directives actives.
 
-## État cumulatif (après run 32688156479)
+## État cumulatif (après run 32692689814)
 
-La démo mobile hors ligne reste entièrement fonctionnelle : **63/63 tests
-application**, export Android démo vert, aucune requête réseau dans `src/` et
-`app/`. Le backend reste volontairement non déployable : **57/57 tests en
-logique pure**, aucun service réel activé.
+La démo mobile hors ligne reste entièrement fonctionnelle : **71/71 tests
+application**, export Android démo vert (~2,8 Mo), aucune requête réseau dans
+`src/` et `app/`. Le backend reste volontairement non déployable : **93/93
+tests en logique pure**, aucun service réel activé.
 
-Intégré ce cycle, après audit indépendant (`accepter` sur les deux) et
-re-vérification du directeur :
+Intégré ce cycle, après audit indépendant round 1 (`accept` sur les deux,
+aucun repair demandé, aucune version repaired/final présente) :
 
-- **Mobile** (`d56885e`) : états vides calmes Tâches/Historique,
-  `selectActiveTasks`, `accessibilityLabel` sur `AppButton`/`TaskRow`/profil,
-  focus des modales par `ref` + `setTimeout(200 ms)` documenté, intitulé de
-  `tests/validation.test.ts` corrigé, tests d'états vides.
-- **Backend** (`531f614`) : `decideTaskCompletion` — décision pure
-  d'autorisation (identité, adhésion, rôle, propriété, état, poids figé,
-  durée serveur bornée 24 h) et d'idempotence de `completeTask` ; rejeu exact
-  sans écriture ; enregistrement illisible → échec fermé ; 19 tests négatifs
-  dont isolation entre deux foyers ; sémantique d'erreur préservée.
-- **Correction directeur F1** (constat faible audit mobile) : `emptyText` des
-  états vides passe à `textPrimary` — contraste ~9,56:1 au lieu de ~4,36:1
-  (< AA), recalculé et consigné.
-- **Correction directeur F2** (constat faible audit backend, code hérité) :
-  `storedBillingStateIsUnreadable` échoue fermé sur statut stocké textuel
-  inconnu et marqueur `lastStripeEventCreated` négatif ;
-  `ALL_STRIPE_STATUSES` exportée ; tests négatifs ajoutés (57/57).
+- **Mobile** (`be11a8a`) : focus des deux modales via `onShow` (fin du délai
+  magique de 200 ms, repli documenté), module pur `formFeedback.ts`
+  (jeton croissant → key fraîche → re-annonce Android `assertive`, annonce
+  impérative iOS), 8 tests de conditions de données pures.
+- **Backend** (`7c39e4f`) : `functions/src/invitations.ts` — décisions pures
+  de création/acceptation des invitations (jeton 256 bits borné à 43
+  caractères base64url, condensat SHA-256 seul stocké, rôle figé `member`,
+  cible issue du document stocké, rejeu idempotent, échec fermé sans
+  coercion) ; `invites.ts` réécrit en câblage mince avec parité d'erreur
+  porte par porte ; 36 tests négatifs dont isolation entre deux foyers.
+- **Corrections directeur** (constats faibles audit mobile) :
+  MOB-C3-F1 — commentaires réécrits, plus aucun « motif TaskRow » fabriqué ;
+  MOB-C3-F2 — garde de visibilité `isOpenRef` sur les deux `onShow` pour ne
+  jamais focus un champ invisible après fermeture pendant l'ouverture.
 
-**Récupération legacy évaluée puis close sans réintégration** :
-`30e967a` (cycle 32675726760-1, audit `accepter`) est déjà contenu dans l'état
-accepté — le diff `30e967a..HEAD` n'ajoute que des durcissements postérieurs
-(`storedBillingStateIsUnreadable`, etc.) sans rien retirer du travail legacy.
-Aucun candidat courant ni récupération rejeté ce cycle ; les deux audits du
-cycle étaient présents et explicites.
+**Réponses aux constats** (détail complet dans
+`reports/director/CYCLE_32692689814.md`) :
+
+- MOB-C3-F1 (faible) : corrigé par le directeur, vérifié par relecture ;
+- MOB-C3-F2 (faible) : corrigé par le directeur, batterie complète verte ;
+- MOB-C3-F3 (info) : reporté — tests de composants interdits sans dépendance
+  nouvelle ; validation TalkBack/VoiceOver consignée comme action humaine ;
+- F1-identite-decorative-cablage (faible) : mission backend prioritaire du
+  prochain cycle — transmettre les valeurs réellement observées aux portes ;
+- F2-concurrence-sans-emulateur (info) : consigné comme prérequis
+  pré-production, attend un incrément avec émulateur local.
+
+**Récupération legacy réévaluée puis close sans réintégration** : la preuve
+legacy (`30e967a` + audit prose du cycle 32675726760-1) reste sans JSON
+d'audit exploitable et donc non intégrable ; le diff `30e967a..HEAD` confirme
+que son travail reste strictement contenu dans l'état accepté. Aucun candidat
+courant ni recovery rejeté ce cycle : les deux couples candidat/audit étaient
+présents, appariés et explicites.
 
 ## Priorité 1 — sécurité vérifiable
 
-- Logique pure du domaine **invitations** : création/acceptation — entropie et
-  borne du jeton, condensé stocké, expiration, rôle attribué, appartenance,
-  double acceptation ; tests négatifs entre deux foyers obligatoires.
+- **Backend** : vérité du câblage d'identité des invitations (constat F1) —
+  valeurs observées au lieu de constantes, tests négatifs prouvant que les
+  portes du module pur s'exécutent réellement.
 - Ne pas recréer les règles Firestore quarantainées ; elles restent bloquées
   jusqu'à exécution réelle sur émulateur.
 - Prérequis consignés avant toute activation réelle de Stripe (aucune
   urgence) : départage des événements de même seconde (C2/B1), repli
   `customer.subscription.deleted` (B7), uniformisation des documents
-  `stripeEvents/{id}` et test de borne d'identifiant > 256 (B4/B5).
+  `stripeEvents/{id}`, test de borne d'identifiant > 256 (B4/B5), test
+  d'émulateur de double acceptation concurrente des invitations (F2).
 
-## Priorité 2 — relier le client sans fragiliser la démo
+## Priorité 2 — produit canonique
 
-- Conserver `demo` comme mode par défaut, totalement hors ligne.
-- Concevoir l'adaptateur Firebase production en échec fermé sans configuration.
-- Ne jamais accepter du client le score, le rôle, l'abonnement ou l'heure
-  serveur ; les flux Auth n'arrivent qu'après les tests d'isolation.
+- **Mobile** : synthèses semaine/mois et filtres de l'Historique (seule
+  zone des quatre espaces canoniques encore sans synthèse), sélecteurs purs
+  testés, limites de plan expliquées calmement, états vides calmes.
+- Conserver `demo` comme mode par défaut, totalement hors ligne ; l'adaptateur
+  Firebase production reste en échec fermé sans configuration.
 
-## Priorité 3 — qualité mobile
+## Priorité 3 — qualité et dettes
 
-- Fiabiliser le focus des modales (`onShow` plutôt que délai de 200 ms),
-  annoncer les erreurs de formulaire, sans nouvelle dépendance.
-- Risques résiduels consignés : couverture UI des états vides limitée aux
-  conditions de données (pas de test de composants) ; validation manuelle
-  TalkBack/VoiceOver exigée avant toute livraison ; câblage transactionnel de
-  `completeTask` non couvert sans émulateur (constat F3 backend).
+- Risques résiduels consignés : câblage UI des annonces non couvert par test
+  automatisé (MOB-C3-F3) ; validation manuelle TalkBack/VoiceOver exigée avant
+  toute livraison ; course de double acceptation des invitations non testée
+  sans émulateur (F2) ; câblage transactionnel de `completeTask` dans le même
+  cas (constat F3 du cycle précédent).
 
 ## Critère de sortie
 

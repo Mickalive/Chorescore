@@ -8,7 +8,7 @@ on:
       - ".chorescore/launch/*.json"
       - ".chorescore/cleanup/*.json"
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "2-57/5 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -154,5 +154,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CHORESCORE_LOOP_WORKFLOW: chorescore-loop.yml
           CHORESCORE_TRACKING_ISSUE: "3"
+          CHORESCORE_RERUN_ROLLOVER_ATTEMPT: "45"
         shell: bash
         run: bash .github/scripts/recover-transient-opencode.sh

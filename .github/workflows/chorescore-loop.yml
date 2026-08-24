@@ -1106,6 +1106,7 @@ jobs:
             npm run check
             npx --no-install expo export --platform android --output-dir "$RUNNER_TEMP/chorescore-android"
             npm --prefix functions run check
+            bash .github/scripts/verify-product-coherence.sh
           } 2>&1 | tee "$RUNNER_TEMP/chorescore-verification.log"
 
       - name: Repair once from deterministic evidence
@@ -1125,6 +1126,7 @@ jobs:
           npm run check
           npx --no-install expo export --platform android --output-dir "$RUNNER_TEMP/chorescore-android-repaired"
           npm --prefix functions run check
+          bash .github/scripts/verify-product-coherence.sh
 
       - name: Validate Director decision and scope
         id: decision

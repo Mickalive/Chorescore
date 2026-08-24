@@ -112,6 +112,8 @@ jobs:
           bash -n .github/scripts/run-opencode-with-retry.sh
           bash -n .github/scripts/recover-transient-opencode.sh
           bash -n .github/scripts/smoke-android-apk.sh
+          bash -n .github/scripts/verify-product-coherence.sh
+          bash .github/scripts/verify-product-coherence.sh
           jq empty governance/RELEASE_DEFINITION.json
           jq empty docs/RELEASE_STATUS.json
           jq empty directives/TASKS.json

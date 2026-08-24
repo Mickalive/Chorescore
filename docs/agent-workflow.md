@@ -149,13 +149,7 @@ de revue. Les checks complets sont exécutés dans le directeur avant toute
 relance, car les workflows de PR créées avec `GITHUB_TOKEN` peuvent demander une
 approbation humaine distincte.
 
-## Pilote d'audit en lecture seule
-
-`.github/workflows/opencode-ox-alpha.yml` n'écoute ni commentaire, ni issue, ni
-pull request. Il accepte seulement un déclenchement manuel et un choix fermé
-(`review` ou `security-audit`), travaille sur le commit de la branche par défaut,
-ne reçoit aucun secret, ne persiste pas les identifiants Git et n'a aucun droit
-d'écriture. Le partage OpenCode est désactivé.
+## Installation et revue OpenCode
 
 L'action GitHub OpenCode n'est pas utilisée, car son enveloppe lancerait sa
 propre logique de branche et de PR, incompatible avec l'orchestration auditée de
@@ -163,22 +157,12 @@ ChoreScore. L'action locale `.github/actions/setup-opencode` télécharge
 l'installateur depuis le commit officiel revu
 [`03bba464d46f3eddf74195919b1344aa937f7b11`](https://github.com/anomalyco/opencode/commit/03bba464d46f3eddf74195919b1344aa937f7b11),
 vérifie son blob Git attendu, puis installe exclusivement OpenCode `1.18.21` et
-contrôle la version obtenue. Cela réduit le risque de dérive de l'installateur ;
-le binaire de release reste néanmoins une dépendance externe à réévaluer lors
-de toute mise à jour.
+contrôle la version obtenue. Le pilote manuel Ox Alpha a été supprimé : les
+audits indépendants font désormais partie de chaque cycle autonome.
 
-Avant une fusion de la PR produite :
-
-1. vérifier les logs et confirmer que le modèle utilisé est
-   `opencode/x-preview-f-free` sans autre fournisseur ;
-2. activer les protections de `main`, checks CI et revue CODEOWNER ;
-3. vérifier les permissions des quatre runners et du pilote `github-auditor`,
-   notamment l'absence de push, merge ou déploiement côté agent ;
-4. conserver des données exclusivement synthétiques et relire humainement tous
-   les changements.
-
-Même activé, ce workflow ne crée pas de commit, commentaire, PR, merge ou
-déploiement. Son rapport doit être relu puis reproduit localement.
+Avant une fusion de la PR produite, vérifier les logs, les rapports des deux
+auditeurs et du directeur, les checks CI, les permissions effectives et
+l'absence de données réelles. La fusion et le déploiement restent humains.
 
 ## Commandes locales OpenCode
 

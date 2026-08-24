@@ -1,28 +1,38 @@
-# Runner mobile — directive active
+# Tâche active — Ingénieur produit mobile
 
-Autorité : directeur ChoreScore, sous réserve de `MAIN_PROMPT.md`.
+Assignment-Id: DRC-02  
+Autorité de poste : `governance/roles/MOBILE_PRODUCT_ENGINEER.md`  
+Sélecteur machine : `directives/TASKS.json`
 
-## État actuel
+## Résultat attendu
 
-La démo Expo possède quatre onglets et un store local synthétique. Le domaine
-et les interactions principales doivent rester exécutables sans réseau.
+Remplacer l'état volatile de la démo par une persistance AsyncStorage réellement
+utilisée, versionnée et testable. Les données synthétiques initiales ne servent
+qu'au premier lancement. Les relances suivantes retrouvent les foyers, tâches,
+entrées, préférences et plan local.
 
-## Mission prioritaire
+## Travail borné
 
-1. Ajouter des tests d'interaction utiles pour les quatre onglets, les modales,
-   les erreurs et les limites de plan déjà implémentées.
-2. Corriger uniquement les défauts mobiles réellement révélés par ces tests.
-3. Renforcer l'accessibilité : libellés, rôles, focus, grandes tailles de texte
-   et petits écrans, sans nouvelle dépendance.
-4. Préserver strictement le calcul canonique, le ton non culpabilisant et le
-   mode `demo` hors ligne.
+1. Introduire une frontière de stockage asynchrone injectée et un format
+   sérialisé avec `schemaVersion`.
+2. Hydrater l'état avant d'afficher les données métier ; prévoir un état de
+   chargement accessible et calme.
+3. Persister les mutations sans écrire de donnée réelle ni effectuer de réseau.
+4. Migrer au moins la version initiale et refuser/récupérer proprement une valeur
+   corrompue, avec comportement documenté.
+5. Sauvegarder l'instant de départ d'un chronomètre actif et recalculer sa durée
+   à la reprise à partir d'une horloge injectée ; ne jamais faire confiance à un
+   compteur incrémental sérialisé.
+6. Ajouter des tests ciblés premier lancement, relance, migration, corruption,
+   concurrence raisonnable des écritures et reprise/annulation du chronomètre.
 
-Choisir une seule tranche verticale qui puisse être terminée dans le cycle. Ne
-pas anticiper Auth, Firebase ou Stripe tant que les portes backend ne sont pas
-prêtes.
+## Hors périmètre
+
+Pas de Firebase, Auth, Stripe, export, multi-foyer UI, nouvelle dépendance,
+modification de workflow ou refonte visuelle générale. Ne traiter aucun autre
+critère tant que DRC-02 n'est pas démontré.
 
 ## Preuves attendues
 
-- tests ciblés succès/erreur ;
-- `npm run check` ;
-- liste exacte des comportements non vérifiés.
+`npm run check`, export Android démo, absence de requête réseau, tests nouveaux
+sans skip et liste exacte des limites résiduelles.

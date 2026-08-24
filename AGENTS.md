@@ -1,63 +1,74 @@
 # Instructions de contribution assistée
 
-Ces instructions s'appliquent à tout le dépôt ChoreScore, quel que soit l'outil
-d'assistance utilisé.
+Ces instructions s'appliquent à tout le dépôt ChoreScore.
 
-## Sources d'autorité
+## Ordre de lecture
 
-Lire avant toute modification :
+1. `MAIN_PROMPT.md` ;
+2. `governance/RELEASE_DEFINITION.json` ;
+3. la fiche immuable du poste sous `governance/roles/` ;
+4. `docs/RELEASE_STATUS.json` et `directives/TASKS.json` ;
+5. la directive active du rôle et `docs/NEXT_CYCLE.md` ;
+6. le canon produit, l'architecture et `SECURITY.md`.
 
-1. `MAIN_PROMPT.md`, constitution stable et non modifiable par les agents ;
-2. `docs/product-decisions.md` pour les décisions produit canoniques ;
-3. `docs/architecture.md` pour les frontières de confiance ;
-4. `SECURITY.md` pour les conditions préalables à une production réelle ;
-5. la directive active du rôle sous `directives/` et `docs/NEXT_CYCLE.md` ;
-6. `docs/agent-workflow.md` pour la délégation, les branches et les contrôles.
-
-En cas de contradiction, la sécurité et la confidentialité priment, puis les
-décisions produit canoniques. Ne réintroduisez pas une ancienne hypothèse issue
-d'un prototype ou d'une conversation préparatoire.
+La fiche de poste définit les responsabilités ; les directives définissent
+uniquement la tâche courante. Une tâche ne peut jamais étendre un poste.
 
 ## Invariants non négociables
 
-- La branche principale reste utilisable sans compte, secret, paiement, Firebase
-  ni analytics. `EXPO_PUBLIC_DATA_MODE=demo` est la valeur sûre par défaut.
+- `EXPO_PUBLIC_DATA_MODE=demo` est la valeur sûre par défaut.
 - La démo emploie uniquement des données synthétiques locales et ne fait aucune
   requête réseau.
-- Une variable `EXPO_PUBLIC_*` est publique. N'y placer aucun secret, jeton,
-  clé Stripe privée, compte de service ou donnée personnelle.
-- Le client mobile est non fiable. En production, score validé, rôle,
-  appartenance au foyer, abonnement et heure de référence sont décidés côté
-  serveur, avec autorisation et validation.
-- Ne jamais journaliser un secret, un corps de webhook complet, un jeton
-  d'invitation brut ou une donnée personnelle non nécessaire.
-- L'analytics est facultatif, désactivé par défaut, révocable et séparé des
-  conditions de service obligatoires.
-- Ne jamais prétendre qu'un changement est « sans faille ». Rapporter les
-  contrôles effectués, leurs résultats et les risques résiduels.
-- Aucun agent ne déploie, ne fusionne, ne pousse sur `main`, ne publie de paquet
-  et ne déclenche un paiement.
-- Aucun agent ne modifie `MAIN_PROMPT.md`, `directives/DIRECTOR.md`, `.github/`,
-  `.opencode/`, `AGENTS.md`, `opencode.json` ou les lockfiles. Le directeur ne
-  peut réécrire que les trois directives opérationnelles explicitement prévues.
+- Le client mobile est non fiable ; identité, rôle, foyer, plan, score et temps
+  de référence sont validés côté serveur en production.
+- Aucun secret, jeton brut, corps de webhook complet ou donnée personnelle
+  inutile dans le code, les logs ou une variable `EXPO_PUBLIC_*`.
+- Stripe, Firebase réel, analytics, déploiement et paiement restent désactivés.
+- Aucun agent ne fusionne, ne déploie, ne publie, ne change de branche, ne crée
+  de commit ou ne pousse.
+- Un constat d'audit avec `mustFix: true` interdit l'intégration et retourne au
+  codeur concerné.
+- Ne jamais présenter un placeholder ou une alerte simulée comme une fonction
+  terminée.
 
-## Discipline de modification
+## Fichiers immuables pour les automations
 
-- Une tâche bornée, une branche, une pull request. Éviter les branches partagées
-  entre agents et les modifications qui se chevauchent.
-- Ne pas ajouter ou mettre à jour une dépendance sans justification, lockfile,
-  audit et revue humaine.
-- Préserver les changements existants sans rapport avec la tâche.
-- Ne pas contourner un test, une règle Firebase ou un contrôle de type pour
-  obtenir un statut vert.
-- Les changements d'authentification, d'autorisation, de paiement, de règles
-  Firebase, de consentement ou de rétention exigent la revue du propriétaire.
-- Toute action GitHub tierce doit être épinglée à un SHA complet vérifié dans le
-  dépôt officiel. Aucun tag mutable tel que `@main`, `@latest` ou `@v4`.
+Aucun agent, y compris le directeur, ne modifie :
 
-## Commandes de validation
+- `MAIN_PROMPT.md`, `AGENTS.md` ;
+- `governance/**` ;
+- `directives/DIRECTOR.md` ;
+- `.github/**`, `.opencode/**`, `opencode.json` ;
+- les fichiers de dépendances et lockfiles.
 
-À partir de la racine, avec Node.js `22.13.0` et les lockfiles suivis :
+Le manifeste `.github/immutable-files.sha256` est vérifié avant et après les
+interventions. Seul un changement humain explicite peut faire évoluer ces
+fichiers et l'empreinte du manifeste.
+
+## Tâches modifiables par le directeur
+
+Le directeur peut modifier uniquement, en plus du produit accepté dans son
+périmètre :
+
+- `directives/TASKS.json` ;
+- `directives/MOBILE.md`, `directives/BACKEND.md`,
+  `directives/AUDITOR.md` ;
+- `docs/NEXT_CYCLE.md`, `docs/RELEASE_STATUS.json` ;
+- ses rapports sous `reports/director/**`.
+
+Un codeur ne modifie aucun de ces fichiers. Un poste désactivé dans
+`directives/TASKS.json` ne travaille pas.
+
+## Discipline
+
+- Une tranche verticale liée à un critère DRC, un codeur responsable.
+- Ne pas ajouter de dépendance ni modifier un lockfile.
+- Préserver tout changement sans rapport.
+- Ne pas contourner ou affaiblir un test, une règle ou un contrôle.
+- Auth, autorisation, paiement, règles Firebase, consentement, rétention,
+  export de données réelles et dépendances exigent une revue humaine.
+
+## Vérifications de référence
 
 ```bash
 npm ci --ignore-scripts
@@ -70,12 +81,10 @@ npm --prefix functions run check
 npm --prefix functions audit --omit=dev --audit-level=high
 ```
 
-Ne pas exécuter un script d'installation distant, installer globalement un outil
-ou réparer automatiquement une alerte d'audit sans examiner le diff.
+## Terminé
 
-## Définition de terminé
-
-Une pull request est prête seulement si son périmètre est explicite, ses tests
-sont ajoutés ou adaptés, les deux jobs CI passent, aucun secret n'est présent,
-la démo hors ligne fonctionne et les risques résiduels sont consignés. La fusion
-reste une décision humaine protégée par revue.
+Une tranche n'est terminée que si son comportement est réel, les erreurs et
+états vides sont traités, les tests annoncés passent, l'audit ne contient aucun
+`mustFix: true`, la démo hors ligne fonctionne et les risques résiduels sont
+consignés. La livraison `demo-rc` exige en plus tous les critères immuables de
+`governance/RELEASE_DEFINITION.json`.

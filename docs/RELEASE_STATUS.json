@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "milestone": "demo-rc",
+  "governanceVersion": "2026-08-25-v1",
+  "lastCycle": "human-bootstrap",
+  "activeCriteria": [
+    "DRC-02"
+  ],
+  "stalledCycles": 0,
+  "progressSummary": "Socle hors ligne accepté : parcours cœur, 71 tests mobile et 93 tests backend. La persistance réelle, les opérations de correction, les fonctions premium locales et l'APK installable restent à livrer.",
+  "blocker": null,
+  "criteria": [
+    {
+      "id": "DRC-01",
+      "status": "complete",
+      "evidence": [
+        {
+          "kind": "tests",
+          "reference": "npm run check — 71 tests mobile acceptés au cycle 32692689814",
+          "cycle": "32692689814"
+        },
+        {
+          "kind": "audit",
+          "reference": "audits mobile cycle 32692689814, décision accept",
+          "cycle": "32692689814"
+        }
+      ]
+    },
+    {
+      "id": "DRC-02",
+      "status": "in_progress",
+      "evidence": []
+    },
+    {
+      "id": "DRC-03",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "DRC-04",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "DRC-05",
+      "status": "in_progress",
+      "evidence": [
+        {
+          "kind": "tests",
+          "reference": "tests domaine et annonces accessibles acceptés au cycle 32692689814",
+          "cycle": "32692689814"
+        }
+      ]
+    },
+    {
+      "id": "DRC-06",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "DRC-07",
+      "status": "pending",
+      "evidence": []
+    }
+  ],
+  "pendingArtifact": null
+}

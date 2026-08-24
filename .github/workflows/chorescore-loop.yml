@@ -386,8 +386,21 @@ jobs:
             "$BACKEND_BRANCH:refs/remotes/origin/$BACKEND_BRANCH" \
             "$AUDIT_BRANCH:refs/remotes/origin/$AUDIT_BRANCH"
 
-          git diff --binary "$BASE_SHA..origin/$MOBILE_BRANCH" | git apply --3way
-          git diff --binary "$BASE_SHA..origin/$BACKEND_BRANCH" | git apply --3way
+          apply_candidate() {
+            local label="$1"
+            local branch="$2"
+            local patch_file="$RUNNER_TEMP/${label}.patch"
+
+            git diff --binary "$BASE_SHA..origin/$branch" > "$patch_file"
+            if [[ -s "$patch_file" ]]; then
+              git apply --3way "$patch_file"
+            else
+              echo "::notice::Le candidat ${label} ne contient aucun changement; l'intégration continue."
+            fi
+          }
+
+          apply_candidate mobile "$MOBILE_BRANCH"
+          apply_candidate backend "$BACKEND_BRANCH"
           mkdir -p .loop-input reports/audits
           git show "origin/$AUDIT_BRANCH:reports/audits/CYCLE_${CYCLE_KEY}.md" > .loop-input/audit.md
           cp .loop-input/audit.md "reports/audits/CYCLE_${CYCLE_KEY}.md"

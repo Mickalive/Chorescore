@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "cycle": "32692689814",
+  "reason": "Independent mobile and backend audits were interrupted by a transient OpenCode endpoint outage.",
+  "releaseCondition": "Both matching audit JSON reports validate and the Director rerun integrates only accepted candidates."
+}

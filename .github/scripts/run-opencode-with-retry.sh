@@ -14,6 +14,53 @@ label="${OPENCODE_RETRY_LABEL:-agent}"
 log_file=$(mktemp "${RUNNER_TEMP:?}/opencode-${label}.XXXXXX.log")
 trap 'rm -f "$log_file"' EXIT
 
+validate_director_audit() {
+  local file="$1" role="$2" round="$3"
+  test -s "$file" || return 1
+  jq -e --arg cycle "${CYCLE_KEY:?}" --arg role "$role" --argjson round "$round" '
+    .schemaVersion == 1 and
+    (.cycle | tostring) == $cycle and
+    .role == $role and
+    .round == $round and
+    (.decision == "accept" or .decision == "repair" or .decision == "reject") and
+    (.summary | type == "string" and length > 0 and length <= 1000) and
+    (.findings | type == "array" and length <= 50) and
+    (.checks | type == "array" and length <= 50 and all(type == "string" and length > 0 and length <= 1000)) and
+    (.decision == "accept" or (.findings | length) > 0)
+  ' "$file" >/dev/null
+}
+
+if [[ "$label" == director ]]; then
+  for role in mobile backend; do
+    role_upper=$(tr '[:lower:]' '[:upper:]' <<<"$role")
+    if [[ "$role" == mobile ]]; then
+      found="${MOBILE_FOUND:-false}"
+      repaired_found="${MOBILE_REPAIRED_FOUND:-false}"
+    else
+      found="${BACKEND_FOUND:-false}"
+      repaired_found="${BACKEND_REPAIRED_FOUND:-false}"
+    fi
+    [[ "$found" == true ]] || continue
+
+    initial="/tmp/chorescore_audit_${role}/reports/audits/CYCLE_${CYCLE_KEY}_${role_upper}.json"
+    if ! validate_director_audit "$initial" "$role" 1; then
+      echo "CHORESCORE_OPENCODE_FAILURE_KIND=transient label=director reason=audit-evidence-pending" >&2
+      echo "::error::Audit structuré $role absent ou invalide; le directeur attend une nouvelle tentative d'audit." >&2
+      exit 75
+    fi
+
+    decision=$(jq -r '.decision' "$initial")
+    if [[ "$decision" != accept ]]; then
+      final="/tmp/chorescore_audit_${role}_final/reports/audits/CYCLE_${CYCLE_KEY}_${role_upper}_FINAL.json"
+      if [[ "$repaired_found" != true ]] || ! validate_director_audit "$final" "$role" 2; then
+        echo "CHORESCORE_OPENCODE_FAILURE_KIND=transient label=director reason=correction-evidence-pending" >&2
+        echo "::error::Correction ou second audit $role incomplet; le directeur reste bloqué." >&2
+        exit 75
+      fi
+    fi
+  done
+fi
+
 for ((attempt = 1; attempt <= max_attempts; attempt++)); do
   : > "$log_file"
   echo "OpenCode ${label}: tentative ${attempt}/${max_attempts}."

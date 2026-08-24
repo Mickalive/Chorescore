@@ -27,7 +27,6 @@ on:
 permissions:
   contents: write
   actions: write
-  issues: write
   pull-requests: write
 
 concurrency:
@@ -149,7 +148,7 @@ jobs:
             '{schemaVersion: 1, run_id: $run_id, cycle_index: ($cycle_index | tonumber), max_cycles: ($max_cycles | tonumber), human_note: $human_note, recovery_cycle_key: $recovery_cycle_key}')
           state_b64=$(printf '%s' "$state" | base64 -w0)
           body=$(printf '### Cycle ChoreScore démarré\n\n- Run : [%s](https://github.com/%s/actions/runs/%s)\n- Cycle : `%s`\n- Limite demandée : `%s` (0 = continue)\n- Récupération : `%s`\n\nLa branche acceptée reste `lab/chorescore` jusqu’à validation du directeur.\n\n<!-- chorescore-control-state:%s -->' "$GITHUB_RUN_ID" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$CYCLE_INDEX" "$MAX_CYCLES" "$RECOVERY_CYCLE_KEY" "$state_b64")
-          gh issue comment 3 --repo "$GITHUB_REPOSITORY" --body "$body"
+          printf '%s\n' "$body"
 
   candidate:
     name: ${{ matrix.label }}
@@ -1038,7 +1037,7 @@ jobs:
         shell: bash
         run: |
           body=$(printf '### ChoreScore autonomous cycle %s\n\n- Run: [%s](https://github.com/%s/actions/runs/%s)\n- Accepted commit: `%s`\n- Director decision: **%s**\n\nNo automatic merge or deployment.' "$CYCLE_INDEX" "$GITHUB_RUN_ID" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$HEAD_SHA" "$DECISION")
-          gh issue comment 3 --repo "$GITHUB_REPOSITORY" --body "$body"
+          printf '%s\n' "$body"
 
       - name: Dispatch next audited cycle
         if: >-
@@ -1077,4 +1076,4 @@ jobs:
         shell: bash
         run: |
           body=$(printf '### Cycle ChoreScore arrêté avant intégration\n\n- Run : [%s](https://github.com/%s/actions/runs/%s)\n- Préparation : **%s**\n- Candidats : **%s**\n- Audits initiaux : **%s**\n- Corrections par les codeurs : **%s**\n- Seconds audits : **%s**\n- Directeur : **%s**\n\nLes snapshots déjà poussés restent récupérables ; `lab/chorescore` n’est pas avancée sans validation.' "$GITHUB_RUN_ID" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$PREPARE_RESULT" "$CANDIDATE_RESULT" "$AUDIT_RESULT" "$REPAIR_RESULT" "$REAUDIT_RESULT" "$DIRECTOR_RESULT")
-          gh issue comment 3 --repo "$GITHUB_REPOSITORY" --body "$body"
+          printf '%s\n' "$body"

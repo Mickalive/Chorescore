@@ -36,6 +36,7 @@ concurrency:
 
 env:
   OX_MODEL: opencode/x-preview-f-free
+  OPENCODE_MAX_ATTEMPTS: "5"
   LANE_BRANCH: lab/chorescore
   MAIN_PROMPT_SHA256: c3e1b4e0b0a42af3fb64a4ee10043252e763866d670c6e942f5f380583d30d97
   CYCLE_KEY: ${{ github.run_id }}

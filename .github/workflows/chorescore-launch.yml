@@ -25,7 +25,7 @@ concurrency:
 jobs:
   dispatch:
     name: Dispatch requested autonomous build
-    if: ${{ github.event_name == 'push' && github.event.repository.visibility == 'private' }}
+    if: ${{ github.event_name == 'push' && github.repository == 'Mickalive/Chorescore' && !github.event.repository.fork }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -160,7 +160,7 @@ jobs:
 
   watchdog:
     name: Recover transient Ox outage
-    if: ${{ github.event.repository.visibility == 'private' && ((github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure') || github.event_name == 'workflow_dispatch') }}
+    if: ${{ github.repository == 'Mickalive/Chorescore' && !github.event.repository.fork && ((github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure') || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:

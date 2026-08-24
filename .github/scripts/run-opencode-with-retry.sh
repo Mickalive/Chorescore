@@ -30,13 +30,15 @@ for ((attempt = 1; attempt <= max_attempts; attempt++)); do
   if ! grep -Eqi \
     'network_error|network error|temporarily unavailable|connection (reset|closed)|ECONNRESET|ETIMEDOUT|timed out|timeout|rate[_ -]?limit|HTTP[^0-9]*(429|500|502|503|504)' \
     "$log_file"; then
+    echo "CHORESCORE_OPENCODE_FAILURE_KIND=permanent label=${label} status=${command_status}" >&2
     echo "::error::OpenCode ${label} a échoué pour une cause non transitoire; aucun nouvel essai automatique." >&2
     exit "$command_status"
   fi
 
   if (( attempt == max_attempts )); then
-    echo "::error::OpenCode ${label} reste indisponible après ${max_attempts} tentatives espacées." >&2
-    exit "$command_status"
+    echo "CHORESCORE_OPENCODE_FAILURE_KIND=transient label=${label} attempts=${max_attempts}" >&2
+    echo "::error::OpenCode ${label} reste indisponible après ${max_attempts} tentatives espacées; le watchdog reprendra ce même run." >&2
+    exit 75
   fi
 
   echo "::warning::Panne fournisseur transitoire pour ${label}; nouvelle tentative dans ${retry_delay}s (5 min par défaut)." >&2

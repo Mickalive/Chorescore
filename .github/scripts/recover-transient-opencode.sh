@@ -64,6 +64,15 @@ while IFS= read -r encoded_job; do
   job_id=$(jq -r '.id' <<<"$job")
   job_name=$(jq -r '.name' <<<"$job")
   log_file="$tmp_dir/$job_id.log"
+  step_count=$(jq '(.steps // []) | length' <<<"$job")
+
+  # GitHub can reject a private-repository job before assigning a runner. Such
+  # jobs have no steps and no logs; after a visibility/quota change they are
+  # safe infrastructure retries, not code failures.
+  if (( step_count == 0 )); then
+    transient_jobs+=("$job_name (runner non démarré)")
+    continue
+  fi
 
   if ! gh run view "$run_id" --repo "$repository" --job "$job_id" --log >"$log_file" 2>&1; then
     unsafe_jobs+=("$job_name (logs indisponibles)")

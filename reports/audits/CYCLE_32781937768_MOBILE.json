@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "cycle": "32781937768",
+  "role": "mobile",
+  "round": 1,
+  "decision": "accept",
+  "summary": "Snapshot 9d29981 vs base acceptee de6470b : 3 fichiers (+451/-10), strictement history.tsx, src/domain/history.ts et tests/history.test.ts. Tranche canonique du cycle : synthese semaine/mois et filtres de l'Historique via deux selecteurs purs testes hors UI (7 tests). Les filtres naviguent la fenetre deja visible sans debloquer ni simuler d'achat ; en gratuit la valeur reste le temps brut et la note de plan est calme, sans urgence. Frontieres lundi local / 1er du mois couvertes, dont un test bout-en-bout sur le semis de demo reel ; determinisme du tri epingle. Checks verts : typecheck OK, 78/78 tests, export Android demo OK (~2,8 Mo), npm audit prod sans haute/critique, aucun reseau ni secret ni dependance ajoute. Trois constats faibles/info non bloquants : debordement possible du filtre membre a nombreuses options en grande police, frontiere annee et borne haute now non epinglees par test, new Date() fige dans les memos selon la convention preexistante. Decision : accepter.",
+  "findings": [
+    {
+      "id": "MOB-C4-F1",
+      "severity": "low",
+      "path": "app/(tabs)/history.tsx (~ligne 116) ; src/components/SegmentedControl.tsx",
+      "problem": "Le filtre membre est le premier usage dynamique de SegmentedControl : il peut afficher jusqu'a 8 options ou plus (« Foyer » + membres ; Standard = 7 membres max, Pro non borne) dans une seule rangée flex sans wrap ni defilement (flexDirection: 'row', minHeight 42, fontSize 13). Sur petit ecran ou a grande taille de texte systeme, les libelles se compriment ou tronquent, ce qui contraint l'exigence canonique d'utilisabilite aux grandes tailles de texte et petits ecrans.",
+      "evidence": "src/components/SegmentedControl.tsx lignes 45-53 : container flexDirection 'row' sans flexWrap ni ScrollView ; memberOptions construit depuis toutes les memberships du foyer (history.tsx) ; usages precedents du composant (leaderboard, profile) n'avaient que 2-3 options fixes.",
+      "requiredFix": "Permettre le repli des segments (flexWrap) ou un defilement horizontal au-dela d'environ 4 options, ou basculer sur une liste/selection dediee quand le foyer depasse ce seuil.",
+      "verification": "Verification visuelle a la plus grande taille de texte systeme sur petit ecran (passage manuel TalkBack/grande police consigne) ou test de composant lorsque le depot s'en donne les moyens : aucun libelle tronque pour « Foyer » et les noms de membres."
+    },
+    {
+      "id": "MOB-C4-F2",
+      "severity": "low",
+      "path": "tests/history.test.ts",
+      "problem": "La couverture des frontieres laisse deux cibles explicites de la directive du cycle sans test : aucun cas ne traverse un changement d'annee (31 decembre -> 1er janvier) pour le filtre 'month', et la borne haute completedAt <= now n'est pas epinglee (entree exactement a now comptee une fois, entree a now+1s exclue). Une regression future de getPeriodStart ou isEntryInPeriod sur ces bornes passerait inapercue.",
+      "evidence": "tests/history.test.ts ne contient aucune date de decembre/janvier (cas juillet/aout uniquement) et aucune entree avec completedAt egal a NOW ; les bornes testees sont dimanche 23:59 vs lundi 00:00 et 31 juillet vs 1er aout.",
+      "requiredFix": "Ajouter un cas avec NOW debut janvier et des entrees le 31 decembre 23:59 (exclue du mois de janvier) et le 1er janvier 00:00 (incluse), plus une entree exactement a now incluse et une a now+1s exclue.",
+      "verification": "Les nouvelles assertions passent sur le candidat et echouent si getPeriodStart/isEntryInPeriod regressent sur ces bornes ; relancer node --test .test-build/tests/history.test.js."
+    },
+    {
+      "id": "MOB-C4-F3",
+      "severity": "info",
+      "path": "app/(tabs)/history.tsx (~lignes 46-52)",
+      "problem": "Les memos filteredEntries et synthesis capturent new Date() inline sans dependance temporelle ([visibleEntries, periodFilter, memberFilter]) : si l'app reste ouverte a travers un changement de semaine ou de mois, le filtrage garde l'ancienne periode jusqu'a un changement d'entrees ou de filtre. Convention preexistante dans l'etat accepte (visibleEntries et dailyPoints identiques), impact limite a la demo ; en production l'heure de reference doit venir du serveur.",
+      "evidence": "git show de6470b:'app/(tabs)/history.tsx' lignes 22-37 montre le meme motif inline new Date() sans dependance temporelle deja accepte ; le candidat prolonge exactement cette convention.",
+      "requiredFix": "Optionnel, lors d'une passe rafraichissement : calculer now hors memo par rendu ou inclure un jeton temporel grossier dans les dependances quand l'ecran gagne un mecanisme de rafraichissement.",
+      "verification": "Apres changement, le filtrage suit le passage de semaine/mois pendant une session ouverte, ou la stagnation demo est documentee comme acceptee dans l'etat cumulatif."
+    }
+  ],
+  "checks": [
+    "git -C /tmp/chorescore_mobile log --oneline de6470b..9d29981 : un seul commit candidat, merge-base egale a la base acceptee de6470b, sans historique reecrit.",
+    "git -C /tmp/chorescore_mobile diff --stat de6470b..9d29981 puis diff integral relu : 3 fichiers (+451/-10), aucun fichier interdit, aucun lockfile, aucune dependance, aucune orchestration modifiee.",
+    "npm run check (worktree candidat, Node v22.13.0) : typecheck tsc --noEmit OK puis 78/78 tests node:test pass, 0 echec, 0 ignore (71 precedents + 7 nouveaux).",
+    "node --test .test-build/tests/history.test.js (worktree candidat) : 7/7 nouveaux tests verts en execution isolee.",
+    "EXPO_PUBLIC_DATA_MODE=demo npx --no-install expo export --platform android (worktree candidat) : export Android reussi, bundle ~2,8 Mo, demo hors ligne intacte.",
+    "npm audit --omit=dev --audit-level=high (worktree candidat) : code sortie 0, 11 vulnerabilites moderees, aucune haute/critique ; lockfiles inchanges.",
+    "grep -rn \"fetch(|XMLHttpRequest|WebSocket|firebase\" src/ app/ (worktree candidat) : aucune occurrence, aucune requete reseau ajoutee.",
+    "grep .skip/.todo/.only/@ts-ignore/eslint-disable sur tests/, src/domain/history.ts et history.tsx : aucun test ignore, aucun contournement de type ou de lint.",
+    "Recoupement manuel des affirmations des tests contre src/data/demoData.ts (19 entrees semees, J-32 hors fenetre 30 jours, J-3 dimanche 23 aout hors semaine), src/domain/periods.ts, scoring.ts et leaderboard.ts : attentes exactes, tests honnetes.",
+    "Relecture hostile du diff : commentaires referencant uniquement des symboles reels (startOfWeek, startOfMonth, getVisibleHistory, isEntryInPeriod, getEntryValue), aucun motif externe fabrique, aucune instruction adressee a des agents."
+  ]
+}

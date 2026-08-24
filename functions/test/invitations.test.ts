@@ -16,6 +16,8 @@ import {
   MAX_INVITE_EXPIRY_HOURS,
   MIN_INVITE_EXPIRY_HOURS,
   MIN_INVITE_TOKEN_ENTROPY_BITS,
+  ObservedCallableRequest,
+  observedInviteCaller,
 } from "../src/invitations";
 
 const NOW = Date.UTC(2026, 7, 24, 12);
@@ -625,6 +627,184 @@ test("la capacité n'est consultée qu'après les portes de validité", () => {
       message: "Cette invitation est invalide ou indisponible.",
     },
   );
+});
+
+// --- Observation réelle de l'identité (constat F1) ---------------------------
+//
+// Le câblage transmet désormais à la décision la requête brute via
+// `observedInviteCaller` : les tests ci-dessous empruntent exactement le
+// même chemin que la production (requête → observation → décision) afin de
+// prouver qu'une identité dégradée est refusée par le module pur lui-même,
+// pas seulement par les gardes amont.
+
+interface ObservedRequestShape {
+  uid?: string | undefined;
+  appCheck?: boolean | undefined;
+  emailVerified?: unknown;
+}
+
+/** Requête appelable réduite aux champs observés, comme `CallableRequest`. */
+function observedRequest(fields: ObservedRequestShape): ObservedCallableRequest {
+  return {
+    ...(fields.uid === undefined
+      ? {}
+      : { auth: { uid: fields.uid, token: { email_verified: fields.emailVerified } } }),
+    ...(fields.appCheck === true ? { app: { appId: "app_check_attested" } } : {}),
+  };
+}
+
+test("l'observation reflète exactement la requête reçue, sans constante", () => {
+  assert.deepEqual(
+    observedInviteCaller(
+      observedRequest({ uid: "user_1", appCheck: true, emailVerified: true }),
+    ),
+    { authenticated: true, appCheckAttested: true, emailVerified: true, uid: "user_1" },
+  );
+  // Sans Authentification : aucune porte n'est supposée acquise.
+  assert.deepEqual(observedInviteCaller(observedRequest({})), {
+    authenticated: false,
+    appCheckAttested: false,
+    emailVerified: false,
+    uid: undefined,
+  });
+  // Authentifié mais sans attestation App Check : seule cette porte tombe.
+  assert.deepEqual(
+    observedInviteCaller(observedRequest({ uid: "user_1", emailVerified: true })),
+    { authenticated: true, appCheckAttested: false, emailVerified: true, uid: "user_1" },
+  );
+});
+
+test("une identité dégradée observée est refusée par la décision de création", () => {
+  // Requête sans Authentification : la porte du module pur s'exécute avec le
+  // code et le message historiques, avant toute lecture d'adhésion ou de
+  // capacité — alors même que toutes les autres entrées seraient valides.
+  assert.deepEqual(
+    decideInviteCreation(
+      creationInput({ caller: observedInviteCaller(observedRequest({})) }),
+    ),
+    { outcome: "reject", code: "unauthenticated", message: "Authentification requise." },
+  );
+  // Authentifié sans attestation App Check.
+  assert.deepEqual(
+    decideInviteCreation(
+      creationInput({
+        caller: observedInviteCaller(observedRequest({ uid: "user_1", emailVerified: true })),
+      }),
+    ),
+    {
+      outcome: "reject",
+      code: "failed-precondition",
+      message: "Attestation App Check requise.",
+    },
+  );
+  // Email non vérifié : la valeur traverse une frontière et doit être
+  // strictement `true`, jamais coercée.
+  for (const flag of [false, undefined, "yes", 1]) {
+    assert.deepEqual(
+      decideInviteCreation(
+        creationInput({
+          caller: observedInviteCaller(
+            observedRequest({ uid: "user_1", appCheck: true, emailVerified: flag }),
+          ),
+        }),
+      ),
+      {
+        outcome: "reject",
+        code: "failed-precondition",
+        message: "Une adresse email vérifiée est requise.",
+      },
+    );
+  }
+  // Identifiant d'utilisateur vide : refusé comme non authentifié.
+  assert.deepEqual(
+    decideInviteCreation(
+      creationInput({
+        caller: observedInviteCaller(
+          observedRequest({ uid: "", appCheck: true, emailVerified: true }),
+        ),
+      }),
+    ),
+    { outcome: "reject", code: "unauthenticated", message: "Authentification requise." },
+  );
+});
+
+test("une identité pleinement attestée observée conserve l'acceptation historique", () => {
+  const attested = observedInviteCaller(
+    observedRequest({ uid: "user_1", appCheck: true, emailVerified: true }),
+  );
+  assert.deepEqual(decideInviteCreation(creationInput({ caller: attested })), {
+    outcome: "accept",
+    expiresAtMs: NOW + 24 * HOUR_MS,
+  });
+});
+
+test("une identité dégradée observée est refusée à l'acceptation, avant même le rejeu", () => {
+  // Invitation déjà consommée par user_9, toujours membre actif : avec un
+  // câblage à constantes, une requête dégradée aurait pu atteindre la branche
+  // de rejeu ; l'observation réelle arrête la requête à la porte d'identité.
+  assert.deepEqual(
+    decideRedemption(
+      redemptionInput({
+        caller: observedInviteCaller(observedRequest({})),
+        invite: {
+          exists: true,
+          householdId: "household_b",
+          status: "redeemed",
+          useCount: 1,
+          redeemedBy: "user_9",
+          expiresAtMs: NOW - HOUR_MS,
+          revokedAt: null,
+        },
+        membershipStatus: "active",
+      }),
+    ),
+    { outcome: "reject", code: "unauthenticated", message: "Authentification requise." },
+  );
+  // Authentifié sans attestation App Check.
+  assert.deepEqual(
+    decideRedemption(
+      redemptionInput({
+        caller: observedInviteCaller(
+          observedRequest({ uid: "user_9", emailVerified: true }),
+        ),
+      }),
+    ),
+    {
+      outcome: "reject",
+      code: "failed-precondition",
+      message: "Attestation App Check requise.",
+    },
+  );
+  // Email non vérifié, y compris sans coercion d'une valeur non booléenne.
+  for (const flag of [false, undefined, "yes"]) {
+    assert.deepEqual(
+      decideRedemption(
+        redemptionInput({
+          caller: observedInviteCaller(
+            observedRequest({ uid: "user_9", appCheck: true, emailVerified: flag }),
+          ),
+        }),
+      ),
+      {
+        outcome: "reject",
+        code: "failed-precondition",
+        message: "Une adresse email vérifiée est requise.",
+      },
+    );
+  }
+});
+
+test("une identité pleinement attestée observée conserve l'acceptation à l'arrivée", () => {
+  const attested = redemptionInput({
+    caller: observedInviteCaller(
+      observedRequest({ uid: "user_9", appCheck: true, emailVerified: true }),
+    ),
+  });
+  assert.deepEqual(decideRedemption(attested), {
+    outcome: "accept",
+    householdId: "household_b",
+    assignedRole: "member",
+  });
 });
 
 // --- Jeton : entropie, borne, condensé --------------------------------------

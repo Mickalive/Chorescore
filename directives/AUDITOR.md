@@ -23,26 +23,30 @@ Rechercher notamment :
 
 ## Cibles prioritaires du prochain cycle
 
-1. **Mobile — casser la tranche synthèses/filtres de l'Historique** :
-   frontières de semaine/mois (changement de mois, années différentes, fin de
-   semaine locale), entrées exactement aux bornes comptées une seule fois,
-   filtre qui n'exclut pas silencieusement des entrées légitimes, limites de
-   plan expliquées sans bloquer une fonction gratuite ni simuler un achat.
-   Vérifier que tout nouveau sélecteur reste pur et testé hors UI.
-2. **Backend — vérifier la vérité du câblage d'identité** : le candidat doit
-   remplacer les constantes `true` des portes d'identité par les valeurs
-   réellement observées de la requête. Contester toute constante résiduelle,
-   toute porte devenue inatteignable sans raison documentée, et toute dérive
-   des messages d'erreur historiques. Vérifier que les tests négatifs nouveaux
-   exercent réellement les portes du module pur via le câblage.
-3. **Backend — fausse positivité de la garde durcie** :
-   `storedBillingStateIsUnreadable` doit continuer d'échouer fermé sur statut
-   stocké inconnu et marqueur négatif ; chercher un état légitime écrit par le
-   système que la garde rejetterait à tort.
-4. **Honnêteté des commentaires et des tests** : le cycle 32692689814 a
-   montré un précédent fabriqué (« motif TaskRow » inexistant). Traiter toute
-   référence de commentaire à un motif externe non vérifié comme un constat ;
-   tout test ignoré reste un constat, jamais une acceptation.
+1. **Mobile — casser la tranche robustesse Historique** : le candidat doit
+   corriger MOB-C4-F1 (repli/défilement du `SegmentedControl` à nombreuses
+   options sans casser les usages fixes de leaderboard/profile) et
+   MOB-C4-F3 (`now` recalculé hors mémo ou jeton temporel dans les
+   dépendances). Contester toute régression silencieuse : filtre qui inclurait
+   ou exclurait des entrées légitimes après changement de période en session,
+   libellé tronqué restant possible, note de plan devenue insistante.
+2. **Backend — casser l'épinglage du câblage d'identité** : le candidat doit
+   épingler `observedInviteCaller(request)` dans `invites.ts` (assertion de
+   source ou composition pure) et généraliser l'observation à `completeTask`.
+   Exiger la démonstration rouge→vert : le test d'épinglage doit échouer si
+   les constantes reviennent. Contester toute constante d'identité résiduelle,
+   toute porte devenue inatteignable sans raison documentée et toute dérive
+   des messages d'erreur historiques.
+3. **Honnêteté des commentaires et des tests** : les cycles précédents ont
+   montré un précédent fabriqué (« motif TaskRow ») et des commentaires
+   optimistes sur des branches non exercées. Traiter toute référence de
+   commentaire à un motif externe non vérifié comme un constat ; tout test
+   ignoré reste un constat, jamais une acceptation ; vérifier que chaque
+   affirmation de commentaire correspond à un symbole réel du dépôt.
+4. **Rappel preuve JSON** : la décision d'intégration repose uniquement sur
+   le JSON d'audit apparié (cycle/rôle/round exacts, décision exacte
+   `accept`). Un statut vert du workflow, un check passant ou une prose
+   convaincante ne remplacent jamais cette décision.
 
 Chaque constat matériel contient gravité, chemin/symbole, scénario, preuve,
 correction minimale et décision. Rapporter les checks réellement exécutés et

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { AppButton } from '@/src/components/AppButton';
 import { Avatar } from '@/src/components/Avatar';
@@ -10,14 +10,22 @@ import { NoticeBanner } from '@/src/components/NoticeBanner';
 import { Screen } from '@/src/components/Screen';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
 import { SectionTitle } from '@/src/components/SectionTitle';
+import { SegmentedControl } from '@/src/components/SegmentedControl';
 import { COLORS, RADIUS, SPACING } from '@/src/components/theme';
 import { getEntitlements, getPlanLabel } from '@/src/domain/entitlements';
+import {
+  buildHistorySynthesis,
+  filterHistoryEntries,
+  type HistoryPeriodFilter,
+} from '@/src/domain/history';
 import { buildDailyHistory, getVisibleHistory } from '@/src/domain/leaderboard';
 import { formatMetric, getEntryValue } from '@/src/domain/scoring';
 import { useApp } from '@/src/store/AppProvider';
 
 export default function HistoryScreen() {
   const { state, showPaywall, dismissNotice } = useApp();
+  const [periodFilter, setPeriodFilter] = useState<HistoryPeriodFilter>('all');
+  const [memberFilter, setMemberFilter] = useState<string | null>(null);
   const entitlements = getEntitlements(state.household.plan);
   const dailyPoints = useMemo(
     () =>
@@ -35,11 +43,44 @@ export default function HistoryScreen() {
     () => getVisibleHistory(state.entries, state.household.id, entitlements.historyDays, new Date()),
     [state.entries, state.household.id, entitlements.historyDays],
   );
-  const userEntries = visibleEntries.filter((entry) => entry.userId === state.currentUserId);
-  const totalValue = userEntries.reduce((sum, entry) => sum + getEntryValue(entry, entitlements.useWeights), 0);
-  const totalMinutes = userEntries.reduce((sum, entry) => sum + entry.durationSeconds / 60, 0);
+  const filteredEntries = useMemo(
+    () => filterHistoryEntries(visibleEntries, periodFilter, memberFilter, new Date()),
+    [visibleEntries, periodFilter, memberFilter],
+  );
+  const synthesis = useMemo(
+    () => buildHistorySynthesis(filteredEntries, state.tasks, entitlements.useWeights),
+    [filteredEntries, state.tasks, entitlements.useWeights],
+  );
+  const memberIds = new Set(
+    state.memberships
+      .filter((membership) => membership.householdId === state.household.id)
+      .map((membership) => membership.userId),
+  );
+  const memberOptions = [
+    { value: 'all', label: 'Foyer' },
+    ...state.users
+      .filter((user) => memberIds.has(user.id))
+      .map((user) => ({ value: user.id, label: user.name })),
+  ];
   const taskById = new Map(state.tasks.map((task) => [task.id, task]));
   const userById = new Map(state.users.map((user) => [user.id, user]));
+  // Liste honnête : le compteur annonce exactement ce qui est affiché, y
+  // compris quand la liste dépasse les 20 premières lignes rendues.
+  const shownEntries = filteredEntries.slice(0, 20);
+  const entriesDetail =
+    filteredEntries.length > shownEntries.length
+      ? `${shownEntries.length} premières sur ${filteredEntries.length} entrées`
+      : `${filteredEntries.length} ${filteredEntries.length > 1 ? 'entrées' : 'entrée'} dans la sélection`;
+
+  const changePeriod = (value: string) => {
+    if (value === 'all' || value === 'week' || value === 'month') {
+      setPeriodFilter(value);
+    }
+  };
+
+  const changeMember = (value: string) => {
+    setMemberFilter(value === 'all' ? null : value);
+  };
 
   const exportReport = () => {
     if (!entitlements.canExportPdf) {
@@ -56,16 +97,70 @@ export default function HistoryScreen() {
     <Screen>
       <DemoBanner />
       <ScreenHeader
-        eyebrow={`${getPlanLabel(state.household.plan)} · ${entitlements.historyDays === null ? 'historique complet' : '30 jours'}`}
+        eyebrow={`${getPlanLabel(state.household.plan)} · ${entitlements.historyDays === null ? 'historique complet' : `${entitlements.historyDays} jours`}`}
         title="Historique"
         subtitle="Relis les saisies du foyer sans transformer ces données en jugement."
       />
       <NoticeBanner message={state.notice} onDismiss={dismissNotice} />
 
-      <View style={styles.metricRow}>
-        <MetricCard label="Ton total visible" value={formatMetric(totalValue, entitlements.useWeights)} />
-        <MetricCard label="Temps saisi" value={`${Math.round(totalMinutes)} min`} />
+      <SegmentedControl
+        accessibilityLabel="Période d’historique affichée"
+        options={[
+          { value: 'all', label: 'Tout' },
+          { value: 'week', label: 'Cette semaine' },
+          { value: 'month', label: 'Ce mois' },
+        ]}
+        value={periodFilter}
+        onChange={changePeriod}
+      />
+      <SegmentedControl
+        accessibilityLabel="Membre du foyer affiché"
+        options={memberOptions}
+        value={memberFilter ?? 'all'}
+        onChange={changeMember}
+      />
+
+      <View style={[styles.metricRow, styles.metricRowSpacing]}>
+        <MetricCard
+          label="Temps saisi"
+          value={`${Math.round(synthesis.totalMinutes)} min`}
+          detail={`${synthesis.entryCount} ${synthesis.entryCount > 1 ? 'entrées' : 'entrée'} dans la sélection`}
+        />
+        <MetricCard
+          label={entitlements.useWeights ? 'Points (poids du foyer)' : 'Points (temps brut)'}
+          value={formatMetric(synthesis.totalValue, entitlements.useWeights)}
+        />
       </View>
+
+
+      {entitlements.useWeights ? null : (
+        <Text style={styles.planNote}>
+          En gratuit, l’historique couvre les 30 derniers jours et chaque valeur est comptée en
+          temps brut : le poids effectif vaut 1. Les offres complètes ajoutent la pondération
+          personnalisée, sans changer cette liste.
+        </Text>
+      )}
+
+      <SectionTitle title="Répartition par tâche" detail="Synthèse de la sélection courante" />
+      {synthesis.byTask.length === 0 ? (
+        <Card style={styles.emptyState}>
+          <Text style={styles.emptyText}>Rien à résumer pour cette sélection.</Text>
+        </Card>
+      ) : (
+        <Card>
+          {synthesis.byTask.map((row, index) => (
+            <View
+              key={row.taskId}
+              style={[styles.breakdownRow, index > 0 && styles.breakdownSeparator]}
+            >
+              <Text style={styles.breakdownName}>{row.label}</Text>
+              <Text style={styles.breakdownMeta}>
+                {Math.round(row.minutes)} min · {row.entryCount} fois
+              </Text>
+            </View>
+          ))}
+        </Card>
+      )}
 
       <SectionTitle title="Les 7 derniers jours" detail="Graphique natif, calculé localement" />
       {entitlements.canViewAdvancedHistory ? (
@@ -83,7 +178,7 @@ export default function HistoryScreen() {
       )}
 
       <View style={styles.historyHeader}>
-        <SectionTitle title="Saisies récentes" detail={`${visibleEntries.length} entrées visibles`} />
+        <SectionTitle title="Saisies récentes" detail={entriesDetail} />
         <AppButton label="Rapport" variant="ghost" onPress={exportReport} style={styles.reportButton} />
       </View>
 
@@ -94,9 +189,16 @@ export default function HistoryScreen() {
             Les tâches terminées et les temps saisis apparaîtront ici.
           </Text>
         </Card>
+      ) : filteredEntries.length === 0 ? (
+        <Card style={styles.emptyState}>
+          <Text style={styles.emptyTitle}>Aucune saisie pour ce filtre</Text>
+          <Text style={styles.emptyText}>
+            Élargis la période ou affiche tout le foyer pour revoir davantage d’historique.
+          </Text>
+        </Card>
       ) : (
         <View style={styles.list}>
-          {visibleEntries.slice(0, 20).map((entry) => {
+          {shownEntries.map((entry) => {
             const task = taskById.get(entry.taskId);
             const user = userById.get(entry.userId);
             const completedAt = entry.completedAt === null ? null : new Date(entry.completedAt);
@@ -132,6 +234,40 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: SPACING.sm,
+  },
+  metricRowSpacing: {
+    marginTop: SPACING.md,
+  },
+  planNote: {
+    color: COLORS.textPrimary,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+    backgroundColor: COLORS.surfaceAlt,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginTop: SPACING.sm,
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: SPACING.sm,
+  },
+  breakdownSeparator: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    paddingTop: SPACING.sm,
+    marginTop: SPACING.sm,
+  },
+  breakdownName: {
+    flex: 1,
+    color: COLORS.textPrimary,
+    fontWeight: '700',
+  },
+  breakdownMeta: {
+    color: COLORS.textSecondary,
+    fontSize: 13,
   },
   lockedCard: {
     gap: SPACING.md,

@@ -11,6 +11,7 @@ import {
   inviteDigest,
   InviteCapacity,
   InviteRejectionDecision,
+  observedInviteCaller,
 } from "./invitations";
 import { resolveHouseholdPlanInTransaction } from "./plans";
 import {
@@ -174,9 +175,13 @@ export const createInvite = onCall(
 
       const response = await db.runTransaction(async (transaction) => {
         const householdSnapshot = await transaction.get(householdReference);
-        // L'adhésion administrative est exigée ici exactement comme avant ;
-        // la décision revalide ces valeurs en défense profonde et ses branches
-        // de refus restent exercées par invitations.test.ts.
+        // L'adhésion administrative est exigée ici exactement comme avant.
+        // Les portes d'identité de la décision sont alimentées par les valeurs
+        // réellement observées sur la requête (constat F1) : elles restent
+        // exécutables si une garde amont venait à s'affaiblir. Les portes
+        // d'adhésion restent adossées à requireActiveMembershipInTransaction,
+        // qui n'expose pas l'instantané brut ; tout affaiblissement futur de
+        // cette garde exige donc toujours une revue croisée avec ce fichier.
         const activeMembership = await requireActiveMembershipInTransaction(
           transaction,
           caller.uid,
@@ -190,16 +195,11 @@ export const createInvite = onCall(
           now.toMillis(),
         );
 
-        // Décision d'autorisation en logique pure : identité, adhésion, rôle,
-        // existence du foyer, capacité du plan, expiration depuis le temps
-        // serveur.
+        // Décision d'autorisation en logique pure : identité observée,
+        // adhésion, rôle, existence du foyer, capacité du plan, expiration
+        // depuis le temps serveur.
         const decision = decideInviteCreation({
-          caller: {
-            authenticated: true,
-            appCheckAttested: true,
-            emailVerified: true,
-            uid: caller.uid,
-          },
+          caller: observedInviteCaller(request),
           membership: {
             exists: true,
             status: "active",
@@ -292,19 +292,15 @@ export const redeemInvite = onCall(
         );
         const memberStatus = memberSnapshot.data()?.status;
 
-        // Première phase de la décision en logique pure : forme du jeton,
-        // invitation stockée, foyer désigné par le document, rejeu de double
-        // acceptation, expiration serveur. La capacité n'est chargée qu'après
-        // ces portes, préservant l'ordre historique des lectures et des refus.
+        // Première phase de la décision en logique pure : identité observée,
+        // forme du jeton, invitation stockée, foyer désigné par le document,
+        // rejeu de double acceptation, expiration serveur. La capacité n'est
+        // chargée qu'après ces portes, préservant l'ordre historique des
+        // lectures et des refus.
         const preDecision = decideInviteRedemption({
-          caller: {
-            authenticated: true,
-            appCheckAttested: true,
-            emailVerified: true,
-            uid: caller.uid,
-          },
+          caller: observedInviteCaller(request),
           invite: {
-            exists: true,
+            exists: inviteSnapshot.exists,
             householdId: targetHouseholdId,
             status: inviteData?.status,
             useCount: inviteData?.useCount,

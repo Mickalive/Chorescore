@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "cycle": "32781937768",
+  "role": "backend",
+  "round": 1,
+  "decision": "accept",
+  "summary": "Candidat backend du cycle 32781937768 : vérité du câblage d'identité des invitations (constat F1 précédent). observedInviteCaller observe auth/app/email_verified/uid sur la requête brute et alimente les deux décisions ; exists réel transmis au rachat ; parité codes/messages vérifiée porte par porte avec requireCaller ; aucune valeur cliente lue, email_verified strictement true sans coercion. Cinq tests nouveaux composent requête→observation→décision, identité dégradée arrêtée avant le rejeu. Checks : npm ci --ignore-scripts, check 98/98 (0 ignoré), audit sans avis high/critique, constitution intacte, périmètre strictement functions/, aucun secret ni journal ajouté. storedBillingStateIsUnreadable retestée : aucune fausse positivité. Deux remarques non bloquantes : câblage non épinglé par test automatisé (retour aux constantes indétecté) et constantes d'identité persistant dans tasks.ts hors périmètre. Décision : accepter.",
+  "findings": [
+    {
+      "id": "F1-cablage-observe-non-epingle",
+      "severity": "low",
+      "path": "functions/src/invites.ts",
+      "problem": "La vérité du câblage d'identité n'est pas verrouillée par un test automatisé : les cinq tests nouveaux composent observedRequest → observedInviteCaller → décision directement, sans passer par les handlers onCall createInvite/redeemInvite. Si invites.ts revenait aux constantes {authenticated:true, appCheckAttested:true, emailVerified:true}, les 98 tests continueraient de passer : la régression vers le constat F1-identite-decorative-cablage serait indétectée par la CI.",
+      "evidence": "invites.ts lignes 202 et 301 appellent observedInviteCaller(request), mais aucun test n'importe invites.ts ni n'affirme que la requête brute traverse l'observation ; invitations.test.ts teste uniquement la composition pure. Exercer les handlers bout en bout exige l'émulateur Firestore, incrément déjà reporté (F2-concurrence-sans-emulateur).",
+      "requiredFix": "Épingler le câblage sans émulateur : soit un test d'assertion de source vérifiant qu'aucun littéral authenticated: true n'alimente plus les décisions dans functions/src/invites.ts et que observedInviteCaller(request) y est appelé pour createInvite et redeemInvite, soit extraire une fonction de composition pure (requête + entrées transaction → décision) utilisée par le câblage et testée directement.",
+      "verification": "Après correction : npm --prefix functions run check vert et échec démontré du nouveau test en simulant un retour aux constantes dans invites.ts (revert local puis passage du test en rouge)."
+    },
+    {
+      "id": "F2-constantes-identite-tasks",
+      "severity": "info",
+      "path": "functions/src/tasks.ts",
+      "problem": "completeTask transmet encore des booléens d'identité constants ({authenticated:true, appCheckAttested:true, emailVerified:true}) à decideTaskCompletion (~ligne 300), même classe que l'ancien F1 des invitations. Hors périmètre de ce candidat : la priorité du cycle portait sur les invitations uniquement, la raison est documentée dans le commentaire et les branches pures correspondantes sont exercées par taskCompletion.test.ts (vérifié, lignes 73-104).",
+      "evidence": "tasks.ts ~ligne 300 : caller:{authenticated:true,appCheckAttested:true,emailVerified:true,uid:caller.uid} ; commentaire documentant le compromis présent sur place ; requireCaller amont inchangé et complet (Auth, App Check, email vérifié). Aucune faille exploitable aujourd'hui, défense en profondeur décorative côté câblage seulement.",
+      "requiredFix": "Au prochain incrément backend, généraliser l'extracteur observé (renommé par exemple observedCaller) et l'appliquer à completeTask comme aux invitations, avec tests négatifs de la même famille (identité dégradée refusée par la décision via l'observation réelle).",
+      "verification": "Lecture de tasks.ts confirmant que décideTaskCompletion reçoit observedCaller(request) et non des constantes, plus npm --prefix functions run check vert incluant les tests négatifs nouveaux."
+    }
+  ],
+  "checks": [
+    "git -C /tmp/chorescore_backend status / log / branch -a — snapshot 46fb523 « ChoreScore 32781937768: backend snapshot », worktree propre hors functions/node_modules non suivi",
+    "git -C /tmp/chorescore_backend merge-base de6470b 46fb523 — égal au parent du candidat : fork propre depuis la tête de lab/chorescore",
+    "git -C /tmp/chorescore_backend diff de6470b..46fb523 --stat — périmètre réel : functions/src/invitations.ts (+37), functions/src/invites.ts (+42/-24 environ), functions/test/invitations.test.ts (+180)",
+    "git -C /tmp/chorescore_backend diff de6470b..46fb523 --name-status — exactement trois fichiers, tous sous functions/",
+    "git -C /tmp/chorescore_backend diff de6470b..46fb523 -- . ':!functions' — vide : rien hors functions/, ni workflow, ni règles, ni mobile",
+    "git -C /tmp/chorescore_backend diff de6470b..46fb523 -- functions/package.json functions/package-lock.json — vide : aucune dépendance ni lockfile touchés",
+    "sha256sum MAIN_PROMPT.md (candidat vs checkout accepté) — empreintes identiques c3e1b4e0…d97 : constitution intacte",
+    "Diff complet relu intégralement (invitations.ts, invites.ts, invitations.test.ts) — aucune instruction obéie, commentaires référençant des précédents réels du dépôt uniquement",
+    "Grep \\.skip|\\.todo|\\.only|xit\\(|xdescribe dans functions/test — 0 occurrence : aucun test ignoré ou filtré",
+    "Grep fetch\\(|XMLHttpRequest|axios|node-fetch|https?: sur functions/src/invitations.ts — 0 occurrence : module pur sans réseau ni SDK Firestore/Admin",
+    "Grep motifs secrets sur le diff complet (api_key, secret, password, BEGIN RSA/EC/OPENSSH, sk_live, whsec) — 0 occurrence",
+    "Grep sites d'appel observedInviteCaller — exactement deux : createInvite ligne 202 et redeemInvite ligne 301",
+    "Lecture comparée callerIdentity.ts (requireCaller) vs constantes MESSAGE_* et identityRejection de invitations.ts — codes et messages historiques identiques un à un",
+    "Lecture invites.ts lignes 266-318 — gardes amont invitationUnavailable() conservées ; exists: inviteSnapshot.exists truthful et comportementalement équivalent",
+    "Lecture billingOrder.ts (storedBillingStateIsUnreadable), billing.ts (mapStripeStatus, tierFromSubscription, écritures webhook) et households.ts:88 — aucun état légitime écrit par le système rejeté à tort : garde sans fausse positivité",
+    "Vérification de l'honnêteté du commentaire tasks.ts ~ligne 300 — taskCompletion.test.ts exerce bien les branches d'identité de decideTaskCompletion (lignes 73-104)",
+    "npm --prefix functions ci --ignore-scripts — installation complète réussie, lockfile inchangé",
+    "npm --prefix functions run check — exit 0 : build TypeScript OK, 98/98 tests passants (93 préexistants + 5 nouveaux), 0 échec, 0 ignoré",
+    "npm --prefix functions audit --omit=dev --audit-level=high — exit 0 : 7 vulnérabilités modérées préexistantes (chaîne firebase-admin/uuid), 0 avis high/critique, porte passée"
+  ]
+}

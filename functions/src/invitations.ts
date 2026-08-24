@@ -95,12 +95,49 @@ export function isValidStoredHouseholdId(value: unknown): value is string {
   return HOUSEHOLD_ID_PATTERN.test(normalized) && !DUNDER_ID_PATTERN.test(normalized);
 }
 
-/** Identité déjà filtrée par `requireCaller`, re-vérifiée ici en défense profonde. */
+/** Identité observée sur la requête, re-vérifiée ici en défense profonde. */
 export interface InviteCaller {
   readonly authenticated: boolean;
   readonly appCheckAttested: boolean;
   readonly emailVerified: boolean;
   readonly uid: unknown;
+}
+
+/**
+ * Forme minimale d'une requête appelable nécessaire à l'observation de
+ * l'identité. Structurellement compatible avec `CallableRequest` du SDK sans
+ * en dépendre : ce module reste pur et testable hors émulateur.
+ */
+export interface ObservedCallableRequest {
+  readonly auth?:
+    | {
+        readonly uid?: unknown;
+        readonly token?: { readonly email_verified?: unknown };
+      }
+    | undefined;
+  readonly app?: unknown;
+}
+
+/**
+ * Identité réellement observée sur la requête brute du câblage : chaque porte
+ * ci-dessous reflète une propriété constatée, jamais une constante supposée
+ * acquise par les gardes amont. Si `requireCaller` venait à s'affaiblir, ces
+ * portes restent exécutables et refusent avec les codes et messages
+ * historiques (constat F1-identite-decorative-cablage).
+ *
+ * Aucune valeur fournie par le client n'est utilisée : `auth`, `app` et
+ * `token` sont posés par la plateforme après vérification, jamais lus dans
+ * le corps de la requête.
+ */
+export function observedInviteCaller(
+  request: ObservedCallableRequest,
+): InviteCaller {
+  return {
+    authenticated: request.auth !== undefined,
+    appCheckAttested: request.app !== undefined,
+    emailVerified: request.auth?.token?.email_verified === true,
+    uid: request.auth?.uid,
+  };
 }
 
 /** Document `households/{id}/members/{uid}`, tel que lu dans la transaction. */

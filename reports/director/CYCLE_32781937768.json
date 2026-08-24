@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "cycle": "32781937768",
+  "decision": "continue",
+  "reason": "Couples candidat/audit round 1 apparies et explicites sur les deux roles (decision exacte accept, aucun repair ni final present) ; integration mobile 9d29981 (syntheses/filtres Historique) et backend 46fb523 (cableage d'identite observe) verifiee par checks complets : 79/79 tests application, export Android demo ~2,8 Mo, 98/98 tests Functions, audits npm exit 0 sans haute/critique, lockfiles intacts. Recovery du cycle 32680607423 vide, legacy prose non integrable et deja contenu. Aucun constat critique/eleve ouvert ; MOB-C4-F2 corrige par le directeur avec preuve de mutation ; constats restants programmes en tete des directives suivantes.",
+  "next": {
+    "mobile": "Robustesse Historique : corriger MOB-C4-F1 (SegmentedControl - repli/defilement ou selecteur dedie au-dela d'environ 4 options, sans casser leaderboard/profile) et MOB-C4-F3 (now hors memo ou jeton temporel dans les dependances), sans nouvelle dependance",
+    "backend": "Epingler le cableage d'identite dans invites.ts (assertion de source ou composition pure, demonstration rouge-vert sur retour aux constantes) puis generaliser l'extracteur observe a completeTask avec tests negatifs de la meme famille",
+    "audit": "Tenter de casser la robustesse Historique (regression silencieuse de filtre apres changement de periode en session, libelle tronque, note de plan insistante) et l'epinglage du cableage (test qui ne serait pas rouge sur revert aux constantes, constante d'identite residuelle, derive de message)"
+  },
+  "humanActions": [
+    "Validation manuelle TalkBack/VoiceOver et rendu grande police/petit ecran avant toute livraison (MOB-C3-F3 heritee + MOB-C4-F1)",
+    "Revue humaine de la PR cumulative de lab/chorescore ; fusion interdite aux agents",
+    "Toute activation reelle Firebase/Stripe/analytics reste bloquee derriere les portes de securite et decisions juridiques/produit"
+  ]
+}

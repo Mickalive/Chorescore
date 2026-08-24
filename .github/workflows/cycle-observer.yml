@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - .github/workflows/cycle-observer.yml
+      - .github/workflows/chorescore-loop.yml
+      - .github/scripts/run-opencode-with-retry.sh
   workflow_run:
     workflows:
       - ChoreScore continuous OpenCode Ox loop

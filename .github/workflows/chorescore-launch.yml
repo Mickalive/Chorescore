@@ -7,8 +7,11 @@ on:
     paths:
       - ".chorescore/launch/*.json"
       - ".chorescore/cleanup/*.json"
-  schedule:
-    - cron: "2-57/5 * * * *"
+  workflow_run:
+    workflows:
+      - "ChoreScore Autonomous App Loop"
+    types:
+      - completed
   workflow_dispatch:
 
 permissions:
@@ -157,14 +160,18 @@ jobs:
 
   watchdog:
     name: Recover transient Ox outage
-    if: ${{ github.event.repository.visibility == 'private' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
+    if: ${{ github.event.repository.visibility == 'private' && ((github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure') || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - name: Checkout watchdog
         uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
         with:
           persist-credentials: false
+
+      - name: Wait five minutes after a failed autonomous run
+        if: ${{ github.event_name == 'workflow_run' }}
+        run: sleep 300
 
       - name: Re-run only transiently failed jobs
         env:

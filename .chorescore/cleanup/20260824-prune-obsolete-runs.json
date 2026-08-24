@@ -1,0 +1,3 @@
+{
+  "reason": "Remove completed GitHub Actions runs superseded by the active SPIDER-style ChoreScore loop while preserving all active runs and the current commit CI."
+}

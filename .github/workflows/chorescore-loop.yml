@@ -75,6 +75,30 @@ jobs:
           echo "cycle_index=$CYCLE_INDEX" >> "$GITHUB_OUTPUT"
           echo "max_cycles=$MAX_CYCLES" >> "$GITHUB_OUTPUT"
 
+      - name: Prune completed runs superseded by this cycle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh run list --repo "$GITHUB_REPOSITORY" --limit 100 \
+            --json databaseId,status,workflowName,headSha,createdAt |
+          jq -c '.[]' |
+          while IFS= read -r run; do
+            id=$(jq -r '.databaseId' <<<"$run")
+            status=$(jq -r '.status' <<<"$run")
+            workflow=$(jq -r '.workflowName' <<<"$run")
+            head_sha=$(jq -r '.headSha' <<<"$run")
+
+            [[ "$id" == "$GITHUB_RUN_ID" ]] && continue
+            [[ "$status" != completed ]] && continue
+            [[ "$workflow" == CI && "$head_sha" == "$GITHUB_SHA" ]] && continue
+
+            echo "Deleting superseded run $id ($workflow)"
+            gh run delete "$id" --repo "$GITHUB_REPOSITORY" || \
+              echo "::warning::Unable to delete run $id"
+          done
+
       - name: Checkout or initialize accepted ChoreScore lane
         env:
           GH_TOKEN: ${{ github.token }}

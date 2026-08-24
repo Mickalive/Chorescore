@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - ".chorescore/launch/*.json"
+      - ".chorescore/cleanup/*.json"
 
 permissions:
   contents: read
@@ -24,19 +25,27 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
 
-      - name: Resolve and validate launch request
+      - name: Resolve and validate request
         id: request
         shell: bash
         run: |
           set -euo pipefail
           file=$(git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA" |
-            grep -E '^\.chorescore/launch/[^/]+\.json$' | tail -1)
+            grep -E '^\.chorescore/(launch|cleanup)/[^/]+\.json$' | tail -1)
           test -n "$file"
           test -f "$file"
           jq -e 'type == "object"' "$file" >/dev/null
 
-          cycles=$(jq -er '.cycles // 0 | if type == "number" and floor == . and . >= 0 and . <= 10000 then . else error("invalid cycles") end' "$file")
-          note=$(jq -er '.human_note // "" | if type == "string" and length <= 4000 then . else error("invalid human_note") end' "$file")
+          if [[ "$file" == .chorescore/cleanup/* ]]; then
+            kind=cleanup
+            cycles=0
+            note=""
+          else
+            kind=launch
+            cycles=$(jq -er '.cycles // 0 | if type == "number" and floor == . and . >= 0 and . <= 10000 then . else error("invalid cycles") end' "$file")
+            note=$(jq -er '.human_note // "" | if type == "string" and length <= 4000 then . else error("invalid human_note") end' "$file")
+          fi
+          echo "kind=$kind" >> "$GITHUB_OUTPUT"
           echo "cycles=$cycles" >> "$GITHUB_OUTPUT"
           {
             echo "note<<CHORESCORE_NOTE"
@@ -45,6 +54,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Launch continuous ChoreScore loop
+        if: steps.request.outputs.kind == 'launch'
         env:
           GH_TOKEN: ${{ github.token }}
           NOTE: ${{ steps.request.outputs.note }}
@@ -54,3 +64,28 @@ jobs:
           set -euo pipefail
           gh workflow run chorescore-loop.yml --repo "$GITHUB_REPOSITORY" --ref main \
             -f human_note="$NOTE" -f cycle_index=1 -f max_cycles="$CYCLES"
+
+      - name: Delete superseded completed workflow runs
+        if: steps.request.outputs.kind == 'cleanup'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh run list --repo "$GITHUB_REPOSITORY" --limit 100 \
+            --json databaseId,status,workflowName,headSha,createdAt |
+          jq -c '.[]' |
+          while IFS= read -r run; do
+            id=$(jq -r '.databaseId' <<<"$run")
+            status=$(jq -r '.status' <<<"$run")
+            workflow=$(jq -r '.workflowName' <<<"$run")
+            head_sha=$(jq -r '.headSha' <<<"$run")
+
+            [[ "$id" == "$GITHUB_RUN_ID" ]] && continue
+            [[ "$status" != completed ]] && continue
+            [[ "$workflow" == CI && "$head_sha" == "$GITHUB_SHA" ]] && continue
+
+            echo "Deleting superseded run $id ($workflow)"
+            gh run delete "$id" --repo "$GITHUB_REPOSITORY" || \
+              echo "::warning::Unable to delete run $id"
+          done

@@ -113,6 +113,10 @@ fonctionne dans SPIDER, adaptée aux frontières mobile/backend de ChoreScore :
 7. `max_cycles: 0` signifie que la boucle continue jusqu'à l'arrêt motivé du
    directeur. Une limite positive reste disponible pour un lot borné.
 
+Au démarrage, chaque nouveau cycle supprime les anciens runs GitHub Actions déjà
+terminés et remplacés. Les runs actifs et le CI du commit courant sont conservés ;
+les branches, commits et rapports produits par les agents ne sont jamais effacés.
+
 Le directeur transmet donc de nouvelles informations par
 `directives/MOBILE.md`, `directives/BACKEND.md`, `directives/AUDITOR.md` et
 `docs/NEXT_CYCLE.md`. Il ne possède pas le jeton qui effectue le dispatch : le

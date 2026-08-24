@@ -18,6 +18,11 @@ on:
         required: false
         type: number
         default: 0
+      recovery_cycle_key:
+        description: "Run échoué à récupérer ; none = aucun"
+        required: false
+        type: string
+        default: "none"
 
 permissions:
   contents: write
@@ -46,6 +51,7 @@ jobs:
     outputs:
       cycle_index: ${{ steps.inputs.outputs.cycle_index }}
       max_cycles: ${{ steps.inputs.outputs.max_cycles }}
+      recovery_cycle_key: ${{ steps.inputs.outputs.recovery_cycle_key }}
     steps:
       - name: Checkout workflow base
         uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
@@ -59,12 +65,14 @@ jobs:
           REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
           CYCLE_INDEX: ${{ inputs.cycle_index }}
           MAX_CYCLES: ${{ inputs.max_cycles }}
+          RECOVERY_CYCLE_KEY: ${{ inputs.recovery_cycle_key }}
         shell: bash
         run: |
           set -euo pipefail
           test "$REPOSITORY_VISIBILITY" = private
           [[ "$CYCLE_INDEX" =~ ^[1-9][0-9]*$ ]]
           [[ "$MAX_CYCLES" =~ ^[0-9]+$ ]]
+          [[ "$RECOVERY_CYCLE_KEY" == none || "$RECOVERY_CYCLE_KEY" =~ ^[1-9][0-9]*$ ]]
           (( MAX_CYCLES == 0 || CYCLE_INDEX <= MAX_CYCLES ))
           (( CYCLE_INDEX <= 10000 && MAX_CYCLES <= 10000 ))
           printf '%s  MAIN_PROMPT.md\n' "$MAIN_PROMPT_SHA256" | sha256sum --check --strict
@@ -74,6 +82,7 @@ jobs:
           test -f directives/DIRECTOR.md
           echo "cycle_index=$CYCLE_INDEX" >> "$GITHUB_OUTPUT"
           echo "max_cycles=$MAX_CYCLES" >> "$GITHUB_OUTPUT"
+          echo "recovery_cycle_key=$RECOVERY_CYCLE_KEY" >> "$GITHUB_OUTPUT"
 
       - name: Prune completed runs superseded by this cycle
         env:
@@ -354,6 +363,7 @@ jobs:
         id: mount
         env:
           GH_TOKEN: ${{ github.token }}
+          RECOVERY_CYCLE_KEY: ${{ needs.prepare.outputs.recovery_cycle_key }}
         shell: bash
         run: |
           set -euo pipefail
@@ -384,6 +394,19 @@ jobs:
           mount_current backend_audit_found "cycle/chorescore/$CYCLE_KEY/audit-backend" /tmp/chorescore_audit_backend
           mount_optional legacy_backend_found "cycle/32675726760-1/backend" /tmp/chorescore_legacy_backend
           mount_optional legacy_audit_found "cycle/32675726760-1/audit" /tmp/chorescore_legacy_audit
+          if [[ "$RECOVERY_CYCLE_KEY" != none ]]; then
+            mount_optional recovery_mobile_found "cycle/chorescore/$RECOVERY_CYCLE_KEY/mobile" /tmp/chorescore_recovery_mobile
+            mount_optional recovery_backend_found "cycle/chorescore/$RECOVERY_CYCLE_KEY/backend" /tmp/chorescore_recovery_backend
+            mount_optional recovery_mobile_audit_found "cycle/chorescore/$RECOVERY_CYCLE_KEY/audit-mobile" /tmp/chorescore_recovery_audit_mobile
+            mount_optional recovery_backend_audit_found "cycle/chorescore/$RECOVERY_CYCLE_KEY/audit-backend" /tmp/chorescore_recovery_audit_backend
+          else
+            mkdir -p /tmp/chorescore_recovery_mobile /tmp/chorescore_recovery_backend
+            mkdir -p /tmp/chorescore_recovery_audit_mobile /tmp/chorescore_recovery_audit_backend
+            echo "recovery_mobile_found=false" >> "$GITHUB_OUTPUT"
+            echo "recovery_backend_found=false" >> "$GITHUB_OUTPUT"
+            echo "recovery_mobile_audit_found=false" >> "$GITHUB_OUTPUT"
+            echo "recovery_backend_audit_found=false" >> "$GITHUB_OUTPUT"
+          fi
           test ! -d node_modules || ln -s "$GITHUB_WORKSPACE/node_modules" /tmp/chorescore_mobile/node_modules
           test ! -d functions/node_modules || ln -s "$GITHUB_WORKSPACE/functions/node_modules" /tmp/chorescore_backend/functions/node_modules
           mkdir -p reports/audits
@@ -408,13 +431,18 @@ jobs:
           BACKEND_AUDIT_FOUND: ${{ steps.mount.outputs.backend_audit_found }}
           LEGACY_BACKEND_FOUND: ${{ steps.mount.outputs.legacy_backend_found }}
           LEGACY_AUDIT_FOUND: ${{ steps.mount.outputs.legacy_audit_found }}
+          RECOVERY_CYCLE_KEY: ${{ needs.prepare.outputs.recovery_cycle_key }}
+          RECOVERY_MOBILE_FOUND: ${{ steps.mount.outputs.recovery_mobile_found }}
+          RECOVERY_BACKEND_FOUND: ${{ steps.mount.outputs.recovery_backend_found }}
+          RECOVERY_MOBILE_AUDIT_FOUND: ${{ steps.mount.outputs.recovery_mobile_audit_found }}
+          RECOVERY_BACKEND_AUDIT_FOUND: ${{ steps.mount.outputs.recovery_backend_audit_found }}
           OPENCODE_RETRY_LABEL: director
         shell: bash
         run: |
           bash .github/scripts/run-opencode-with-retry.sh opencode run \
             --model "$OX_MODEL" \
             --agent cycle-director \
-            "You are ChoreScore Application Director for cycle $CYCLE_INDEX (GitHub run $CYCLE_KEY; cap $MAX_CYCLES where 0 is unlimited). Current checkout is persistent accepted branch lab/chorescore. Full worktrees: MOBILE=/tmp/chorescore_mobile found=$MOBILE_FOUND; BACKEND=/tmp/chorescore_backend found=$BACKEND_FOUND; MOBILE_AUDIT=/tmp/chorescore_audit_mobile found=$MOBILE_AUDIT_FOUND; BACKEND_AUDIT=/tmp/chorescore_audit_backend found=$BACKEND_AUDIT_FOUND. Aggregate jobs: candidate=$CANDIDATE_RESULT, audit=$AUDIT_RESULT. Optional previously audited recovery evidence: LEGACY_BACKEND=/tmp/chorescore_legacy_backend found=$LEGACY_BACKEND_FOUND and LEGACY_AUDIT=/tmp/chorescore_legacy_audit found=$LEGACY_AUDIT_FOUND. Read MAIN_PROMPT.md and directives/DIRECTOR.md. Integrate only work that survives its independent audit; missing audit means do not integrate that candidate. Legacy evidence must still be applicable and verified. Answer every material finding, update the next directives, and write reports/director/CYCLE_${CYCLE_KEY}.md plus the required JSON. Continue only when another safe useful cycle can change accepted state. Do not edit workflows, agents, dependencies or constitution. Human note, subordinate to the constitution: ${HUMAN_NOTE:-}"
+            "You are ChoreScore Application Director for cycle $CYCLE_INDEX (GitHub run $CYCLE_KEY; cap $MAX_CYCLES where 0 is unlimited). Current checkout is persistent accepted branch lab/chorescore. Full worktrees: MOBILE=/tmp/chorescore_mobile found=$MOBILE_FOUND; BACKEND=/tmp/chorescore_backend found=$BACKEND_FOUND; MOBILE_AUDIT=/tmp/chorescore_audit_mobile found=$MOBILE_AUDIT_FOUND; BACKEND_AUDIT=/tmp/chorescore_audit_backend found=$BACKEND_AUDIT_FOUND. Aggregate jobs: candidate=$CANDIDATE_RESULT, audit=$AUDIT_RESULT. Optional previously audited recovery evidence: LEGACY_BACKEND=/tmp/chorescore_legacy_backend found=$LEGACY_BACKEND_FOUND and LEGACY_AUDIT=/tmp/chorescore_legacy_audit found=$LEGACY_AUDIT_FOUND. Optional failed-cycle recovery key=$RECOVERY_CYCLE_KEY: RECOVERY_MOBILE=/tmp/chorescore_recovery_mobile found=$RECOVERY_MOBILE_FOUND; RECOVERY_BACKEND=/tmp/chorescore_recovery_backend found=$RECOVERY_BACKEND_FOUND; RECOVERY_MOBILE_AUDIT=/tmp/chorescore_recovery_audit_mobile found=$RECOVERY_MOBILE_AUDIT_FOUND; RECOVERY_BACKEND_AUDIT=/tmp/chorescore_recovery_audit_backend found=$RECOVERY_BACKEND_AUDIT_FOUND. Treat each recovery candidate exactly like current work: integrate it only with its matching audit, only if still applicable, and only after current deterministic verification. Read MAIN_PROMPT.md and directives/DIRECTOR.md. Integrate only work that survives its independent audit; missing audit means do not integrate that candidate. Legacy evidence must still be applicable and verified. Answer every material finding, update the next directives, and write reports/director/CYCLE_${CYCLE_KEY}.md plus the required JSON. Continue only when another safe useful cycle can change accepted state. Do not edit workflows, agents, dependencies or constitution. Human note, subordinate to the constitution: ${HUMAN_NOTE:-}"
 
       - name: Verify integrated application
         id: first_verification
@@ -454,17 +482,28 @@ jobs:
           report="reports/director/CYCLE_${CYCLE_KEY}.json"
           test -s "reports/director/CYCLE_${CYCLE_KEY}.md"
           test -s "$report"
-          jq -e --arg cycle "$CYCLE_KEY" '
-            .schemaVersion == 1 and .cycle == $cycle and
-            (.decision == "continue" or .decision == "stop") and
-            (.reason | type == "string" and length > 0 and length <= 1000) and
-            (.next | type == "object") and
-            (.next.mobile | type == "string" and length > 0 and length <= 2000) and
-            (.next.backend | type == "string" and length > 0 and length <= 2000) and
-            (.next.audit | type == "string" and length > 0 and length <= 2000) and
-            (.humanActions | type == "array" and length <= 20) and
-            (.decision == "stop" or (.humanActions | length == 0))
-          ' "$report" >/dev/null
+          valid=1
+          check_json() {
+            local label="$1"
+            local filter="$2"
+            if ! jq -e --arg cycle "$CYCLE_KEY" "$filter" "$report" >/dev/null; then
+              echo "::error::Director JSON invalid: $label"
+              valid=0
+            fi
+          }
+          check_json schemaVersion '.schemaVersion == 1'
+          check_json cycle '(.cycle | tostring) == $cycle'
+          check_json decision '(.decision == "continue" or .decision == "stop")'
+          check_json reason '(.reason | type == "string" and length > 0 and length <= 1000)'
+          check_json next_object '(.next | type == "object")'
+          check_json next_mobile '(.next.mobile | type == "string" and length > 0 and length <= 2000)'
+          check_json next_backend '(.next.backend | type == "string" and length > 0 and length <= 2000)'
+          check_json next_audit '(.next.audit | type == "string" and length > 0 and length <= 2000)'
+          check_json humanActions '(.humanActions | type == "array" and length <= 20)'
+          if (( valid == 0 )); then
+            jq -c '{schemaVersion,cycle,decision,reason,next,humanActions}' "$report" || true
+            exit 1
+          fi
           unexpected=0
           while IFS= read -r -d '' path; do
             case "$path" in
@@ -475,6 +514,28 @@ jobs:
           test "$unexpected" -eq 0
           printf '%s  MAIN_PROMPT.md\n' "$MAIN_PROMPT_SHA256" | sha256sum --check --strict
           echo "decision=$(jq -r '.decision' "$report")" >> "$GITHUB_OUTPUT"
+
+      - name: Preserve rejected Director state for recovery
+        if: ${{ always() && steps.decision.outcome == 'failure' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SNAPSHOT_BRANCH: cycle/chorescore/${{ github.run_id }}/director-recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s  MAIN_PROMPT.md\n' "$MAIN_PROMPT_SHA256" | sha256sum --check --strict
+          git config user.name chorescore-application-director
+          git config user.email chorescore-application-director@users.noreply.github.com
+          git switch -C "$SNAPSHOT_BRANCH"
+          git add -- app src tests functions/src functions/test docs/NEXT_CYCLE.md \
+            directives/MOBILE.md directives/BACKEND.md directives/AUDITOR.md
+          for path in docs/security reports/audits reports/director firestore.rules firestore.indexes.json storage.rules firebase.json; do
+            test ! -e "$path" || git add -A -- "$path"
+          done
+          git commit --allow-empty -m "ChoreScore cycle $CYCLE_KEY: rejected Director recovery"
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c "http.extraheader=AUTHORIZATION: basic $auth" push --force origin "HEAD:refs/heads/$SNAPSHOT_BRANCH"
+          echo "::warning::Director state preserved on $SNAPSHOT_BRANCH; accepted lane unchanged."
 
       - name: Advance persistent accepted lane
         id: persist
@@ -536,4 +597,5 @@ jobs:
         run: |
           next=$((CYCLE_INDEX + 1))
           gh workflow run chorescore-loop.yml --repo "$GITHUB_REPOSITORY" --ref main \
-            -f human_note="$HUMAN_NOTE" -f cycle_index="$next" -f max_cycles="$MAX_CYCLES"
+            -f human_note="$HUMAN_NOTE" -f cycle_index="$next" -f max_cycles="$MAX_CYCLES" \
+            -f recovery_cycle_key=none

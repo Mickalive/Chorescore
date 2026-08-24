@@ -11,6 +11,8 @@
  * hors émulateur et sans effet de bord.
  */
 
+import { ALL_STRIPE_STATUSES } from "./domain";
+
 export interface IncomingSubscriptionEvent {
   /** Identifiant d'événement Stripe (`evt_...`). */
   readonly eventId: string;
@@ -74,11 +76,19 @@ export interface StoredBillingFields {
   readonly stripeStatus: unknown;
 }
 
+const KNOWN_STORED_STATUSES: ReadonlySet<string> = new Set(ALL_STRIPE_STATUSES);
+
 /**
  * Échec fermé : un champ d'ordre présent mais illisible désactiverait les
  * gardes ; l'état doit alors être rejeté (`billing_state_unparseable`) plutôt
  * qu'appliqué sans protection. Le test d'horodatage Firestore est injecté afin
  * de garder ce module indépendant du SDK et testable hors émulateur.
+ *
+ * Durcissements (audit 32688156479, constat F2) :
+ * - un `lastStripeEventCreated` numérique négatif rendrait la garde
+ *   d'ancienneté inerte : seules les secondes Stripe légitimes (>= 0) passent ;
+ * - un `stripeStatus` textuel mais inconnu (ex. « actif ») serait sinon coercé
+ *   en « none » en aval : seule une valeur connue du système passe.
  */
 export function storedBillingStateIsUnreadable(
   fields: StoredBillingFields,
@@ -91,7 +101,8 @@ export function storedBillingStateIsUnreadable(
     (fields.lastStripeEventCreated !== undefined &&
       fields.lastStripeEventCreated !== null &&
       (typeof fields.lastStripeEventCreated !== "number" ||
-        !Number.isFinite(fields.lastStripeEventCreated))) ||
+        !Number.isFinite(fields.lastStripeEventCreated) ||
+        fields.lastStripeEventCreated < 0)) ||
     (fields.paidTier !== undefined &&
       fields.paidTier !== null &&
       fields.paidTier !== "standard" &&
@@ -101,6 +112,7 @@ export function storedBillingStateIsUnreadable(
       !isFirestoreTimestamp(fields.stripeCurrentPeriodEnd)) ||
     (fields.stripeStatus !== undefined &&
       fields.stripeStatus !== null &&
-      typeof fields.stripeStatus !== "string")
+      (typeof fields.stripeStatus !== "string" ||
+        !KNOWN_STORED_STATUSES.has(fields.stripeStatus)))
   );
 }

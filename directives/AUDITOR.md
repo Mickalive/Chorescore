@@ -23,19 +23,23 @@ Rechercher notamment :
 
 ## Cibles prioritaires du prochain cycle
 
-1. **Backend — casser la combinaison des deux gardes Stripe intégrées** dans
-   `applySubscriptionState` : chercher une séquence d'événements où un état
-   plus ancien écraserait un état plus récent malgré
-   `decideSubscriptionEventOrder` + `decideSubscriptionEventApplication` +
-   `storedBillingStateIsUnreadable` ; vérifier la sémantique du doublon
-   (`status: "ignored"` vs `"rejected"`) et l'absence de contournement introduit
-   par la composition (le portage manuel du patch legacy a déplacé les lignes).
-2. **Mobile — accessibilité réellement améliorée** : vérifier que les rôles
-   `radiogroup`/`radio`, le regroupement `MetricCard` et le focus de
-   `TaskFormModal` n'ont pas dégradé l'annonce des erreurs ni la navigation
-   clavier/lecteur d'écran ; contester tout test qui simule l'accessibilité
-   sans la prouver.
-3. **Périmètre** : tout nouveau module pur backend doit rester sans SDK
+1. **Backend — casser le module invitations attendu** : jeton à entropie
+   insuffisante ou non borné, acceptation expirée ou déjà consommée, rôle
+   attribué hors de la liste admise, isolation entre deux foyers, double
+   acceptation concurrente ; vérifier l'absence de SDK Firestore dans le
+   module pur et l'absence de contournement des gardes Stripe intégrées.
+2. **Backend — fausse positivité de la garde durcie** :
+   `storedBillingStateIsUnreadable` échoue désormais fermé sur statut stocké
+   inconnu et marqueur négatif ; chercher un état **légitime** écrit par le
+   système (`households.ts`, `billing.ts`) que la garde rejetterait à tort,
+   et toute coercion résiduelle en « none » hors de la garde.
+3. **Mobile — motif de focus** : si le candidat remplace le délai de 200 ms
+   par `onShow`, vérifier le nettoyage à la fermeture, l'absence de focus
+   volé au retour arrière et le comportement si la modale se referme pendant
+   l'ouverture ; contester tout test qui simule l'accessibilité sans la
+   prouver. Vérifier que les textes d'état vide restent non culpabilisants et
+   que le contraste `textPrimary`/`surfaceAlt` (~9,56:1) n'a pas régressé.
+4. **Périmètre** : tout nouveau module pur backend doit rester sans SDK
    Firestore ; tout test ignoré est un constat, jamais une acceptation.
 
 Chaque constat matériel contient gravité, chemin/symbole, scénario, preuve,

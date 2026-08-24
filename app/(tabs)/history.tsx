@@ -87,30 +87,39 @@ export default function HistoryScreen() {
         <AppButton label="Rapport" variant="ghost" onPress={exportReport} style={styles.reportButton} />
       </View>
 
-      <View style={styles.list}>
-        {visibleEntries.slice(0, 20).map((entry) => {
-          const task = taskById.get(entry.taskId);
-          const user = userById.get(entry.userId);
-          const completedAt = entry.completedAt === null ? null : new Date(entry.completedAt);
-          return (
-            <Card key={entry.id}>
-              <View style={styles.entryRow}>
-                {user === undefined ? null : <Avatar initials={user.initials} color={user.color} size={38} />}
-                <View style={styles.entryCopy}>
-                  <Text style={styles.entryName}>{task?.name ?? 'Tâche archivée'}</Text>
-                  <Text style={styles.entryMeta}>
-                    {user?.name ?? 'Membre'} · {entry.isManual ? 'saisie manuelle' : 'chrono'} · {completedAt === null ? '' : new Intl.DateTimeFormat('fr-CH', { day: '2-digit', month: 'short' }).format(completedAt)}
-                  </Text>
+      {visibleEntries.length === 0 ? (
+        <Card style={styles.emptyState}>
+          <Text style={styles.emptyTitle}>Aucune saisie visible</Text>
+          <Text style={styles.emptyText}>
+            Les tâches terminées et les temps saisis apparaîtront ici.
+          </Text>
+        </Card>
+      ) : (
+        <View style={styles.list}>
+          {visibleEntries.slice(0, 20).map((entry) => {
+            const task = taskById.get(entry.taskId);
+            const user = userById.get(entry.userId);
+            const completedAt = entry.completedAt === null ? null : new Date(entry.completedAt);
+            return (
+              <Card key={entry.id}>
+                <View style={styles.entryRow}>
+                  {user === undefined ? null : <Avatar initials={user.initials} color={user.color} size={38} />}
+                  <View style={styles.entryCopy}>
+                    <Text style={styles.entryName}>{task?.name ?? 'Tâche archivée'}</Text>
+                    <Text style={styles.entryMeta}>
+                      {user?.name ?? 'Membre'} · {entry.isManual ? 'saisie manuelle' : 'chrono'} · {completedAt === null ? '' : new Intl.DateTimeFormat('fr-CH', { day: '2-digit', month: 'short' }).format(completedAt)}
+                    </Text>
+                  </View>
+                  <View style={styles.entryValueWrap}>
+                    <Text style={styles.entryValue}>{formatMetric(getEntryValue(entry, entitlements.useWeights), entitlements.useWeights)}</Text>
+                    <Text style={styles.entryMinutes}>{Math.round(entry.durationSeconds / 60)} min</Text>
+                  </View>
                 </View>
-                <View style={styles.entryValueWrap}>
-                  <Text style={styles.entryValue}>{formatMetric(getEntryValue(entry, entitlements.useWeights), entitlements.useWeights)}</Text>
-                  <Text style={styles.entryMinutes}>{Math.round(entry.durationSeconds / 60)} min</Text>
-                </View>
-              </View>
-            </Card>
-          );
-        })}
-      </View>
+              </Card>
+            );
+          })}
+        </View>
+      )}
       <Text style={styles.retentionText}>
         En gratuit, la fenêtre visible est de 30 jours. La démo ne conserve toutefois rien après sa fermeture.
       </Text>
@@ -150,6 +159,20 @@ const styles = StyleSheet.create({
   },
   list: {
     gap: SPACING.sm,
+  },
+  emptyState: {
+    gap: SPACING.xs,
+    backgroundColor: COLORS.surfaceAlt,
+  },
+  emptyTitle: {
+    color: COLORS.textPrimary,
+    fontWeight: '800',
+  },
+  emptyText: {
+    // Contraste AA requis : textSecondary sur surfaceAlt ≈ 4,36:1 (< 4,5:1),
+    // textPrimary atteint ≈ 9,56:1 (constat F1 de l'audit mobile 32688156479).
+    color: COLORS.textPrimary,
+    lineHeight: 20,
   },
   entryRow: {
     flexDirection: 'row',

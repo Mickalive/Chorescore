@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { normalizeTaskName, validateManualMinutes, validateTaskInput } from '../src/domain/validation.js';
 
-test('le nom est normalisé et les caractères de contrôle sont retirés', () => {
+test('le nom est normalisé et les caractères de contrôle sont remplacés par une espace', () => {
   assert.equal(normalizeTaskName('  Ranger\n   le salon  '), 'Ranger le salon');
 });
 

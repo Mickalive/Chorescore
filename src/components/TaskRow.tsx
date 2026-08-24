@@ -67,8 +67,19 @@ export function TaskRow({
 
       {activeEntry === null ? (
         <View style={styles.actions}>
-          <AppButton label="Démarrer" onPress={onStart} style={styles.actionButton} />
-          <AppButton label="Saisir un temps" variant="secondary" onPress={onManual} style={styles.actionButton} />
+          <AppButton
+            label="Démarrer"
+            accessibilityLabel={`Démarrer le chrono de ${task.name}`}
+            onPress={onStart}
+            style={styles.actionButton}
+          />
+          <AppButton
+            label="Saisir un temps"
+            accessibilityLabel={`Saisir un temps pour ${task.name}`}
+            variant="secondary"
+            onPress={onManual}
+            style={styles.actionButton}
+          />
         </View>
       ) : (
         <View style={styles.timerRow} accessibilityLiveRegion="polite">
@@ -76,7 +87,11 @@ export function TaskRow({
             <Text style={styles.timerLabel}>Chrono en cours</Text>
             <Text style={styles.timer}>{formatElapsed(elapsed)}</Text>
           </View>
-          <AppButton label="Terminer" onPress={onStop} />
+          <AppButton
+            label="Terminer"
+            accessibilityLabel={`Terminer le chrono de ${task.name}`}
+            onPress={onStop}
+          />
         </View>
       )}
     </Card>

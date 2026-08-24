@@ -12,6 +12,7 @@ import {
   requireActiveMembershipInTransaction,
   requireCaller,
 } from "./security";
+import { decideTaskCompletion } from "./taskCompletion";
 import {
   firestoreId,
   integer,
@@ -281,6 +282,9 @@ export const completeTask = onCall(
       await enforceRateLimit(caller.uid, "completeTask", 120, 3600);
 
       const taskReference = db.doc(`households/${householdId}/tasks/${taskId}`);
+      const membershipReference = db.doc(
+        `households/${householdId}/members/${caller.uid}`,
+      );
       const operationReference = db.doc(
         `operationKeys/${operationDocumentId(caller.uid, "completeTask", idempotencyKey)}`,
       );
@@ -289,73 +293,86 @@ export const completeTask = onCall(
       const result = await db.runTransaction(async (transaction) => {
         const operationSnapshot = await transaction.get(operationReference);
         const taskSnapshot = await transaction.get(taskReference);
-        await requireActiveMembershipInTransaction(transaction, caller.uid, householdId);
+        const membershipSnapshot = await transaction.get(membershipReference);
 
-        if (operationSnapshot.exists) {
-          const operationData = operationSnapshot.data();
-          if (
-            operationData?.resourceId !== taskId ||
-            typeof operationData.durationSeconds !== "number" ||
-            typeof operationData.score !== "number"
-          ) {
-            throw new Error("INVALID_IDEMPOTENCY_RECORD");
-          }
-          return {
-            taskId,
-            durationSeconds: operationData.durationSeconds,
-            score: operationData.score,
-          };
-        }
+        // Décision d'autorisation et d'idempotence en logique pure :
+        // adhésion, rôle, propriété, état, poids figé, temps serveur. Les
+        // booléens d'identité sont fournis constants parce que requireCaller
+        // ci-dessus a déjà refusé tout appel non authentifié, non attesté ou
+        // sans email vérifié ; les branches d'identité de la décision restent
+        // exercées par taskCompletion.test.ts et protègent un futur
+        // réordonnancement du code.
+        const decision = decideTaskCompletion({
+          caller: {
+            authenticated: true,
+            appCheckAttested: true,
+            emailVerified: true,
+            uid: caller.uid,
+          },
+          membership: {
+            exists: membershipSnapshot.exists,
+            status: membershipSnapshot.data()?.status,
+            role: membershipSnapshot.data()?.role,
+          },
+          task: {
+            exists: taskSnapshot.exists,
+            ownerUid: taskSnapshot.data()?.userId,
+            status: taskSnapshot.data()?.status,
+            startTimeMs:
+              taskSnapshot.data()?.startTime instanceof Timestamp
+                ? (taskSnapshot.data()?.startTime as Timestamp).toMillis()
+                : null,
+            effectiveWeight: taskSnapshot.data()?.templateSnapshot?.effectiveWeight,
+          },
+          operation: {
+            exists: operationSnapshot.exists,
+            resourceId: operationSnapshot.data()?.resourceId,
+            durationSeconds: operationSnapshot.data()?.durationSeconds,
+            score: operationSnapshot.data()?.score,
+          },
+          expectedTaskId: taskId,
+          nowMs: now.toMillis(),
+        });
 
-        if (!taskSnapshot.exists) {
-          throw new HttpsError("not-found", "Tâche introuvable.");
+        if (decision.outcome === "reject") {
+          throw new HttpsError(decision.code, decision.message);
         }
-        const taskData = taskSnapshot.data();
-        if (taskData === undefined) {
-          throw new HttpsError("internal", "Données de tâche indisponibles.");
-        }
-        if (taskData.userId !== caller.uid) {
-          throw new HttpsError("permission-denied", "Cette tâche appartient à un autre membre.");
-        }
-        if (taskData.status !== "in_progress" || !(taskData.startTime instanceof Timestamp)) {
-          throw new HttpsError("failed-precondition", "Cette tâche ne peut pas être terminée.");
-        }
-        const snapshot = taskData.templateSnapshot;
-        const effectiveWeight = integer(
-          { weight: snapshot?.effectiveWeight },
-          "weight",
-          1,
-          1000,
-        );
-        const elapsedSeconds = Math.max(
-          1,
-          Math.floor((now.toMillis() - taskData.startTime.toMillis()) / 1000),
-        );
-        if (elapsedSeconds > 86_400) {
-          throw new HttpsError(
-            "failed-precondition",
-            "Une tâche ne peut pas dépasser 24 heures. Démarrez une nouvelle tâche.",
+        if (decision.outcome === "fail_closed") {
+          throw new Error(
+            decision.reason === "invalid_idempotency_record"
+              ? "INVALID_IDEMPOTENCY_RECORD"
+              : "INVALID_COMPLETION_ENVELOPE",
           );
         }
-        const score = calculateScore(elapsedSeconds, effectiveWeight);
+        if (decision.outcome === "replay") {
+          return {
+            taskId,
+            durationSeconds: decision.durationSeconds,
+            score: decision.score,
+          };
+        }
 
         transaction.update(taskReference, {
           status: "completed",
           endTime: now,
-          durationSeconds: elapsedSeconds,
-          score,
+          durationSeconds: decision.durationSeconds,
+          score: decision.score,
           updatedAt: now,
         });
         transaction.create(operationReference, {
           uid: caller.uid,
           action: "completeTask",
           resourceId: taskId,
-          durationSeconds: elapsedSeconds,
-          score,
+          durationSeconds: decision.durationSeconds,
+          score: decision.score,
           createdAt: now,
           expiresAt: Timestamp.fromMillis(now.toMillis() + 7 * 86_400_000),
         });
-        return { taskId, durationSeconds: elapsedSeconds, score };
+        return {
+          taskId,
+          durationSeconds: decision.durationSeconds,
+          score: decision.score,
+        };
       });
 
       return { ...result, status: "completed" as const };

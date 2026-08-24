@@ -6,6 +6,12 @@ type Props = {
   onPress: () => void;
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
   disabled?: boolean;
+  /**
+   * Étiquette de lecteur d'écran distincte du libellé visible, pour
+   * désambiguïser les actions répétées à l'écran (une par tâche, un par
+   * membre…). Par défaut, le libellé visible est annoncé.
+   */
+  accessibilityLabel?: string;
   accessibilityHint?: string;
   style?: StyleProp<ViewStyle>;
 };
@@ -15,13 +21,14 @@ export function AppButton({
   onPress,
   variant = 'primary',
   disabled = false,
+  accessibilityLabel,
   accessibilityHint,
   style,
 }: Props) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel ?? label}
       accessibilityHint={accessibilityHint}
       disabled={disabled}
       onPress={onPress}

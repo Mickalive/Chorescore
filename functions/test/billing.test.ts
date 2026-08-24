@@ -8,6 +8,7 @@ import {
   StoredSubscriptionOrdering,
 } from "../src/domain";
 import { storedBillingStateIsUnreadable } from "../src/billingOrder";
+import { ALL_STRIPE_STATUSES } from "../src/domain";
 
 /**
  * Ces tests restent en logique pure et crypto locale : aucun émulateur,
@@ -279,15 +280,35 @@ test("un champ d'ordre présent mais illisible rend l'état corrompu, y compris 
     storedFields({ stripeSubscriptionId: 42 }),
     storedFields({ lastStripeEventCreated: "1000" }),
     storedFields({ lastStripeEventCreated: Number.NaN }),
+    // F2 (audit 32688156479) : un marqueur négatif rendrait la garde
+    // d'ancienneté inerte ; il doit échouer fermé.
+    storedFields({ lastStripeEventCreated: -1 }),
     storedFields({ paidTier: "gold" }),
     storedFields({ stripeCurrentPeriodEnd: "2026-08-24" }),
     // C1 : un stripeStatus non textuel ne doit pas être réduit silencieusement
     // à « none » : il doit faire échouer fermé la garde.
     storedFields({ stripeStatus: 7 }),
+    // F2 : un statut textuel mais inconnu serait sinon coercé en « none » par
+    // mapStripeStatus et affaiblirait le refus d'événement supplanté.
+    storedFields({ stripeStatus: "actif" }),
+    storedFields({ stripeStatus: "" }),
   ];
   for (const state of corruptedStates) {
     assert.equal(storedBillingStateIsUnreadable(state, isTimestamp), true);
   }
+});
+
+test("chaque statut Stripe connu reste lisible, avec un marqueur d'ordre à zéro inclus", () => {
+  for (const status of ALL_STRIPE_STATUSES) {
+    assert.equal(
+      storedBillingStateIsUnreadable(storedFields({ stripeStatus: status }), isTimestamp),
+      false,
+    );
+  }
+  assert.equal(
+    storedBillingStateIsUnreadable(storedFields({ lastStripeEventCreated: 0 }), isTimestamp),
+    false,
+  );
 });
 
 function signedSubscriptionEventPayload(): string {

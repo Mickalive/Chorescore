@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "cycle": "32688156479",
+  "decision": "continue",
+  "reason": "Checks deterministes verts sur l'etat integre (63/63 tests application, export Android demo OK, audit npm exit 0, 57/57 tests Functions) ; mobile d56885e et backend 531f614 acceptes par leurs audits independants, reverifies puis integres ; recuperation legacy 30e967a deja contenue dans l'etat accepte, close sans reintegration ; constats F1 mobile et F2 backend corriges par le directeur avec tests ; aucun constat critique ou eleve sans reponse.",
+  "next": {
+    "mobile": "Tranche focus et annonces : remplacer le delai de 200 ms des modales par onShow sans nouvelle dependance, annoncer les erreurs de formulaire via region live, couvrir les conditions de donnees par tests purs ; corriger uniquement les defauts reveles.",
+    "backend": "Tranche logique pure du domaine invitations : creation/acceptation - entropie et borne du jeton, condense stocke, expiration, role attribue, appartenance, double acceptation ; module pur sans SDK Firestore avec tests negatifs entre deux foyers ; ne pas recreer les regles Firestore en quarantaine ; garder Stripe desactive.",
+    "audit": "Tenter de casser le module invitations attendu (jeton faible ou non borne, acceptation expiree/double, isolation entre foyers) ; chercher une fausse positive de la garde durcie storedBillingStateIsUnreadable sur un etat legitime ecrit par le systeme ; verifier le motif de focus onShow et l'absence de regression de contraste des etats vides."
+  },
+  "humanActions": []
+}

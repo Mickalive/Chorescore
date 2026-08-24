@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { TaskCategory } from '../domain/types';
 import { validateTaskInput } from '../domain/validation';
@@ -31,6 +31,7 @@ export function TaskFormModal({
   const [category, setCategory] = useState<TaskCategory>('other');
   const [weight, setWeight] = useState('2');
   const [localError, setLocalError] = useState<string | null>(null);
+  const nameInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     if (!visible) {
@@ -38,7 +39,13 @@ export function TaskFormModal({
       setCategory('other');
       setWeight('2');
       setLocalError(null);
+      return;
     }
+    // `autoFocus` est inopérant dans une modale Android tant que la fenêtre
+    // n'est pas attachée : focus explicite après l'animation d'ouverture,
+    // annulé si la modale se referme entre-temps.
+    const timer = setTimeout(() => nameInputRef.current?.focus(), 200);
+    return () => clearTimeout(timer);
   }, [visible]);
 
   const submit = () => {
@@ -65,8 +72,8 @@ export function TaskFormModal({
 
             <Text style={styles.label}>Nom</Text>
             <TextInput
+              ref={nameInputRef}
               accessibilityLabel="Nom de la tâche"
-              autoFocus
               value={name}
               onChangeText={setName}
               maxLength={60}

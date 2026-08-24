@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { AppButton } from '@/src/components/AppButton';
+import { Card } from '@/src/components/Card';
 import { DemoBanner } from '@/src/components/DemoBanner';
 import { ManualEntryModal } from '@/src/components/ManualEntryModal';
 import { MetricCard } from '@/src/components/MetricCard';
@@ -14,6 +15,7 @@ import { COLORS, RADIUS, SPACING } from '@/src/components/theme';
 import { getEntitlements, getPlanLabel } from '@/src/domain/entitlements';
 import { buildLeaderboard } from '@/src/domain/leaderboard';
 import { formatMetric } from '@/src/domain/scoring';
+import { selectActiveTasks } from '@/src/domain/tasks';
 import type { TaskDefinition } from '@/src/domain/types';
 import { useApp } from '@/src/store/AppProvider';
 
@@ -47,6 +49,7 @@ export default function TasksScreen() {
   const currentRow = weeklyRows.find((row) => row.user.id === state.currentUserId);
   const completedThisWeek = currentRow?.taskCount ?? 0;
   const currentMetric = currentRow?.value ?? 0;
+  const activeTasks = selectActiveTasks(state.tasks);
 
   return (
     <Screen>
@@ -75,34 +78,43 @@ export default function TasksScreen() {
       </View>
 
       <View style={styles.sectionRow}>
-        <SectionTitle title="Tâches du foyer" detail={`${state.tasks.length} tâches actives`} />
+        <SectionTitle title="Tâches du foyer" detail={`${activeTasks.length} tâches actives`} />
         <AppButton label="Ajouter" onPress={() => setTaskFormVisible(true)} style={styles.addButton} />
       </View>
 
-      <View style={styles.taskList}>
-        {state.tasks.filter((task) => task.active).map((task) => {
-          const activeEntry =
-            state.entries.find(
-              (entry) =>
-                entry.taskId === task.id &&
-                entry.userId === state.currentUserId &&
-                entry.status === 'in_progress',
-            ) ?? null;
-          return (
-            <TaskRow
-              key={task.id}
-              task={task}
-              activeEntry={activeEntry}
-              useWeights={entitlements.useWeights}
-              onStart={() => startTimer(task.id)}
-              onStop={() => {
-                if (activeEntry !== null) completeTimer(activeEntry.id);
-              }}
-              onManual={() => setManualTask(task)}
-            />
-          );
-        })}
-      </View>
+      {activeTasks.length === 0 ? (
+        <Card style={styles.emptyState}>
+          <Text style={styles.emptyTitle}>Aucune tâche active</Text>
+          <Text style={styles.emptyText}>
+            Ajoutez une première tâche pour commencer à enregistrer le temps du foyer.
+          </Text>
+        </Card>
+      ) : (
+        <View style={styles.taskList}>
+          {activeTasks.map((task) => {
+            const activeEntry =
+              state.entries.find(
+                (entry) =>
+                  entry.taskId === task.id &&
+                  entry.userId === state.currentUserId &&
+                  entry.status === 'in_progress',
+              ) ?? null;
+            return (
+              <TaskRow
+                key={task.id}
+                task={task}
+                activeEntry={activeEntry}
+                useWeights={entitlements.useWeights}
+                onStart={() => startTimer(task.id)}
+                onStop={() => {
+                  if (activeEntry !== null) completeTimer(activeEntry.id);
+                }}
+                onManual={() => setManualTask(task)}
+              />
+            );
+          })}
+        </View>
+      )}
 
       <TaskFormModal
         visible={taskFormVisible}
@@ -154,5 +166,19 @@ const styles = StyleSheet.create({
   },
   taskList: {
     gap: SPACING.sm,
+  },
+  emptyState: {
+    gap: SPACING.xs,
+    backgroundColor: COLORS.surfaceAlt,
+  },
+  emptyTitle: {
+    color: COLORS.textPrimary,
+    fontWeight: '800',
+  },
+  emptyText: {
+    // Contraste AA requis : textSecondary sur surfaceAlt ≈ 4,36:1 (< 4,5:1),
+    // textPrimary atteint ≈ 9,56:1 (constat F1 de l'audit mobile 32688156479).
+    color: COLORS.textPrimary,
+    lineHeight: 20,
   },
 });

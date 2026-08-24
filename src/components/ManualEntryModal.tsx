@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { TaskDefinition } from '../domain/types';
 import { validateManualMinutes } from '../domain/validation';
@@ -16,12 +16,19 @@ export function ManualEntryModal({
 }) {
   const [minutes, setMinutes] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
+  const minutesInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     if (task === null) {
       setMinutes('');
       setLocalError(null);
+      return;
     }
+    // Même motif que TaskFormModal : focus explicite après l'ouverture de la
+    // modale, car `autoFocus` est inopérant sur Android tant que la fenêtre
+    // de la modale n'est pas attachée.
+    const timer = setTimeout(() => minutesInputRef.current?.focus(), 200);
+    return () => clearTimeout(timer);
   }, [task]);
 
   const submit = () => {
@@ -45,7 +52,7 @@ export function ManualEntryModal({
           <Text style={styles.taskName}>{task?.name}</Text>
           <Text style={styles.label}>Durée en minutes</Text>
           <TextInput
-            autoFocus
+            ref={minutesInputRef}
             accessibilityLabel="Durée en minutes"
             value={minutes}
             onChangeText={setMinutes}

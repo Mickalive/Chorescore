@@ -20,6 +20,24 @@ export type StripeSubscriptionStatus =
   | "paused"
   | "none";
 
+/**
+ * Seules valeurs que le système écrit jamais dans un champ `stripeStatus`
+ * stocké : les statuts d'abonnement Stripe connus ou « none ». Une autre
+ * valeur lue depuis Firestore trahit une corruption et doit échouer fermé
+ * (voir `storedBillingStateIsUnreadable`) plutôt que d'être coercée.
+ */
+export const ALL_STRIPE_STATUSES: readonly StripeSubscriptionStatus[] = [
+  "active",
+  "trialing",
+  "past_due",
+  "canceled",
+  "unpaid",
+  "incomplete",
+  "incomplete_expired",
+  "paused",
+  "none",
+];
+
 export const TASK_CATEGORIES = [
   "dishes",
   "cooking",

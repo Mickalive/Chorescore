@@ -64,6 +64,9 @@ export default function ProfileScreen() {
               <Text style={styles.memberName}>{user.name}</Text>
               <AppButton
                 label={selected ? 'Profil actif' : 'Choisir'}
+                accessibilityLabel={
+                  selected ? `${user.name} est le profil actif` : `Choisir le profil de ${user.name}`
+                }
                 variant={selected ? 'secondary' : 'ghost'}
                 disabled={selected}
                 onPress={() => setCurrentUser(user.id)}

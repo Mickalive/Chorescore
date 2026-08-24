@@ -1,3 +1,10 @@
 {
-  "reason": "Remove completed GitHub Actions runs superseded by the active SPIDER-style ChoreScore loop while preserving all active runs and the current commit CI."
+  "requested_at": "2026-08-24T03:43:13Z",
+  "reason": "Remove completed GitHub Actions runs superseded by the current ChoreScore control plane.",
+  "preserve": [
+    "all active runs",
+    "latest ChoreScore autonomous loop",
+    "CI for the current main commit",
+    "all branches, commits and reports"
+  ]
 }

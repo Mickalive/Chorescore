@@ -135,10 +135,20 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CYCLE_INDEX: ${{ steps.inputs.outputs.cycle_index }}
+          MAX_CYCLES: ${{ steps.inputs.outputs.max_cycles }}
           RECOVERY_CYCLE_KEY: ${{ steps.inputs.outputs.recovery_cycle_key }}
+          HUMAN_NOTE: ${{ inputs.human_note }}
         shell: bash
         run: |
-          body=$(printf '### Cycle ChoreScore démarré\n\n- Run : [%s](https://github.com/%s/actions/runs/%s)\n- Cycle : `%s`\n- Récupération : `%s`\n\nLa branche acceptée reste `lab/chorescore` jusqu’à validation du directeur.' "$GITHUB_RUN_ID" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$CYCLE_INDEX" "$RECOVERY_CYCLE_KEY")
+          state=$(jq -cn \
+            --arg run_id "$GITHUB_RUN_ID" \
+            --arg cycle_index "$CYCLE_INDEX" \
+            --arg max_cycles "$MAX_CYCLES" \
+            --arg human_note "$HUMAN_NOTE" \
+            --arg recovery_cycle_key "$RECOVERY_CYCLE_KEY" \
+            '{schemaVersion: 1, run_id: $run_id, cycle_index: ($cycle_index | tonumber), max_cycles: ($max_cycles | tonumber), human_note: $human_note, recovery_cycle_key: $recovery_cycle_key}')
+          state_b64=$(printf '%s' "$state" | base64 -w0)
+          body=$(printf '### Cycle ChoreScore démarré\n\n- Run : [%s](https://github.com/%s/actions/runs/%s)\n- Cycle : `%s`\n- Limite demandée : `%s` (0 = continue)\n- Récupération : `%s`\n\nLa branche acceptée reste `lab/chorescore` jusqu’à validation du directeur.\n\n<!-- chorescore-control-state:%s -->' "$GITHUB_RUN_ID" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$CYCLE_INDEX" "$MAX_CYCLES" "$RECOVERY_CYCLE_KEY" "$state_b64")
           gh issue comment 3 --repo "$GITHUB_REPOSITORY" --body "$body"
 
   candidate:

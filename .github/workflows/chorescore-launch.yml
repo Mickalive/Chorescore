@@ -40,13 +40,16 @@ jobs:
             kind=cleanup
             cycles=0
             note=""
+            recovery=none
           else
             kind=launch
             cycles=$(jq -er '.cycles // 0 | if type == "number" and floor == . and . >= 0 and . <= 10000 then . else error("invalid cycles") end' "$file")
             note=$(jq -er '.human_note // "" | if type == "string" and length <= 4000 then . else error("invalid human_note") end' "$file")
+            recovery=$(jq -er '.recovery_cycle_key // "none" | if type == "string" and (. == "none" or test("^[1-9][0-9]*$")) then . else error("invalid recovery_cycle_key") end' "$file")
           fi
           echo "kind=$kind" >> "$GITHUB_OUTPUT"
           echo "cycles=$cycles" >> "$GITHUB_OUTPUT"
+          echo "recovery=$recovery" >> "$GITHUB_OUTPUT"
           {
             echo "note<<CHORESCORE_NOTE"
             echo "$note"
@@ -59,11 +62,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           NOTE: ${{ steps.request.outputs.note }}
           CYCLES: ${{ steps.request.outputs.cycles }}
+          RECOVERY: ${{ steps.request.outputs.recovery }}
         shell: bash
         run: |
           set -euo pipefail
           gh workflow run chorescore-loop.yml --repo "$GITHUB_REPOSITORY" --ref main \
-            -f human_note="$NOTE" -f cycle_index=1 -f max_cycles="$CYCLES"
+            -f human_note="$NOTE" -f cycle_index=1 -f max_cycles="$CYCLES" \
+            -f recovery_cycle_key="$RECOVERY"
 
       - name: Delete superseded completed workflow runs
         if: steps.request.outputs.kind == 'cleanup'

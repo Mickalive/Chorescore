@@ -28,6 +28,7 @@ jobs:
 
           p = Path('.github/workflows/chorescore-loop.yml')
           t = p.read_text()
+          E = '$' + '{{'
 
           def once(label, old, new):
               global t
@@ -39,16 +40,16 @@ jobs:
 
           once(
               'independent-merge',
-              "    if: ${{ always() && needs.prepare.result == 'success' && needs.candidate.result == 'success' }}\n",
-              "    if: ${{ always() && needs.prepare.result == 'success' && needs.candidate.result != 'cancelled' }}\n",
+              "    if: " + E + " always() && needs.prepare.result == 'success' && needs.candidate.result == 'success' }}\n",
+              "    if: " + E + " always() && needs.prepare.result == 'success' && needs.candidate.result != 'cancelled' }}\n",
           )
 
-          old = "    if: ${{ always() && needs.prepare.result == 'success' && needs.merge_candidate.result == 'success' }}\n"
+          old = "    if: " + E + " always() && needs.prepare.result == 'success' && needs.merge_candidate.result == 'success' }}\n"
           count = t.count(old)
           print(f'independent-downstream: {count}')
           if count != 2:
               raise RuntimeError(f'independent-downstream anchor count={count}')
-          t = t.replace(old, "    if: ${{ always() && needs.prepare.result == 'success' && needs.merge_candidate.result != 'cancelled' }}\n", 2)
+          t = t.replace(old, "    if: " + E + " always() && needs.prepare.result == 'success' && needs.merge_candidate.result != 'cancelled' }}\n", 2)
 
           install = '''      - name: Install locked dependencies
         run: |

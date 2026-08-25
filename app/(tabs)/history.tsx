@@ -223,7 +223,7 @@ export default function HistoryScreen() {
         </View>
       )}
       <Text style={styles.retentionText}>
-        En gratuit, la fenêtre visible est de 30 jours. La démo ne conserve toutefois rien après sa fermeture.
+        En gratuit, la fenêtre visible est de 30 jours. Les entrées plus anciennes restent sur cet appareil mais ne sont plus affichées ici.
       </Text>
     </Screen>
   );

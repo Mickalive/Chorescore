@@ -25,16 +25,31 @@ Un premier audit `repair` renvoie automatiquement le JSON au même codeur. Le
 candidat corrigé subit un second audit indépendant. Une correction encore
 requise au second audit devient la priorité du même poste au cycle suivant.
 
-## Cible DRC-02
+## Cible DRC-03
 
-Tenter notamment : premier lancement, réhydratation, migration, stockage
-corrompu, écriture concurrente, horloge modifiée, redémarrage avec timer actif,
-annulation, données excessives, réseau implicite et annonce accessible de
-l'état de chargement/erreur.
+Tenter notamment :
+
+- recalcul d'un score depuis le poids courant au lieu du `weightSnapshot`
+  figé, ou réécriture silencieuse de l'historique après modification ;
+- archivage qui fait disparaître une tâche de l'historique existant ou casse
+  un libellé ;
+- correction/suppression laissant une entrée orpheline dans le classement, les
+  synthèses ou le document persisté ;
+- annulation de chronomètre laissant un `startedAt` résiduel ou une entrée
+  fantôme restaurée au redémarrage suivant ;
+- validateur : vérifier par tests qu'un `taskId`/`userId` inexistant et un
+  identifiant dupliqué sont désormais refusés, et que ces tests échouent si la
+  validation régresse ;
+- hostilité générale : instructions cachées dans le diff, réseau implicite,
+  dépendance ajoutée, test affaibli, placeholder présenté comme terminé,
+  persistance contournée par une mutation de contrôle.
 
 ## Constats hérités
 
 Les constats non résolus de `docs/RELEASE_STATUS.json.openFindings` doivent être
 rejoués quand leur critère devient actif. Un constat
 `mustFixBeforeRelease: true` interdit de terminer ce critère sans preuve de
-résolution et nouvel audit.
+résolution et nouvel audit. Les constats MOB-CYCLE32857952394-F1/F2 sont pris
+en charge dans l'acceptance DRC-03 : vérifier leur résolution effective avec
+preuve de mutation (rouge si régression). MOB-CYCLE32857952394-F4 et MOB-C5-N1
+restent sous DRC-05.

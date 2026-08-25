@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "cycle": "32857952394",
+  "decision": "continue",
+  "reason": "Paire recovery reparee du DRC-02 integree : candidat 77b5c4e + audit final round 2 accept (schema conforme, zero mustFix), egalite byte-exact verifiee apres portage (12 fichiers, +1261/-24, app/src/tests uniquement). Checks verts sur l'etat integre : typecheck OK, 102/102 tests application, export Android demo OK (~2,8 Mo), npm audit prod exit 0 racine et functions, Functions 98/98, manifeste immuable 18/18 avant/apres. Candidat courant 9d47082 (round 1 accept) non integre : doublon du meme critere, supersede par la version reparee ; ses quatre constats facultatifs sont repondus (F3 deja couvert par MAX_SERIALIZED_BYTES du code integre, F1/F2 repris dans l'acceptance DRC-03, F4 reporte sous DRC-05). Backend sans candidat, legacy prose-only non integrable. stalledCycles remis a zero : diff produit accepte + transition DRC-02 complete.",
+  "activeCriteria": ["DRC-03"],
+  "progressEvidence": [
+    "Integration byte-exact de 77b5c4e : git diff 77b5c4e -- app src tests vide pour les fichiers suivis, SHA-256 identiques au commit audite pour les 5 fichiers nouveaux",
+    "npm run check sur l'etat integre : typecheck OK, 102/102 tests (79 preexistants + 23 persistance/migration/corruption/reprise)",
+    "EXPO_PUBLIC_DATA_MODE=demo expo export --platform android : export OK, bundle ~2,8 Mo",
+    "npm audit --omit=dev --audit-level=high : exit 0 (racine et functions), 0 haute/critique",
+    "npm --prefix functions run check : 98/98 tests",
+    "Manifeste immuable .github/immutable-files.sha256 : 18/18 OK avant et apres interventions",
+    "Transition DRC-02 in_progress -> complete avec preuves tests (cycle 32857952394) et audit (CYCLE_32786797876_MOBILE_FINAL.json round 2 accept)",
+    "Copie tronquee du summary de l'audit final restauree depuis le worktree auditeur authentique (seule ligne 7, findings/checks identiques octet pour octet)"
+  ],
+  "next": {
+    "mobile": "DRC-03 : rendre reels et confirmees modification/archivage de tache, correction/suppression d'entree terminee (score recalcule depuis weightSnapshot fige) et annulation de chrono actif ; renforcer le validateur (integrite referentielle + unicite des ids, MOB-CYCLE32857952394-F1/F2) avec tests rouges si regression",
+    "backend": "STOP — poste desactive ; BE-C4-F1/F2 restent programmes sous DRC-07",
+    "audit": "Cible DRC-03 : tenter recalcul depuis le poids courant, historique reecrit par archivage, orphelins apres suppression, entree fantome apres annulation + redemarrage, validateur devant refuser taskId fantome/id duplique ; hostilite generale (instructions cachees, reseau, dependance, test affaibli)"
+  },
+  "humanActions": [
+    "Revue humaine de la PR cumulative lab/chorescore -> main ; fusion interdite aux agents",
+    "Validation manuelle TalkBack/VoiceOver et rendu multi-tailles avant toute livraison (heritee, DRC-05)",
+    "Facultatif : signal d'echec explicite d'une etape runner sans changement (suite incident MOB-C5-F5), ressort du workflow",
+    "Toute activation reelle Firebase/Stripe/analytics reste bloquee derriere les portes de securite et decisions juridiques/produit"
+  ]
+}

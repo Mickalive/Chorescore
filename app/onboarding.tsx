@@ -29,7 +29,7 @@ export default function OnboardingScreen() {
       <Text style={styles.brand}>ChoreScore</Text>
       <Text accessibilityRole="header" style={styles.title}>Prendre soin du foyer, ensemble.</Text>
       <Text style={styles.subtitle}>
-        Explore une démonstration mobile avec des données entièrement fictives. Rien ne quitte cet appareil et rien n’est conservé.
+        Explore une démonstration mobile avec des données entièrement fictives. Elles restent sur cet appareil et rien n’est envoyé sur le réseau.
       </Text>
 
       <View style={styles.featureGrid}>

@@ -1,6 +1,7 @@
 import { createDemoSnapshot } from '../data/demoData';
 import { calculateScore } from '../domain/scoring';
 import { getIsoWeekKey } from '../domain/periods';
+import { getCappedDurationSeconds } from '../domain/timerRules';
 import { normalizeTaskName } from '../domain/validation';
 import type { AppDataService, CompleteTimerInput, CreateTaskInput, ManualEntryInput, StartTimerInput } from './appService';
 
@@ -51,10 +52,7 @@ export class DemoAppService implements AppDataService {
     if (input.entry.startedAt === null) {
       throw new Error('Un chrono actif doit posséder une heure de départ.');
     }
-    const elapsedSeconds = Math.max(
-      1,
-      Math.min(24 * 60 * 60, Math.floor((input.now.getTime() - new Date(input.entry.startedAt).getTime()) / 1000)),
-    );
+    const elapsedSeconds = getCappedDurationSeconds(input.entry.startedAt, input.now);
     return {
       ...input.entry,
       status: 'completed' as const,

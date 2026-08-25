@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "cycle": "32786797876",
+  "role": "mobile",
+  "round": 2,
+  "decision": "accept",
+  "summary": "Candidat corrige 77b5c4e (origin/cycle/chorescore/32786797876/mobile-repaired) vs base acceptee b3d9eb6 : diff reel de 12 fichiers, +1261/-24, strictement dans app/, src/, tests/. Les quatre constats mustFix du tour 1 sont demontrement resolus : persistance AsyncStorage versionnee (schemaVersion 1, cle dediee, serialisation stable par cles triees, sauvegarde apres chaque mutation via writer sequentiel), hydratation a trois phases sans aucun rendu de route ni flash de demoData (HydrationGate), migration undefined->v1 et corruption traitees avec quarantaine de la charge brute avant suppression, jamais de perte silencieuse, reinitialisation informee visible ; reprise deterministe du chronometre avec horloge injectee (reprise sous 24 h, expiration a 24 h avec score et completedAt exacts, reparation des entrees impossibles) ; batterie de 23 nouveaux tests (79 -> 102 verts) couvrant succes, migration, corruption, surcharge, ecritures concurrentes et bornes exactes du chrono. Sensibilite de la suite prouvee par injection de faute sur copie isolee : 5 tests echouent quand la logique de stockage est cassee. Aucune regression : dependance async-storage deja declaree, aucun reseau ajoute, textes mis a jour honnetement vers la conservation locale reelle, 79 tests preexistants verts, demoService au comportement identique. Checks executes : identite SHA et arbre, diff integral, scan hostilite/reseau negatif, npm ci + npm run check 102/102, injection de faute sur copie, npm audit prod sans haute/critique, manifeste immuable OK, export Android demo vert. Decision : accept — tous les constats ont mustFix false.",
+  "findings": [
+    {
+      "id": "MOB-C5-F1-R2",
+      "severity": "high",
+      "path": "src/store/persistence.ts",
+      "mustFix": false,
+      "problem": "Resolution du constat MOB-C5-F1 (tour 1) : la couche de persistance versionnee et l'hydratation explicite exigees existent maintenant et sont testees.",
+      "evidence": "src/store/persistence.ts : STORAGE_KEY 'chorescore.demo.state.v1', QUARANTINE_KEY, SCHEMA_VERSION=1, serializeStable (cles triees), createSequentialWriter, MAX_SERIALIZED_BYTES 512 Ko ; src/services/storage.ts : adaptateur AsyncStorage, dependance @react-native-async-storage/async-storage@2.2.0 deja declaree dans le package.json accepte (ligne 21), aucune nouvelle dependance ; AppProvider.tsx : createLoadingState vide (zero donnee demoData), hydrate() en trois phases loading->ready/error, effet de sauvegarde de la tranche durable apres chaque mutation ; app/_layout.tsx : HydrationBoundary ne rend aucune route tant que phase != ready ; tests : premier lancement, etat de chargement sans donnees fictives, restauration exacte y compris consentement et onboarding.",
+      "requiredFix": "Aucun — constat resolu.",
+      "verification": "npm run check vert sur le candidat corrige : typecheck OK puis 102/102 tests dont les quatre tests d'hydratation ; grep confirmant STORAGE_KEY/schemaVersion sous src/store/."
+    },
+    {
+      "id": "MOB-C5-F2-R2",
+      "severity": "high",
+      "path": "src/store/appReducer.ts",
+      "mustFix": false,
+      "problem": "Resolution du constat MOB-C5-F2 (tour 1) : migration et corruption sont traitees sans perte silencieuse, avec recuperation explicite et visible.",
+      "evidence": "parseEnvelope encadre JSON.parse et valide la forme profonde contre le schema v1 (isDurableState : users, household, memberships, tasks, entries, consent) ; version > 1 -> unknown-version, version < 1 ou forme invalide -> invalid-shape ; quarantine() ecrit la charge brute dans QUARANTINE_KEY avant removeItem(STORAGE_KEY), tout echec laissant la donnee brute en place (aucune perte silencieuse dans les deux cas) ; AppProvider affiche describeRecovery (cause + sort de la charge + reprise sur donnees fictives annoncee). Tests : JSON corrompu quarantine, v99 refusee et archivee, v0 invalide, forme v1 invalide, statut/date interdits refutes, surcharge lecture quarantine et ecriture refusee avant ecriture, echec d'ecriture sans ecrasement, stockage indisponible explicite.",
+      "requiredFix": "Aucun — constat resolu.",
+      "verification": "Les huit tests de corruption/versions/surcharge passent sur le candidat ; l'injection de faute desactivant isDurableState sur copie isolee fait echouer les tests de corruption (97 pass / 5 fail), prouvant qu'ils detectent une regression."
+    },
+    {
+      "id": "MOB-C5-F3-R2",
+      "severity": "high",
+      "path": "src/domain/timerRules.ts",
+      "mustFix": false,
+      "problem": "Resolution du constat MOB-C5-F3 (tour 1) : la reprise ou l'expiration deterministe du chronometre apres redemarrage existe, documentee, avec horloge injectable et information visible.",
+      "evidence": "applyRestartRules(snapshot, now) : reprise sous 24 h depuis le startedAt conserve ; expiration a >= 24 h avec durationSeconds plafonne a 86400, score (86400/60)*weightSnapshot et completedAt = depart + 24 h ; entree impossible (startedAt absent/illisible) clôturée a duree nulle avec evenement 'repaired' ; regle documentee en tete de fichier ; AppProvider applique les regles a l'hydratation avec horloge passee explicitement et produit un avis visible describeRestartEvents ; demoService.completeTimer refactoré sur getCappedDurationSeconds avec semantique identique a l'ancien calcul inline (plancher 1 s, plafond 24 h). Tests : reprise, expiration avec score et completedAt exacts, borne exacte (24 h pile expire, 24 h - 1 s reprend), reparation visible, entrees terminees intactes, horloge injectee decisive.",
+      "requiredFix": "Aucun — constat resolu.",
+      "verification": "Les six tests de reprise passent ; l'injection de faute desactivant la regle d'expiration fait echouer les trois tests d'expiration/borne/horloge ; les 79 tests preexistants restent verts (pas de regression de completeTimer)."
+    },
+    {
+      "id": "MOB-C5-F4-R2",
+      "severity": "high",
+      "path": "tests/persistence.test.ts",
+      "mustFix": false,
+      "problem": "Resolution du constat MOB-C5-F4 (tour 1) : la batterie de tests succes/migration/corruption/reprise existe, avec storage et horloge injectables, et detecte reellement une regression.",
+      "evidence": "tests/persistence.test.ts : 23 nouveaux tests (total 79 -> 102) couvrant premier lancement, restauration depuis MemoryStorage seme, migration undefined->v1 relisible, serialisation stable, sauvegarde apres mutation, ecritures concurrentes sequentielles (derniere gagne, verifie par compteur d'appels), corruption JSON/v99/v0/forme/statut-date, surcharge lecture+ecriture, echec d'ecriture, indisponibilite, reprise/expiration/reparation avec bornes exactes et horloge injectee. Injection de faute sur copie isolee /tmp/opencode/fault-inject (candidat jamais modifie, copie supprimee apres verification) : validation de forme desactivee + expiration desactivee => exactement 5 tests cibles en echec (102 tests, 97 pass, 5 fail).",
+      "requiredFix": "Aucun — constat resolu.",
+      "verification": "node --test execute 102/102 tests en vert sur le candidat corrige ; la meme suite passe de 102 a 97 pass lorsque la logique de stockage est cassee sur la copie — la condition « rouge si cassee » est demontree, pas seulement affirmee."
+    },
+    {
+      "id": "MOB-C5-N1",
+      "severity": "info",
+      "path": "src/store/AppProvider.tsx",
+      "mustFix": false,
+      "problem": "Observation facultative : l'effet de sauvegarde se declenche aussi juste apres HYDRATION_READY, reecrivant l'etat qui vient d'etre restaure a chaque demarrage (une ecriture redondante par lancement). Inoffensif pour la correction et la coherence des donnees.",
+      "evidence": "AppProvider.tsx : l'effet liste state.hydration.phase parmi ses dependances et ecrit des que phase === 'ready', y compris sans mutation utilisateur intermediaire ; aucune consequence observee aux tests ni a l'export.",
+      "requiredFix": "Facultatif : ignorer la premiere ecriture suivant une restauration 'restored' si aucune mutation n'a eu lieu.",
+      "verification": "Si traite un jour : test affirmant zero appel setItem apres hydratation sans mutation ; sinon aucune action requise."
+    },
+    {
+      "id": "MOB-C5-F5-R2",
+      "severity": "info",
+      "path": "",
+      "mustFix": false,
+      "problem": "Cloture du constat processus MOB-C5-F5 (tour 1) : le snapshot corrige est non vide et livre la tranche DRC-02 complete ; la verification demandee (« snapshot non vide pour DRC-02 ») est satisfaite. Le suivi de l'anomalie d'etape (signal d'echec explicite d'un runner) reste du ressort du directeur.",
+      "evidence": "git cat-file -p 77b5c4e : commit 'ChoreScore 32786797876: mobile corrected candidate' portant 12 fichiers ; diff b3d9eb6..77b5c4e non vide (+1261/-24) ; parent = 83e8e3d dont l'arbre caaaa40e est identique a celui de b3d9eb6.",
+      "requiredFix": "Facultatif cote directeur : consigner l'incident du tour 1 et, si le workflow le permet, exiger un signal d'echec explicite lorsqu'une etape runner ne produit aucun changement.",
+      "verification": "Le rapport directeur du cycle mentionne l'anomalie ; les cycles suivants montrent des snapshots non vides ou des echecs d'etape visibles."
+    }
+  ],
+  "checks": [
+    "Identite : git rev-parse du workspace candidat = 77b5c4e05ffd0553359c934f21164ca6707232c4 = origin/cycle/chorescore/32786797876/mobile-repaired (ls-remote) ; parent = 83e8e3dda29c69fba15006215cd36b33a1c16da7 ; arbres de 83e8e3d et b3d9eb6 identiques (caaaa40e3da566510171c6982e1ca92ade3aa021) ; checkout courant lab/chorescore reste a b3d9eb6, intact.",
+    "Diff reel integral : git diff b3d9eb6 77b5c4e en --stat/--name-status/--raw : 12 fichiers, +1261/-24, tous sous app/, src/, tests/ ; worktree candidat propre vis-a-vis de HEAD (node_modules non suivi seul), y compris apres les checks (dist/ nettoye).",
+    "Perimetre et dependances : package.json, package-lock.json et functions/ absents du diff ; @react-native-async-storage/async-storage@2.2.0 deja declaree dans la base acceptee — aucune nouvelle dependance, aucun lockfile touche.",
+    "Hostilite et reseau : scan du diff (motifs d'instruction injectee, eval, secrets, fetch/XHR/WebSocket/axios) negatif ; les deux correspondances initiales etaient le parametre 'overrides' d'un helper de test ; aucun appel reseau dans les nouveaux fichiers.",
+    "npm ci --ignore-scripts puis npm run check (worktree candidat) : typecheck OK puis 102/102 tests node:test pass, 0 echec (79 preexistants + 23 nouveaux) — aucune regression des comportements acceptes.",
+    "Injection de faute sur copie isolee (/tmp/opencode/fault-inject, candidat jamais edite, copie supprimee ensuite) : desactivation de isDurableState et de la regle d'expiration => 102 tests, 97 pass, 5 fail (exactement les tests de corruption et d'expiration/borne/horloge) : la suite echoue bien si la logique de stockage est cassee.",
+    "npm audit --omit=dev --audit-level=high (worktree candidat) : code sortie 0, 11 vulnerabilites moderees, aucune haute/critique — identique a la base acceptee.",
+    "Manifeste immuable : sha256sum -c .github/immutable-files.sha256 (worktree candidat) : 0 fichier en echec.",
+    "Export Android demo : EXPO_PUBLIC_DATA_MODE=demo npx --no-install expo export --platform android : succes, bundle produit (execute car app/_layout.tsx change) ; dist/ supprime ensuite, worktree rendu intact.",
+    "Non execute, motive : tests d'emulateur Firestore/isolation backend non relances — le poste backend est desactive pour DRC-02 (directives/TASKS.json) et functions/ est hors diff."
+  ]
+}

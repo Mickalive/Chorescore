@@ -1,27 +1,29 @@
 {
   "schemaVersion": 1,
   "milestone": "demo-rc",
-  "updatedBy": "human-governance-2026-08-25-v1",
+  "updatedBy": "director-32857952394",
   "activeCriteria": [
-    "DRC-02"
+    "DRC-03"
   ],
   "assignments": {
     "mobile": {
       "enabled": true,
-      "criterionId": "DRC-02",
-      "objective": "Implémenter une persistance AsyncStorage versionnée et la reprise cohérente du chronomètre actif.",
+      "criterionId": "DRC-03",
+      "objective": "Rendre réelles, confirmées et couvertes d'invariants la modification/archivage de tâche, la correction/suppression d'entrée terminée et l'annulation d'un chronomètre actif, en cohérence avec le score canonique et la persistance DRC-02.",
       "acceptance": [
-        "hydratation explicite sans clignotement de données fictives",
-        "sauvegarde des changements métier avec sérialisation stable",
-        "migration et corruption traitées sans perte silencieuse",
-        "reprise ou expiration déterministe du chronomètre après redémarrage",
-        "tests succès, migration, corruption et reprise"
+        "modifier une tâche (nom, catégorie, poids courant) n'affecte ni les scores historiques ni les weightSnapshot figés",
+        "archiver une tâche est réel et confirmé : plus proposée aux nouveaux chronos, conservée dans l'historique existant",
+        "corriger la durée d'une entrée terminée recalcule le score depuis le weightSnapshot figé, jamais depuis le poids courant",
+        "supprimer une entrée est confirmé et ne laisse aucune orpheline dans classement, historique ou document persisté",
+        "annuler un chronomètre actif est déterministe : pas d'entrée fantôme, cohérent avec applyRestartRules à la relance",
+        "le validateur de persistance refuse un document avec taskId/userId inexistant ou identifiant dupliqué, tests à l'appui (MOB-CYCLE32857952394-F1/F2)",
+        "tests succès, refus, états vides et confirmations pour chaque opération ; npm run check vert ; export Android démo OK sans réseau"
       ]
     },
     "backend": {
       "enabled": false,
-      "criterionId": "DRC-02",
-      "objective": "STOP — aucun travail backend nécessaire pour ce critère mobile.",
+      "criterionId": "DRC-03",
+      "objective": "STOP — aucun travail backend nécessaire pour cette tranche mobile. Les constats BE-C4-F1/F2 restent programmés sous DRC-07.",
       "acceptance": []
     }
   }

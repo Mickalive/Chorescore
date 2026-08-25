@@ -10,7 +10,13 @@ import type {
 } from '../domain/types';
 import { validateManualMinutes, validateTaskInput } from '../domain/validation';
 
+export type HydrationPhase =
+  | { phase: 'loading' }
+  | { phase: 'ready' }
+  | { phase: 'error'; message: string };
+
 export type AppState = AppSnapshot & {
+  hydration: HydrationPhase;
   onboardingComplete: boolean;
   consent: ConsentState;
   paywallFeature: PremiumFeature | null;
@@ -19,6 +25,14 @@ export type AppState = AppSnapshot & {
 };
 
 export type Action =
+  | {
+      type: 'HYDRATION_READY';
+      snapshot: AppSnapshot;
+      durable: { onboardingComplete: boolean; consent: ConsentState };
+      notice: string | null;
+    }
+  | { type: 'HYDRATION_FAILED'; message: string }
+  | { type: 'HYDRATION_RESTART' }
   | { type: 'COMPLETE_ONBOARDING'; consent: ConsentState }
   | { type: 'SET_ANALYTICS_CONSENT'; enabled: boolean; eventCount: number }
   | { type: 'SET_PLAN'; plan: PlanScenario; maxMembers: number | null }
@@ -33,9 +47,47 @@ export type Action =
 
 export const TERMS_VERSION = 'demo-v1';
 
+const EPOCH_ISO = '1970-01-01T00:00:00.000Z';
+
+/**
+ * État d'amorçage utilisé pendant l'hydratation : volontairement vide, il ne
+ * contient aucune donnée fictive de démonstration afin qu'aucun écran ne puisse
+ * afficher un flash de `demoData` avant la lecture du stockage.
+ */
+export function createLoadingState(): AppState {
+  return {
+    users: [],
+    household: {
+      id: '',
+      name: '',
+      timezone: 'UTC',
+      plan: 'trial',
+      trialStartedAt: EPOCH_ISO,
+      trialEndsAt: EPOCH_ISO,
+      maxMembers: null,
+    },
+    memberships: [],
+    tasks: [],
+    entries: [],
+    currentUserId: '',
+    hydration: { phase: 'loading' },
+    onboardingComplete: false,
+    consent: {
+      termsAccepted: false,
+      termsVersion: TERMS_VERSION,
+      acceptedAt: null,
+      analyticsOptIn: false,
+    },
+    paywallFeature: null,
+    notice: null,
+    analyticsEventCount: 0,
+  };
+}
+
 export function createInitialState(snapshot: AppSnapshot): AppState {
   return {
     ...snapshot,
+    hydration: { phase: 'ready' },
     onboardingComplete: false,
     consent: {
       termsAccepted: false,
@@ -51,6 +103,20 @@ export function createInitialState(snapshot: AppSnapshot): AppState {
 
 export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
+    case 'HYDRATION_READY':
+      return {
+        ...action.snapshot,
+        hydration: { phase: 'ready' },
+        onboardingComplete: action.durable.onboardingComplete,
+        consent: action.durable.consent,
+        paywallFeature: null,
+        notice: action.notice,
+        analyticsEventCount: 0,
+      };
+    case 'HYDRATION_FAILED':
+      return { ...createLoadingState(), hydration: { phase: 'error', message: action.message } };
+    case 'HYDRATION_RESTART':
+      return createLoadingState();
     case 'COMPLETE_ONBOARDING':
       return { ...state, onboardingComplete: true, consent: action.consent, notice: null };
     case 'SET_ANALYTICS_CONSENT':

@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "cycle": "32786797876",
+  "role": "mobile",
+  "round": 1,
+  "decision": "repair",
+  "summary": "Snapshot 83e8e3d vs base acceptee b3d9eb6 : diff reel strictement vide (arbre Git identique caaaa40e, commit sans aucun fichier). Le critere assigne DRC-02 n'est pas commence : aucun AsyncStorage ni schema versionne, aucune hydratation explicite, aucune migration ni gestion de corruption, aucune reprise du chronometre apres redemarrage, aucun test nouveau (79/79 tests preexistants verts). Aucune regression et aucun contenu hostile, mais la tranche est entierement absente : les cinq criteres d'acceptation de directives/TASKS.json restent non satisfaits. Checks executes : identite SHA candidat/origine, parent egale a lab/chorescore, diff integral vide verifie trois manieres, inspection src/store et src/services, npm run check vert, npm audit prod sans haute/critique, manifeste immuable OK, lockfiles inchanges. Decision : repair — retour au codeur mobile pour livrer la tranche DRC-02 complete.",
+  "findings": [
+    {
+      "id": "MOB-C5-F1",
+      "severity": "high",
+      "path": "src/store/AppProvider.tsx",
+      "mustFix": true,
+      "problem": "Le candidat est un commit vide : aucune persistance versionnee et aucune hydratation explicite n'existent. Les deux premiers criteres d'acceptation DRC-02 de directives/TASKS.json (hydratation sans clignotement de donnees fictives ; sauvegarde des changements metier avec serialisation stable) ne sont pas commences. L'etat de demonstration reste volatile en memoire et disparait a chaque redemarrage.",
+      "evidence": "git -C /tmp/chorescore_mobile diff b3d9eb6 83e8e3d --stat/--name-status/--raw : sortie vide ; rev-parse des arbres b3d9eb6 et 83e8e3d identique (caaaa40e3da566510171c6982e1ca92ade3aa021) ; grep -r 'AsyncStorage|persist|hydrate|migration|schemaVersion|STORAGE_KEY' src/ : zero occurrence ; src/store/ ne contient que AppProvider.tsx et appReducer.ts en memoire.",
+      "requiredFix": "Implementer une couche de persistance AsyncStorage avec enveloppe versionnee (schemaVersion v1), cle(s) dediee(s), serialisation stable et deterministe, sauvegarde apres chaque mutation metier, et une hydratation explicite a trois etats (chargement -> pret/erreur) qui n'affiche jamais les donnees fictives de demoData pendant le chargement.",
+      "verification": "grep montre la couche de stockage presente sous src/ ; un test charge un storage prealablement semé puis affirme que l'etat hydre correspond exactement aux donnees stockees sans flash de demoData ; npm run check vert sur le candidat corrige."
+    },
+    {
+      "id": "MOB-C5-F2",
+      "severity": "high",
+      "path": "src/store/appReducer.ts",
+      "mustFix": true,
+      "problem": "Aucune strategie de migration ni de traitement de corruption n'existe, alors que le troisieme critere d'acceptation DRC-02 exige « migration et corruption traitees sans perte silencieuse ». La premiere version persistee doit des l'origine definir l'enveloppe versionnee, le chemin undefined->v1 et le comportement face a des donnees invalides.",
+      "evidence": "Meme diff vide que MOB-C5-F1 ; aucun JSON.parse encadre dans src/store/ (le store est purement en memoire) ; aucun code de quarantaine, de sauvegarde de secours ou de message d'erreur utilisateur relatif au stockage dans src/ et app/.",
+      "requiredFix": "Encadrer la deserialisation, valider la forme contre le schema versionne, refuser proprement une version inconnue, et en cas de donnees corrompues offrir une recuperation explicite et visible (conservation/quarantaine de la donnee brute puis reinitialisation informee), jamais une perte silencieuse ni un crash.",
+      "verification": "Des tests injectent un JSON corrompu, une version superieure/inferieure et une charge surdimensionnee et affirment le comportement de recuperation attendu, deterministe et sans perte silencieuse ; ils echouent si ce comportement regresse."
+    },
+    {
+      "id": "MOB-C5-F3",
+      "severity": "high",
+      "path": "src/services/demoService.ts",
+      "mustFix": true,
+      "problem": "Aucune reprise du chronometre actif apres redemarrage n'existe, alors que le quatrieme critere d'acceptation DRC-02 exige une « reprise ou expiration deterministe du chronometre apres redemarrage ». startedAt d'une entree en cours vit uniquement en memoire : un redemarrage perd le chrono en cours sans regle documentee.",
+      "evidence": "demoService.ts ne gere startedAt qu'au demarrage/arret en session (plafond 24 h applique seulement dans stopEntry appelee en session) ; TaskRow.tsx calcule l'ecoulement via Date.now() - startedAt uniquement pendant le montage ; rien ne rehydrate une entree active au lancement ; demoData.ts demarre toutes les entrees avec startedAt null.",
+      "requiredFix": "A l'hydratation, detecter toute entree avec startedAt non null et appliquer une regle deterministe documentee : reprise de l'ecoulement a partir de l'horloge de reference avec plafond, ou expiration au-dela d'un seuil defini, avec information visible de l'utilisateur ; horloge injectable pour la testabilite.",
+      "verification": "Un test simule un redemarrage avec un timer actif (horloge injetee) et affirme le resultat repris ou expire de facon deterministe, y compris aux bornes du seuil et du plafond ; il echoue si la regle regressse."
+    },
+    {
+      "id": "MOB-C5-F4",
+      "severity": "high",
+      "path": "tests/",
+      "mustFix": true,
+      "problem": "Le cinquieme critere d'acceptation DRC-02 exige des tests de succes, migration, corruption et reprise : aucun n'existe. La suite de tests est strictement identique a celle de l'etat accepte (11 fichiers, 79 tests) et ne couvre aucun comportement de stockage.",
+      "evidence": "Listing de tests/ identique a l'etat accepte (aucun fichier de persistance) ; npm run check sur le candidat : typecheck OK puis 79/79 tests pass, tous preexistants ; grep 'AsyncStorage|storage|hydrate' tests/ : zero occurrence.",
+      "requiredFix": "Ajouter une batterie couvrant l'hydratation reussie depuis un storage semé, la migration undefined->v1, la corruption (JSON invalide, version inconnue, taille excessive), la sauvegarde apres mutation et la reprise/expiration du chronometre, avec horloge et storage injectables.",
+      "verification": "node --test execute les nouvelles suites en vert sur le candidat corrige et en rouge si la logique de stockage est cassee ; le total de tests augmente et npm run check reste vert."
+    },
+    {
+      "id": "MOB-C5-F5",
+      "severity": "info",
+      "path": "",
+      "mustFix": false,
+      "problem": "Anomalie de processus : le runner mobile a pousse un snapshot vide (commit sans fichier) au lieu d'un livrable ou d'un echec explicite. Observation pour le directeur uniquement : verifier les logs de l'etape mobile du run 32786797876 pour distinguer une sortie d'agent vide d'un echec silencieux. Aucune correction produit n'est requise au-dela des constats MOB-C5-F1 a F4.",
+      "evidence": "git show 83e8e3d --name-status : commit « ChoreScore 32786797876: mobile snapshot » sans aucun fichier ; parent exactement egal au HEAD accepte b3d9eb6 de lab/chorescore ; worktree candidat propre vis-a-vis de HEAD (node_modules non suivi excepte).",
+      "requiredFix": "Facultatif cote processus : le directeur peut consigner l'incident et, si le workflow le permet, exiger un signal d'echec explicite lorsqu'une etape runner ne produit aucun changement pour un critere assigne.",
+      "verification": "Le rapport directeur du cycle mentionne l'anomalie ; un cycle suivant montre soit un snapshot non vide pour DRC-02, soit un echec d'etape visible."
+    }
+  ],
+  "checks": [
+    "Identite : git -C /tmp/chorescore_mobile rev-parse HEAD et origin/cycle/chorescore/32786797876/mobile = 83e8e3dda29c69fba15006215cd36b33a1c16da7 (branche candidate trouvee) ; parent 83e8e3d^ = b3d9eb6a2585aafaff7598d30291b923c6d0c489 = HEAD de lab/chorescore (checkout courant propre, branche acceptee intacte).",
+    "Diff reel integral : git diff b3d9eb6 83e8e3d en modes --stat, --name-status et --raw : sortie vide dans les trois cas ; rev-parse des arbres des deux commits identique (caaaa40e3da566510171c6982e1ca92ade3aa021) : le candidat est octet pour octet l'etat accepte.",
+    "Worktree candidat : git status --porcelain sans modification suivie (node_modules non suivi seul) ; git diff HEAD vide : le workspace monte correspond bien au snapshot audite.",
+    "Recherche de contenu DRC-02 : grep -r 'AsyncStorage|persist|hydrate|migration|schemaVersion|STORAGE_KEY' src/ : zero occurrence ; lecture de src/store/AppProvider.tsx, src/store/appReducer.ts, src/services/demoService.ts, src/components/TaskRow.tsx, src/data/demoData.ts : store en memoire, aucun chemin de reprise apres redemarrage.",
+    "npm run check (worktree candidat) : tsc --noEmit OK puis 79/79 tests node:test pass, 0 echec — suite strictement identique a l'etat accepte, aucune regression introduite (impossible par construction, diff vide).",
+    "npm audit --omit=dev --audit-level=high (worktree candidat) : code sortie 0, 11 vulnerabilites moderees, aucune haute/critique — identique a la base acceptee ; package.json et package-lock.json inchanges (diff vide).",
+    "Manifeste immuable : sha256sum -c .github/immutable-files.sha256 (worktree candidat) : tous les fichiers OK.",
+    "Non executes, motive : export Android demo et tests d'isolation non relances car les entrees sont octet pour octet celles de l'etat accepte deja valide (diff vide) ; aucun check n'a ete invente.",
+    "Hostilite : le diff etant vide, aucun contenu candidat n'a pu porter d'instruction ; aucun motif suspect dans les messages de commit ni dans l'arborescence inspectee."
+  ]
+}

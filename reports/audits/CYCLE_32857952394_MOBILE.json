@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "cycle": "32857952394",
+  "role": "mobile",
+  "round": 1,
+  "decision": "accept",
+  "summary": "Snapshot 9d47082 vs base acceptee 2827835 : 10 fichiers (+1222/-26) limites a app/, src/, tests/. DRC-02 reellement livre : document unique versionne (v2), serialisation stable champ par champ, hydratation explicite sans clignotement du semis, migration v1->v2 prudente (aucun opt-in analytics fabrique), corruption et stockage illisible recuperes avec avis visible, chrono repris depuis startedAt avec plafond 24 h coherent entre affichage et enregistrement. Checks verts dans le worktree candidat : typecheck OK, 96/96 tests (+17), export Android demo OK, npm audit prod sans haute/critique, manifeste immuable 19/19 OK, ni reseau ni secret ni dependance ajoutee. Quatre constats faibles/info non bloquants : integrite referentielle non validee a la lecture (replis gracieux existants), unicite des ids non verifiee, pas de borne applicative de taille de document (echec d'ecriture annonce honnetement), porte d'hydratation sans garde-fou si l'adaptateur ne se resolve jamais. Decision : accepter.",
+  "findings": [
+    {
+      "id": "MOB-CYCLE32857952394-F1",
+      "severity": "low",
+      "path": "src/store/persistence.ts (validateSnapshotEntity)",
+      "mustFix": false,
+      "problem": "La validation stricte du document relu controle les formes champ par champ mais pas l'integrite referentielle : un entry.taskId ou entry.userId pointant vers une entite inexistante est accepte (seul currentUserId est recoupe contre users). Une valeur corrompue a la main peut donc survivre dans l'etat restaure.",
+      "evidence": "Sonde adversariale sur le module compile : une entree complete mais de taskId 'task_ghost' passe deserializeState avec ok=true. Replis gracieux confirmes dans le code accepte : src/domain/history.ts libelle 'Tache archivee' pour tache inconnue, classement iterant les utilisateurs connus seulement, TaskRow n'appariant jamais une entree fantome. Aucun crash observe.",
+      "requiredFix": "Optionnel : ajouter au validateur un passage referentiel (chaque taskId/task.userId existe dans tasks/users du meme snapshot) et rejeter ou repliquer proprement le document sinon.",
+      "verification": "Nouveau cas de test : document valide forme avec une entree de taskId inexistant, attendu ok=false (ou repli documente) ; relancer node --test .test-build/tests/persistence.test.js."
+    },
+    {
+      "id": "MOB-CYCLE32857952394-F2",
+      "severity": "low",
+      "path": "src/store/persistence.ts (validateSnapshotEntity)",
+      "mustFix": false,
+      "problem": "Aucune verification d'unicite des identifiants : deux users, tasks ou entries partageant le meme id sont acceptes a la lecture. Des doublons ne peuvent provenir que d'un fichier facade manuellement ; ils fusionnent sans crash a l'affichage mais faussent silencieusement les totaux concernes.",
+      "evidence": "Sonde adversariale : clone du premier utilisateur re-injecte dans snapshot.users, deserializeState renvoie ok=true. Aucun parcours UI ne plante (maps par id fusionnent les doublons), mais la somme de durees d'un membre duplique serait comptee deux fois dans son unique colonne.",
+      "requiredFix": "Optionnel : verifier l'unicite des ids par collection (users, memberships, tasks, entries) dans validatePersistedDocument et refuser le document en cas de doublon.",
+      "verification": "Cas de test avec id duplique attendu ok=false ; relancer node --test .test-build/tests/persistence.test.js."
+    },
+    {
+      "id": "MOB-CYCLE32857952394-F3",
+      "severity": "info",
+      "path": "src/store/persistence.ts (serializeState) ; src/store/AppProvider.tsx (effet de persistance)",
+      "mustFix": false,
+      "problem": "Pas de borne applicative sur la taille du document persiste. Un historique tres volumineux produit un payload pouvant depasser les limites d'AsyncStorage (ordre du Mo) ; l'ecriture echouerait alors systematiquement, chaque mutation reessayant et reaffichant l'avis d'echec.",
+      "evidence": "Sonde : un etat de 20 000 entrees se serialise sans exception en ~5,3 Mo. Le chemin d'echec est honnete et teste : setItem rejetee -> avis 'Les modifications n'ont pas pu etre enregistrees' + remise a zero du cache de payload donc nouvelle tentative. Aucune perte silencieuse ; hors portee reelle de la demo.",
+      "requiredFix": "Optionnel lors d'une passe robustesse : plafonner le nombre d'entrees persistees (fenetre 30 jours deja canonique) ou tracer une limite de taille documentee avec degradation annoncee.",
+      "verification": "Le cas limite reste couvert par le test d'echec d'ecriture existant ; toute borne ajoutee devrait avoir son test de frontiere."
+    },
+    {
+      "id": "MOB-CYCLE32857952394-F4",
+      "severity": "info",
+      "path": "app/_layout.tsx (HydrationGate) ; src/store/AppProvider.tsx (effet d'hydratation)",
+      "mustFix": false,
+      "problem": "Si l'adaptateur de stockage ne se resolvait jamais (promesse eternellement en attente), la porte d'hydratation afficherait le chargement indefiniment : readStoredState capture les rejets mais pas l'absence de reglement.",
+      "evidence": "Relecture du wiring : aucun timeout ni course autour de storage.getItem. Theorique avec AsyncStorage (resout ou rejette en pratique) ; tous les chemins d'erreur reels testes aboutissent a hydrated: true avec avis visible.",
+      "requiredFix": "Optionnel : garder-fou temporel (par exemple Promise.race avec delai) debouchant sur l'etat recovered unreadable-storage deja implemente.",
+      "verification": "Test simulant un getItem never-settling attendu en sortie recovered/unreadable-storage apres delai ; relancer node --test .test-build/tests/persistence.test.js."
+    }
+  ],
+  "checks": [
+    "Identite : git rev-parse origin/cycle/chorescore/32857952394/mobile == HEAD du worktree /tmp/chorescore_mobile (9d47082) ; merge-base avec 2827835 egale a la base acceptee ; un seul commit candidat, pas d'historique reecrit.",
+    "Diff integral relu (git diff 2827835 9d47082) : 10 fichiers, +1222/-26 ; grep negatif sur governance/, .github/, .opencode/, directives/, MAIN_PROMPT.md, AGENTS.md, opencode.json, package.json, package-lock.json, functions/ ; aucune dependance ni lockfile modifies.",
+    "bash .github/scripts/verify-immutable-governance.sh dans le worktree candidat : 19/19 empreintes OK, sortie 0.",
+    "npm run check (worktree candidat, Node v22.13.0) : typecheck tsc --noEmit OK puis 96/96 tests node:test pass, 0 echec (79 appels test( statiques cote base acceptee + 17 nouveaux tests persistence).",
+    "EXPO_PUBLIC_DATA_MODE=demo npx --no-install expo export --platform android (worktree candidat) : export Android reussi, bundle ~2,8 Mo, demo hors ligne intacte.",
+    "npm audit --omit=dev --audit-level=high (worktree candidat) : sortie 0, 11 vulnerabilites moderees, aucune haute/critique ; parite avec la base acceptee (sortie 0).",
+    "Scan du diff : fetch(|XMLHttpRequest|WebSocket|http://|https://|api_key|secret|token|password|EXPO_PUBLIC -> zero occurrence ; aucun reseau, aucun secret, aucune variable publique ajoutee.",
+    "Scan .skip|.only|.todo|@ts-ignore|eslint-disable sur tests/persistence.test.ts et src/store/persistence.ts : zero occurrence, aucun test ou controle affaibli.",
+    "Sondes adversariales maison contre les modules compiles : taskId fantome et ids dupliques acceptes par le validateur (constats F1/F2, replis gracieux confirms dans src/domain/history.ts) ; horloge future ecretee a 0 ; formes corrompues (null, chaine, nombre, objet vide, schemaVersion 99/0) toutes recuperees avec hydrated true ; document v1 au snapshot invalide refuse apres migration ; etat a 20 000 entrees serialise sans exception (~5,3 Mo). Premiere sonde echouee a cause d'un bug de mon harnais (document persiste passe comme etat applicatif), corrige ensuite.",
+    "Recoupements manuels : MAX_TIMER_DURATION_SECONDS (persistence) egal au plafond Math.min(24*60*60,...) de demoService.completeTimer ; TaskRow plafonne l'affichage a la meme borne avec note a expiration ; RESET_DEMO traverse l'effet de persistance ; premier lancement n'ecrit rien avant la premiere mutation ; textes profiles/onboarding/banner mis en coherence avec la persistance locale (honnetete amelioree).",
+    "Relecture hostile des commentaires du diff : symboles reels uniquement (startedAt, schemaVersion, lastPayloadRef...), aucune instruction adressee a des agents, aucun placeholder presente comme fonctionnalite."
+  ]
+}

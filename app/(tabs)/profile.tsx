@@ -134,7 +134,7 @@ export default function ProfileScreen() {
         <View style={styles.divider} />
         <Text style={styles.privacyTitle}>Conditions de démonstration</Text>
         <Text style={styles.privacyText}>
-          Version {state.consent.termsVersion}, acceptée uniquement pour cette session. Aucune IP collectée.
+          Version {state.consent.termsVersion}, conservée localement sur cet appareil. Aucune IP collectée.
         </Text>
       </Card>
 
@@ -151,7 +151,7 @@ export default function ProfileScreen() {
       <Card style={styles.securityCard}>
         <Text style={styles.securityTitle}>Architecture sûre par défaut</Text>
         <Text style={styles.securityText}>
-          Le service de démonstration fonctionne en mémoire. Le service de production est séparé et volontairement désactivé : aucune clé, requête Firebase, connexion Stripe ou écriture locale.
+          Le service de démonstration conserve tes données fictives uniquement sur cet appareil (stockage local de l’application). Le service de production est séparé et volontairement désactivé : aucune clé, requête Firebase, connexion Stripe ou envoi réseau.
         </Text>
       </Card>
     </Screen>

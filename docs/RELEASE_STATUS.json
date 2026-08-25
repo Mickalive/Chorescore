@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "milestone": "demo-rc",
   "governanceVersion": "2026-08-25-v1",
-  "lastCycle": "human-bootstrap",
+  "lastCycle": "32857952394",
   "activeCriteria": [
-    "DRC-02"
+    "DRC-03"
   ],
   "stalledCycles": 0,
-  "progressSummary": "Socle accepté avant intégration du cycle 32781937768 : 71 tests mobile et 93 tests backend. Les candidats courants portent les batteries à 78 et 98 tests ; leur directeur doit encore les intégrer.",
+  "progressSummary": "Cycle 32857952394 : la paire recovery reparee du DRC-02 (candidat 77b5c4e + audit final round 2 accept, zero mustFix) est integree dans lab/chorescore ; DRC-02 passe a complete avec ses deux preuves exigees (tests, audit). Etat integre verifie : typecheck OK, 102/102 tests application (79 preexistants + 23 persistance/reprise), export Android demo OK (~2,8 Mo), npm audit prod exit 0 racine et functions, Functions 98/98. Le candidat courant 9d47082 (round 1 accept) n'est pas integre : doublon du meme critere DRC-02, supersede par la version reparee ; ses constats facultatifs sont répondus et tracés.",
   "blocker": null,
   "criteria": [
     {
@@ -28,8 +28,19 @@
     },
     {
       "id": "DRC-02",
-      "status": "in_progress",
-      "evidence": []
+      "status": "complete",
+      "evidence": [
+        {
+          "kind": "tests",
+          "reference": "npm run check sur l'état intégré cycle 32857952394 : typecheck OK, 102/102 tests dont 23 tests persistance/migration/corruption/reprise du candidat réparé 77b5c4e (79 -> 102)",
+          "cycle": "32857952394"
+        },
+        {
+          "kind": "audit",
+          "reference": "reports/audits/CYCLE_32786797876_MOBILE_FINAL.json — round 2, decision accept, 0 mustFix, candidat réparé 77b5c4e porté intégral",
+          "cycle": "32786797876"
+        }
+      ]
     },
     {
       "id": "DRC-03",
@@ -109,6 +120,46 @@
       "mustFixBeforeRelease": false,
       "status": "unresolved",
       "requiredFix": "Appliquer l'identité observée à completeTask lors du prochain incrément backend pertinent."
+    },
+    {
+      "id": "MOB-CYCLE32857952394-F1",
+      "criterionId": "DRC-03",
+      "role": "mobile",
+      "severity": "low",
+      "mustFixBeforeRelease": false,
+      "status": "unresolved",
+      "requiredFix": "Ajouter au validateur de persistance un passage d'intégrité référentielle (chaque entry.taskId / entry.userId existe dans tasks / users du même snapshot) et refuser ou repliquer proprement le document sinon, avec cas de test. Constat émis sur le candidat parallèle 9d47082 (non intégré) et vérifié présent à l'identique dans le validateur intégré (isDurableState). Pris en charge dans l'acceptance DRC-03 du cycle suivant.",
+      "origin": "audit round 1 du candidat courant 9d47082, applicable au code intégré"
+    },
+    {
+      "id": "MOB-CYCLE32857952394-F2",
+      "criterionId": "DRC-03",
+      "role": "mobile",
+      "severity": "low",
+      "mustFixBeforeRelease": false,
+      "status": "unresolved",
+      "requiredFix": "Vérifier l'unicité des identifiants par collection (users, memberships, tasks, entries) dans le validateur de persistance et refuser le document en cas de doublon, avec cas de test. Même origine et même prise en charge que MOB-CYCLE32857952394-F1.",
+      "origin": "audit round 1 du candidat courant 9d47082, applicable au code intégré"
+    },
+    {
+      "id": "MOB-CYCLE32857952394-F4",
+      "criterionId": "DRC-05",
+      "role": "mobile",
+      "severity": "info",
+      "mustFixBeforeRelease": false,
+      "status": "unresolved",
+      "requiredFix": "Garde-fou temporel optionnel sur la porte d'hydratation (Promise.race avec délai débouchant sur l'état recovered unreadable-storage déjà implémenté) si l'adaptateur de stockage ne se résolvait jamais. Théorique avec AsyncStorage.",
+      "origin": "audit round 1 du candidat courant 9d47082, applicable au code intégré"
+    },
+    {
+      "id": "MOB-C5-N1",
+      "criterionId": "DRC-05",
+      "role": "mobile",
+      "severity": "info",
+      "mustFixBeforeRelease": false,
+      "status": "unresolved",
+      "requiredFix": "Facultatif : ignorer la première écriture suivant une restauration 'restored' si aucune mutation n'a eu lieu (une sauvegarde redondante par lancement). Test associé : zéro appel setItem après hydratation sans mutation.",
+      "origin": "audit final round 2 accept du candidat réparé 77b5c4e (intégré)"
     }
   ]
 }

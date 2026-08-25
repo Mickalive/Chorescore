@@ -6,15 +6,26 @@ on:
       - main
     paths:
       - ".chorescore/launch/*.json"
+      - ".chorescore/cleanup/*.json"
+  workflow_run:
+    workflows:
+      - "ChoreScore Autonomous App Loop"
+    types:
+      - completed
+  workflow_dispatch:
 
 permissions:
   contents: read
   actions: write
 
+concurrency:
+  group: chorescore-launch-bridge
+  cancel-in-progress: false
+
 jobs:
   dispatch:
     name: Dispatch requested autonomous build
-    if: ${{ github.event.repository.visibility == 'private' }}
+    if: ${{ github.event_name == 'push' && github.repository == 'Mickalive/Chorescore' && !github.event.repository.fork }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -24,33 +35,159 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
 
-      - name: Resolve and validate launch request
+      - name: Resolve and validate request
         id: request
         shell: bash
         run: |
           set -euo pipefail
           file=$(git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA" |
-            grep -E '^\.chorescore/launch/[^/]+\.json$' | tail -1)
+            grep -E '^\.chorescore/(launch|cleanup)/[^/]+\.json$' | tail -1)
           test -n "$file"
           test -f "$file"
           jq -e 'type == "object"' "$file" >/dev/null
 
-          cycles=$(jq -er '.cycles // 0 | if type == "number" and floor == . and . >= 0 and . <= 10000 then . else error("invalid cycles") end' "$file")
-          note=$(jq -er '.human_note // "" | if type == "string" and length <= 4000 then . else error("invalid human_note") end' "$file")
+          if [[ "$file" == .chorescore/cleanup/* ]]; then
+            kind=cleanup
+            cycles=0
+            note=""
+            recovery=none
+          else
+            kind=launch
+            cycles=$(jq -er '.cycles // 0 | if type == "number" and floor == . and . >= 0 and . <= 10000 then . else error("invalid cycles") end' "$file")
+            note=$(jq -er '.human_note // "" | if type == "string" and length <= 4000 then . else error("invalid human_note") end' "$file")
+            recovery=$(jq -er '.recovery_cycle_key // "none" | if type == "string" and (. == "none" or test("^[1-9][0-9]*$")) then . else error("invalid recovery_cycle_key") end' "$file")
+          fi
+          echo "kind=$kind" >> "$GITHUB_OUTPUT"
           echo "cycles=$cycles" >> "$GITHUB_OUTPUT"
+          echo "recovery=$recovery" >> "$GITHUB_OUTPUT"
           {
             echo "note<<CHORESCORE_NOTE"
             echo "$note"
             echo "CHORESCORE_NOTE"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Launch continuous ChoreScore loop
+      - name: Launch or reuse continuous ChoreScore loop
+        id: loop
+        if: steps.request.outputs.kind == 'launch'
         env:
           GH_TOKEN: ${{ github.token }}
           NOTE: ${{ steps.request.outputs.note }}
           CYCLES: ${{ steps.request.outputs.cycles }}
+          RECOVERY: ${{ steps.request.outputs.recovery }}
         shell: bash
         run: |
           set -euo pipefail
-          gh workflow run chorescore-loop.yml --repo "$GITHUB_REPOSITORY" --ref main \
-            -f human_note="$NOTE" -f cycle_index=1 -f max_cycles="$CYCLES"
+          find_active() {
+            gh run list --repo "$GITHUB_REPOSITORY" --workflow chorescore-loop.yml --limit 20 \
+              --json databaseId,status,url,createdAt \
+              --jq '[.[] | select(.status != "completed")] | sort_by(.createdAt) | last // empty'
+          }
+          active=$(find_active)
+          if [[ -z "$active" ]]; then
+            gh workflow run chorescore-loop.yml --repo "$GITHUB_REPOSITORY" --ref main \
+              -f human_note="$NOTE" -f cycle_index=1 -f max_cycles="$CYCLES" \
+              -f recovery_cycle_key="$RECOVERY"
+            for attempt in {1..15}; do
+              active=$(find_active)
+              [[ -n "$active" ]] && break
+              sleep 2
+            done
+          fi
+          test -n "$active"
+          run_id=$(jq -r '.databaseId' <<<"$active")
+          run_status=$(jq -r '.status' <<<"$active")
+          run_url=$(jq -r '.url' <<<"$active")
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "run_status=$run_status" >> "$GITHUB_OUTPUT"
+          echo "run_url=$run_url" >> "$GITHUB_OUTPUT"
+
+      - name: Report resolved loop run
+        if: steps.request.outputs.kind == 'launch' && steps.loop.outputs.run_id != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ steps.loop.outputs.run_id }}
+          RUN_STATUS: ${{ steps.loop.outputs.run_status }}
+          RUN_URL: ${{ steps.loop.outputs.run_url }}
+          RECOVERY: ${{ steps.request.outputs.recovery }}
+        shell: bash
+        run: |
+          body=$(printf '### Boucle ChoreScore résolue\n\n- Run : [%s](%s)\n- État : **%s**\n- Récupération demandée : `%s`\n\nAucun agent local ni clé API externe.' "$RUN_ID" "$RUN_URL" "$RUN_STATUS" "$RECOVERY")
+          printf '%s\n' "$body"
+
+      - name: Delete superseded completed workflow runs
+        if: steps.request.outputs.kind == 'cleanup'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest_loop=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow chorescore-loop.yml --limit 1 \
+            --json databaseId --jq '.[0].databaseId // empty')
+          deleted_ids=()
+          while IFS= read -r run; do
+            id=$(jq -r '.databaseId' <<<"$run")
+            status=$(jq -r '.status' <<<"$run")
+            workflow=$(jq -r '.workflowName' <<<"$run")
+            head_sha=$(jq -r '.headSha' <<<"$run")
+
+            [[ "$id" == "$GITHUB_RUN_ID" ]] && continue
+            [[ -n "$latest_loop" && "$id" == "$latest_loop" ]] && continue
+            [[ "$status" != completed ]] && continue
+            [[ "$workflow" == CI && "$head_sha" == "$GITHUB_SHA" ]] && continue
+
+            echo "Deleting superseded run $id ($workflow)"
+            if gh run delete "$id" --repo "$GITHUB_REPOSITORY"; then
+              deleted_ids+=("$id")
+            else
+              echo "::warning::Unable to delete run $id"
+            fi
+          done < <(
+            gh run list --repo "$GITHUB_REPOSITORY" --limit 100 \
+              --json databaseId,status,workflowName,headSha,createdAt |
+            jq -c '.[]'
+          )
+
+          deleted_count=${#deleted_ids[@]}
+          if (( deleted_count == 0 )); then
+            deleted_list="aucun"
+          else
+            deleted_list=$(IFS=', '; echo "${deleted_ids[*]}")
+          fi
+          body=$(printf '### Nettoyage GitHub Actions terminé\n\n- Runs obsolètes supprimés : **%s**\n- Identifiants : `%s`\n- Dernier cycle autonome préservé : `%s`\n\nBranches, commits, snapshots et rapports inchangés.' "$deleted_count" "$deleted_list" "$latest_loop")
+          printf '%s\n' "$body" ||
+            echo "::warning::Nettoyage terminé, mais commentaire de suivi impossible."
+
+  watchdog:
+    name: Keep unfinished autonomous loop alive
+    if: ${{ github.repository == 'Mickalive/Chorescore' && !github.event.repository.fork && (github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout watchdog
+        uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          persist-credentials: false
+
+      - name: Wait five minutes after a completed autonomous run
+        if: ${{ github.event_name == 'workflow_run' }}
+        run: sleep 300
+
+      - name: Re-run only transiently failed jobs
+        if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHORESCORE_LOOP_WORKFLOW: chorescore-loop.yml
+          CHORESCORE_TRACKING_ISSUE: "3"
+          CHORESCORE_RERUN_ROLLOVER_ATTEMPT: "45"
+        shell: bash
+        run: bash .github/scripts/recover-transient-opencode.sh
+
+      - name: Guarantee a successor until the release is complete
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHORESCORE_LOOP_WORKFLOW: chorescore-loop.yml
+        shell: bash
+        run: bash .github/scripts/ensure-continuous-loop.sh

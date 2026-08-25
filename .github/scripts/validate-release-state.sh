@@ -163,7 +163,6 @@ else
 fi
 
 all_complete=$(jq 'all(.criteria[]; .status == "complete")' "$status")
-has_blocker=$(jq '.blocker != null' "$status")
 pending_artifact_ready=$(jq '
   .pendingArtifact == "DRC-06" and
   (.activeCriteria | length) == 0 and
@@ -176,13 +175,11 @@ pending_artifact_ready=$(jq '
 ' "$status")
 
 if [[ "$decision" == continue ]]; then
-  [[ "$all_complete" == false && "$has_blocker" == false ]]
+  [[ "$all_complete" == false ]]
   test "$(jq -r '.pendingArtifact' "$status")" = null
   (( enabled_count >= 1 ))
-  (( new_stalled < 2 ))
 elif [[ "$decision" == stop ]]; then
-  [[ "$all_complete" == true || "$has_blocker" == true ||
-     "$new_stalled" -ge 2 || "$pending_artifact_ready" == true ]]
+  [[ "$all_complete" == true || "$pending_artifact_ready" == true ]]
   if [[ "$pending_artifact_ready" == true ]]; then
     (( enabled_count == 0 ))
   fi

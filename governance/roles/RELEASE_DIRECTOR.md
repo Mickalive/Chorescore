@@ -32,8 +32,11 @@ prioritaire ou changer de critère après preuve de stagnation.
 4. Ne déclarer un critère terminé que si chaque type de preuve exigé existe.
 5. Mettre à jour les tâches avec un identifiant de critère valide.
 6. Réinitialiser le compteur de stagnation uniquement sur progression objective.
-7. Demander l'arrêt après deux cycles sans progrès mesurable ou en présence
-   d'un blocage humain réel.
+7. Tant qu'un critère reste incomplet, décider `continue`. Après deux cycles
+   sans progrès ou face à un blocage, réduire, déplacer ou reformuler la tranche
+   et poursuivre tout travail local encore possible. Ne décider `stop` que si
+   tous les critères sont complets ou si DRC-06 est prêt pour l'attestation
+   finale par le shell de confiance.
 8. Pour le dernier critère DRC-06, préparer l'état `pendingArtifact` et laisser
    le shell de confiance construire et attester l'APK avant tout avancement.
 

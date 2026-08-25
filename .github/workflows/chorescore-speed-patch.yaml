@@ -114,13 +114,11 @@ jobs:
               '    needs: [prepare, candidate, preflight, audit, repair, reaudit]\n',
           )
 
-          lines = t.splitlines(keepends=True)
-          matches = [i for i, line in enumerate(lines) if line.startswith('          REAUDIT_RESULT:')]
-          if len(matches) != 1:
-              raise RuntimeError(f'director-preflight-env matches={len(matches)}')
-          i = matches[0]
-          lines.insert(i + 1, '          PREFLIGHT_RESULT: ' + E + ' needs.preflight.result }}\n')
-          t = ''.join(lines)
+          once(
+              'director-preflight-env',
+              '          REPAIR_RESULT: ' + E + ' needs.repair.result }}\n          REAUDIT_RESULT: ' + E + ' needs.reaudit.result }}\n          MOBILE_FOUND:',
+              '          REPAIR_RESULT: ' + E + ' needs.repair.result }}\n          REAUDIT_RESULT: ' + E + ' needs.reaudit.result }}\n          PREFLIGHT_RESULT: ' + E + ' needs.preflight.result }}\n          MOBILE_FOUND:',
+          )
 
           once(
               'director-state',
@@ -133,6 +131,18 @@ jobs:
               '          The current checkout is the persistent accepted branch lab/chorescore. Read MAIN_PROMPT.md, governance/roles/RELEASE_DIRECTOR.md, governance/RELEASE_DEFINITION.json, docs/RELEASE_STATUS.json, directives/TASKS.json and directives/DIRECTOR.md first.\n',
               '          The current checkout is the persistent accepted branch lab/chorescore. Read MAIN_PROMPT.md, governance/roles/RELEASE_DIRECTOR.md, governance/RELEASE_DEFINITION.json, docs/RELEASE_STATUS.json, directives/TASKS.json and directives/DIRECTOR.md first. Stay on the structured control plane: use the trusted integration manifest and audit JSON as evidence, do not rescan the repository or reread the full candidate diff, and do not rerun deterministic tests. Open product source only when one specific unresolved audit finding cannot be decided from the structured evidence. Keep each next coding assignment to one coherent sub-slice expected to touch no more than about 12 files; defer the rest to a later cycle.\n',
           )
+
+          integration_anchor = '      - name: Apply independently accepted candidate deltas\n'
+          gate = """      - name: Require successful parallel deterministic preflight
+                env:
+                  PREFLIGHT_RESULT: @@ needs.preflight.result }}
+                shell: bash
+                run: |
+                  set -euo pipefail
+                  test "$PREFLIGHT_RESULT" = success
+
+          """.replace('@@', E)
+          once('preflight-gate', integration_anchor, gate + integration_anchor)
 
           p.write_text(t)
           PY

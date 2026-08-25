@@ -1,0 +1,159 @@
+name: ChoreScore productivity patch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/chorescore-productivity-patch.yaml
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          fetch-depth: 0
+
+      - name: Apply productivity patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          p = Path('.github/workflows/chorescore-loop.yml')
+          t = p.read_text()
+
+          def once(label, old, new):
+              global t
+              count = t.count(old)
+              print(f'{label}: {count}')
+              if count != 1:
+                  raise RuntimeError(f'{label} anchor count={count}')
+              t = t.replace(old, new, 1)
+
+          once(
+              'independent-merge',
+              "    if: ${{ always() && needs.prepare.result == 'success' && needs.candidate.result == 'success' }}\n",
+              "    if: ${{ always() && needs.prepare.result == 'success' && needs.candidate.result != 'cancelled' }}\n",
+          )
+
+          old = "    if: ${{ always() && needs.prepare.result == 'success' && needs.merge_candidate.result == 'success' }}\n"
+          count = t.count(old)
+          print(f'independent-downstream: {count}')
+          if count != 2:
+              raise RuntimeError(f'independent-downstream anchor count={count}')
+          t = t.replace(old, "    if: ${{ always() && needs.prepare.result == 'success' && needs.merge_candidate.result != 'cancelled' }}\n", 2)
+
+          install = '''      - name: Install locked dependencies
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm --prefix functions ci --ignore-scripts --no-audit --no-fund
+
+'''
+          once('remove-director-blocking-install', install, '')
+
+          anchor = '          trusted_integration=$(cat "$RUNNER_TEMP/chorescore-trusted-integration.json")\n'
+          parallel = '''          trusted_integration=$(cat "$RUNNER_TEMP/chorescore-trusted-integration.json")
+          verification_status="$RUNNER_TEMP/chorescore-parallel-verification.status"
+          verification_log="$RUNNER_TEMP/chorescore-verification.log"
+          (
+            set +e
+            set -o pipefail
+            {
+              npm ci --ignore-scripts --no-audit --no-fund
+              npm --prefix functions ci --ignore-scripts --no-audit --no-fund
+              npm run check
+              npx --no-install expo export --platform android --output-dir "$RUNNER_TEMP/chorescore-android"
+              npm --prefix functions run check
+            } 2>&1 | tee "$verification_log"
+            status=${PIPESTATUS[0]}
+            printf '%s\\n' "$status" > "$verification_status"
+            exit 0
+          ) &
+          verification_pid=$!
+'''
+          once('parallel-verification-start', anchor, parallel)
+
+          call = '''          bash .github/scripts/run-opencode-with-retry.sh opencode run \\
+            --model "$OX_MODEL" \\
+            --agent cycle-director \\
+            "$prompt"
+'''
+          wrapped = '''          set +e
+          bash .github/scripts/run-opencode-with-retry.sh opencode run \\
+            --model "$OX_MODEL" \\
+            --agent cycle-director \\
+            "$prompt"
+          director_status=$?
+          set -e
+          wait "$verification_pid" || true
+          test -s "$verification_status" || printf '1\\n' > "$verification_status"
+          exit "$director_status"
+'''
+          once('parallel-verification-wait', call, wrapped)
+
+          old_verify = '''      - name: Verify integrated application
+        id: verification
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          {
+            npm run check
+            npx --no-install expo export --platform android --output-dir "$RUNNER_TEMP/chorescore-android"
+            npm --prefix functions run check
+            bash .github/scripts/verify-product-coherence.sh
+          } 2>&1 | tee "$RUNNER_TEMP/chorescore-verification.log"
+'''
+          new_verify = '''      - name: Complete parallel deterministic verification
+        id: verification
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          status_file="$RUNNER_TEMP/chorescore-parallel-verification.status"
+          log_file="$RUNNER_TEMP/chorescore-verification.log"
+          test -s "$status_file"
+          status=$(cat "$status_file")
+          if [[ "$status" != 0 ]]; then
+            test ! -f "$log_file" || tail -n 300 "$log_file"
+            exit "$status"
+          fi
+          bash .github/scripts/verify-product-coherence.sh
+'''
+          once('parallel-verification-finish', old_verify, new_verify)
+
+          once(
+              'director-evidence-rule',
+              '          7. Deterministic checks run after your planning pass. If they fail, record the proven cause for the next code/audit cycle; never alter product code or weaken a check.\n',
+              '          7. Broad deterministic checks and Android export run concurrently with your planning pass on the frozen audited product tree. Do not duplicate them. If their result later fails, the workflow fails closed and returns the proven cause to a later code/audit cycle; never alter product code or weaken a check.\n',
+          )
+
+          p.write_text(t)
+          PY
+
+          git diff --check
+          ruby -e 'require "yaml"; YAML.load_file(".github/workflows/chorescore-loop.yml")'
+          bash .github/scripts/verify-workflow-architecture.sh
+          grep -Fq "needs.candidate.result != 'cancelled'" .github/workflows/chorescore-loop.yml
+          test "$(grep -Fc "needs.merge_candidate.result != 'cancelled'" .github/workflows/chorescore-loop.yml)" -eq 2
+          grep -Fq 'chorescore-parallel-verification.status' .github/workflows/chorescore-loop.yml
+          grep -Fq 'Complete parallel deterministic verification' .github/workflows/chorescore-loop.yml
+          mkdir -p speed-generated
+          cp .github/workflows/chorescore-loop.yml speed-generated/chorescore-loop-productivity.yml.txt
+
+      - name: Stage validated workflow blob
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name chorescore-governance
+          git config user.email chorescore-governance@users.noreply.github.com
+          git add speed-generated/chorescore-loop-productivity.yml.txt
+          git commit -m "ci: stage second productivity workflow"
+          git push origin HEAD:main

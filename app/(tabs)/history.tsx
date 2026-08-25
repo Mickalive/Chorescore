@@ -4,6 +4,7 @@ import { AppButton } from '@/src/components/AppButton';
 import { Avatar } from '@/src/components/Avatar';
 import { Card } from '@/src/components/Card';
 import { DemoBanner } from '@/src/components/DemoBanner';
+import { EntryCorrectionModal } from '@/src/components/EntryCorrectionModal';
 import { MetricCard } from '@/src/components/MetricCard';
 import { NativeBarChart } from '@/src/components/NativeBarChart';
 import { NoticeBanner } from '@/src/components/NoticeBanner';
@@ -20,12 +21,14 @@ import {
 } from '@/src/domain/history';
 import { buildDailyHistory, getVisibleHistory } from '@/src/domain/leaderboard';
 import { formatMetric, getEntryValue } from '@/src/domain/scoring';
+import type { TaskEntry } from '@/src/domain/types';
 import { useApp } from '@/src/store/AppProvider';
 
 export default function HistoryScreen() {
-  const { state, showPaywall, dismissNotice } = useApp();
+  const { state, showPaywall, dismissNotice, editEntryDuration, deleteEntry } = useApp();
   const [periodFilter, setPeriodFilter] = useState<HistoryPeriodFilter>('all');
   const [memberFilter, setMemberFilter] = useState<string | null>(null);
+  const [correctionEntry, setCorrectionEntry] = useState<TaskEntry | null>(null);
   const entitlements = getEntitlements(state.household.plan);
   const dailyPoints = useMemo(
     () =>
@@ -80,6 +83,19 @@ export default function HistoryScreen() {
 
   const changeMember = (value: string) => {
     setMemberFilter(value === 'all' ? null : value);
+  };
+
+  // DRC-03 : suppression réelle et confirmée d'une entrée terminée du membre
+  // actif ; classement, historique et sauvegarde locale sont recalculés.
+  const confirmDeleteEntry = (entry: TaskEntry, label: string) => {
+    Alert.alert(
+      'Supprimer cette entrée ?',
+      `« ${label} » disparaîtra du classement, de l’historique et de la sauvegarde locale. Cette action est définitive.`,
+      [
+        { text: 'Conserver', style: 'cancel' },
+        { text: 'Supprimer', style: 'destructive', onPress: () => deleteEntry(entry.id) },
+      ],
+    );
   };
 
   const exportReport = () => {
@@ -202,12 +218,14 @@ export default function HistoryScreen() {
             const task = taskById.get(entry.taskId);
             const user = userById.get(entry.userId);
             const completedAt = entry.completedAt === null ? null : new Date(entry.completedAt);
+            const entryLabel = task?.name ?? 'Tâche archivée';
+            const isOwnEntry = entry.userId === state.currentUserId;
             return (
               <Card key={entry.id}>
                 <View style={styles.entryRow}>
                   {user === undefined ? null : <Avatar initials={user.initials} color={user.color} size={38} />}
                   <View style={styles.entryCopy}>
-                    <Text style={styles.entryName}>{task?.name ?? 'Tâche archivée'}</Text>
+                    <Text style={styles.entryName}>{entryLabel}</Text>
                     <Text style={styles.entryMeta}>
                       {user?.name ?? 'Membre'} · {entry.isManual ? 'saisie manuelle' : 'chrono'} · {completedAt === null ? '' : new Intl.DateTimeFormat('fr-CH', { day: '2-digit', month: 'short' }).format(completedAt)}
                     </Text>
@@ -217,6 +235,24 @@ export default function HistoryScreen() {
                     <Text style={styles.entryMinutes}>{Math.round(entry.durationSeconds / 60)} min</Text>
                   </View>
                 </View>
+                {isOwnEntry ? (
+                  <View style={styles.entryActions}>
+                    <AppButton
+                      label="Corriger"
+                      variant="ghost"
+                      accessibilityLabel={`Corriger la durée de l’entrée « ${entryLabel} »`}
+                      onPress={() => setCorrectionEntry(entry)}
+                      style={styles.entryActionButton}
+                    />
+                    <AppButton
+                      label="Supprimer"
+                      variant="danger"
+                      accessibilityLabel={`Supprimer l’entrée « ${entryLabel} »`}
+                      onPress={() => confirmDeleteEntry(entry, entryLabel)}
+                      style={styles.entryActionButton}
+                    />
+                  </View>
+                ) : null}
               </Card>
             );
           })}
@@ -225,6 +261,18 @@ export default function HistoryScreen() {
       <Text style={styles.retentionText}>
         En gratuit, la fenêtre visible est de 30 jours. Les entrées plus anciennes restent sur cet appareil mais ne sont plus affichées ici.
       </Text>
+
+      <EntryCorrectionModal
+        entry={correctionEntry}
+        taskName={
+          correctionEntry === null ? '' : (taskById.get(correctionEntry.taskId)?.name ?? 'Tâche archivée')
+        }
+        useWeights={entitlements.useWeights}
+        onClose={() => setCorrectionEntry(null)}
+        onSubmit={(minutes) =>
+          correctionEntry === null ? false : editEntryDuration(correctionEntry.id, minutes)
+        }
+      />
     </Screen>
   );
 }
@@ -331,6 +379,15 @@ const styles = StyleSheet.create({
   },
   entryValueWrap: {
     alignItems: 'flex-end',
+  },
+  entryActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: SPACING.sm,
+    marginTop: SPACING.sm,
+  },
+  entryActionButton: {
+    minWidth: 104,
   },
   entryValue: {
     color: COLORS.textPrimary,

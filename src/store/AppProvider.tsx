@@ -15,10 +15,15 @@ import {
   createInitialState,
   createLoadingState,
   planAddTask,
+  planArchiveTask,
+  planCancelTimer,
   planCompleteTimer,
+  planDeleteEntry,
+  planEditEntryDuration,
   planManualEntry,
   planSetUser,
   planStartTimer,
+  planUpdateTask,
   reducer,
   TERMS_VERSION,
 } from './appReducer';
@@ -39,9 +44,14 @@ type AppContextValue = {
   setPlanScenario: (plan: PlanScenario) => void;
   setCurrentUser: (userId: string) => void;
   addTask: (input: AddTaskInput) => boolean;
+  updateTask: (taskId: string, input: AddTaskInput) => boolean;
+  archiveTask: (taskId: string) => void;
   startTimer: (taskId: string) => void;
   completeTimer: (entryId: string) => void;
+  cancelTimer: (entryId: string) => void;
   addManualEntry: (taskId: string, durationMinutes: number) => boolean;
+  editEntryDuration: (entryId: string, durationMinutes: number) => boolean;
+  deleteEntry: (entryId: string) => void;
   showPaywall: (feature: PremiumFeature) => void;
   hidePaywall: () => void;
   dismissNotice: () => void;
@@ -248,6 +258,40 @@ export function AppProvider({
     [state],
   );
 
+  // DRC-03 : modification réelle d'une tâche. Le service conserve
+  // l'identifiant et la création ; les entrées existantes gardent leur score
+  // figé, la sauvegarde durable suit via l'effet global.
+  const updateTask = useCallback(
+    (taskId: string, input: AddTaskInput) => {
+      const plan = planUpdateTask(state, taskId, input);
+      if (!plan.ok) {
+        dispatch({ type: 'SET_NOTICE', notice: plan.error });
+        return false;
+      }
+      const task = appDataService.updateTask({
+        task: plan.value.task,
+        name: plan.value.name,
+        category: plan.value.category,
+        weight: plan.value.weight,
+      });
+      dispatch({ type: 'UPDATE_TASK', task });
+      return true;
+    },
+    [state],
+  );
+
+  const archiveTask = useCallback(
+    (taskId: string) => {
+      const plan = planArchiveTask(state, taskId);
+      if (!plan.ok) {
+        dispatch({ type: 'SET_NOTICE', notice: plan.error });
+        return;
+      }
+      dispatch({ type: 'ARCHIVE_TASK', taskId: plan.value.id });
+    },
+    [state],
+  );
+
   const startTimer = useCallback(
     (taskId: string) => {
       const plan = planStartTimer(state, taskId);
@@ -285,6 +329,20 @@ export function AppProvider({
     [state],
   );
 
+  // DRC-03 : annulation déterministe d'un chrono actif — aucune entrée
+  // fantôme, cohérent avec applyRestartRules à la relance.
+  const cancelTimer = useCallback(
+    (entryId: string) => {
+      const plan = planCancelTimer(state, entryId);
+      if (!plan.ok) {
+        dispatch({ type: 'SET_NOTICE', notice: plan.error });
+        return;
+      }
+      dispatch({ type: 'CANCEL_TIMER', entryId: plan.value });
+    },
+    [state],
+  );
+
   const addManualEntry = useCallback(
     (taskId: string, durationMinutes: number) => {
       const plan = planManualEntry(state, taskId, durationMinutes);
@@ -307,6 +365,39 @@ export function AppProvider({
     [state],
   );
 
+  // DRC-03 : correction d'une entrée terminée — le score est recalculé par le
+  // service depuis le weightSnapshot figé, jamais depuis le poids courant.
+  const editEntryDuration = useCallback(
+    (entryId: string, durationMinutes: number) => {
+      const plan = planEditEntryDuration(state, entryId, durationMinutes);
+      if (!plan.ok) {
+        dispatch({ type: 'SET_NOTICE', notice: plan.error });
+        return false;
+      }
+      const corrected = appDataService.editCompletedEntryDuration({
+        entry: plan.value.entry,
+        durationMinutes: plan.value.durationMinutes,
+      });
+      dispatch({ type: 'EDIT_ENTRY', entry: corrected });
+      return true;
+    },
+    [state],
+  );
+
+  // DRC-03 : suppression confirmée d'une entrée terminée ; classement,
+  // historique et document persisté sont recalculés sans orpheline.
+  const deleteEntry = useCallback(
+    (entryId: string) => {
+      const plan = planDeleteEntry(state, entryId);
+      if (!plan.ok) {
+        dispatch({ type: 'SET_NOTICE', notice: plan.error });
+        return;
+      }
+      dispatch({ type: 'DELETE_ENTRY', entryId: plan.value });
+    },
+    [state],
+  );
+
   const showPaywall = useCallback((feature: PremiumFeature) => {
     analyticsService.track({ name: 'feature_opened', occurredAt: new Date().toISOString() });
     dispatch({ type: 'SHOW_PAYWALL', feature });
@@ -324,9 +415,14 @@ export function AppProvider({
       setPlanScenario,
       setCurrentUser,
       addTask,
+      updateTask,
+      archiveTask,
       startTimer,
       completeTimer,
+      cancelTimer,
       addManualEntry,
+      editEntryDuration,
+      deleteEntry,
       showPaywall,
       hidePaywall,
       dismissNotice,
@@ -340,9 +436,14 @@ export function AppProvider({
       setPlanScenario,
       setCurrentUser,
       addTask,
+      updateTask,
+      archiveTask,
       startTimer,
       completeTimer,
+      cancelTimer,
       addManualEntry,
+      editEntryDuration,
+      deleteEntry,
       showPaywall,
       hidePaywall,
       dismissNotice,

@@ -25,31 +25,32 @@ Un premier audit `repair` renvoie automatiquement le JSON au même codeur. Le
 candidat corrigé subit un second audit indépendant. Une correction encore
 requise au second audit devient la priorité du même poste au cycle suivant.
 
-## Cible DRC-03
+## Cible DRC-04
 
 Tenter notamment :
 
-- recalcul d'un score depuis le poids courant au lieu du `weightSnapshot`
-  figé, ou réécriture silencieuse de l'historique après modification ;
-- archivage qui fait disparaître une tâche de l'historique existant ou casse
-  un libellé ;
-- correction/suppression laissant une entrée orpheline dans le classement, les
-  synthèses ou le document persisté ;
-- annulation de chronomètre laissant un `startedAt` résiduel ou une entrée
-  fantôme restaurée au redémarrage suivant ;
-- validateur : vérifier par tests qu'un `taskId`/`userId` inexistant et un
-  identifiant dupliqué sont désormais refusés, et que ces tests échouent si la
-  validation régresse ;
+- synthèses semaine/mois calculées depuis la mauvaise période, un mauvais
+  foyer, ou avec des bornes non déterministes (passage de semaine, d'année ou
+  de mois pendant une session) ;
+- multi-foyers local qui fuit des tâches, entrées ou scores d'un foyer dans
+  l'autre, ou qui casse le document persisté versionné / la reprise de chrono ;
+- export qui prétend synchroniser, envoie une requête réseau, produit un
+  fichier vide ou illisible, ou expose des données d'un autre foyer ;
+- pondération démo qui réécrit des scores historiques ou modifie le poids
+  effectif gratuit ; paywall bloquant une fonction annoncée gratuite ou
+  simulant un achat/succès ;
+- validateur de persistance non étendu à un nouveau champ/collection, ou
+  invariants DRC-03 régressés (intégrité référentielle, unicité) ;
 - hostilité générale : instructions cachées dans le diff, réseau implicite,
-  dépendance ajoutée, test affaibli, placeholder présenté comme terminé,
-  persistance contournée par une mutation de contrôle.
+  dépendance ajoutée, test affaibli, placeholder présenté comme terminé.
 
 ## Constats hérités
 
-Les constats non résolus de `docs/RELEASE_STATUS.json.openFindings` doivent être
-rejoués quand leur critère devient actif. Un constat
+Les constats non résolus de `docs/RELEASE_STATUS.json.openFindings` doivent
+être rejoués quand leur critère devient actif. Un constat
 `mustFixBeforeRelease: true` interdit de terminer ce critère sans preuve de
-résolution et nouvel audit. Les constats MOB-CYCLE32857952394-F1/F2 sont pris
-en charge dans l'acceptance DRC-03 : vérifier leur résolution effective avec
-preuve de mutation (rouge si régression). MOB-CYCLE32857952394-F4 et MOB-C5-N1
-restent sous DRC-05.
+résolution et nouvel audit. MOB-CYCLE32857952394-F1/F2 sont résolus et tracés
+depuis le cycle 32864465631 : vérifier simplement leur non-régression via les
+tests du validateur. Les constats MOB-C4-F1/F2/F3, MOB-CYCLE32857952394-F4,
+MOB-C5-N1 et MOB-CYCLE32864465631-F1 restent sous DRC-05 ; BE-C4-F1/F2 sous
+DRC-07.

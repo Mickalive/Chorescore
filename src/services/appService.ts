@@ -30,6 +30,20 @@ export type ManualEntryInput = {
   now: Date;
 };
 
+export type UpdateTaskInput = {
+  /** Définition existante : identifiant, foyer, création et statut actif sont conservés. */
+  task: TaskDefinition;
+  name: string;
+  category: TaskCategory;
+  weight: number;
+};
+
+export type EditEntryDurationInput = {
+  /** Entrée terminée uniquement : la correction ne concerne jamais un chrono actif. */
+  entry: TaskEntry;
+  durationMinutes: number;
+};
+
 export interface AppDataService {
   readonly mode: 'demo' | 'production-disabled';
   getInitialSnapshot(now?: Date): AppSnapshot;
@@ -37,6 +51,8 @@ export interface AppDataService {
   startTimer(input: StartTimerInput): TaskEntry;
   completeTimer(input: CompleteTimerInput): TaskEntry;
   createManualEntry(input: ManualEntryInput): TaskEntry;
+  updateTask(input: UpdateTaskInput): TaskDefinition;
+  editCompletedEntryDuration(input: EditEntryDurationInput): TaskEntry;
 }
 
 export class ProductionModeDisabledError extends Error {

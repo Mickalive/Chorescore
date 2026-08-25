@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import type { ErrorAnnouncement } from '../domain/formFeedback';
 import { computeErrorAnnouncement } from '../domain/formFeedback';
-import type { TaskCategory } from '../domain/types';
+import type { TaskCategory, TaskDefinition } from '../domain/types';
 import { validateTaskInput } from '../domain/validation';
 import { AppButton } from './AppButton';
 import { COLORS, RADIUS, SPACING } from './theme';
@@ -30,16 +30,20 @@ const CATEGORY_OPTIONS: Array<{ value: TaskCategory; label: string }> = [
 export function TaskFormModal({
   visible,
   canCustomizeWeight,
+  initialTask = null,
   onClose,
   onSubmit,
   onLockedWeight,
 }: {
   visible: boolean;
   canCustomizeWeight: boolean;
+  /** Tâche à modifier (DRC-03) : préremplit le formulaire ; absent = création. */
+  initialTask?: TaskDefinition | null;
   onClose: () => void;
   onSubmit: (input: { name: string; category: TaskCategory; weight: number }) => boolean;
   onLockedWeight: () => void;
 }) {
+  const isEditing = initialTask !== null;
   const [name, setName] = useState('');
   const [category, setCategory] = useState<TaskCategory>('other');
   const [weight, setWeight] = useState('2');
@@ -58,8 +62,17 @@ export function TaskFormModal({
       setCategory('other');
       setWeight('2');
       setErrorAnnouncement(null);
+      return;
     }
-  }, [visible]);
+    if (initialTask !== null) {
+      // Mode édition : les valeurs courantes de la tâche préremplissent le
+      // formulaire ; elles restent modifiables avant confirmation.
+      setName(initialTask.name);
+      setCategory(initialTask.category);
+      setWeight(String(initialTask.weight));
+      setErrorAnnouncement(null);
+    }
+  }, [visible, initialTask]);
 
   // Annonce impérative pour VoiceOver : `accessibilityLiveRegion` est ignoré
   // sur iOS. L'identité de `errorAnnouncement` change à chaque nouvelle erreur
@@ -109,8 +122,14 @@ export function TaskFormModal({
       <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.sheet}>
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-            <Text accessibilityRole="header" style={styles.title}>Nouvelle tâche</Text>
-            <Text style={styles.helper}>Le foyer pourra ensuite enregistrer du temps sur cette tâche.</Text>
+            <Text accessibilityRole="header" style={styles.title}>
+              {isEditing ? 'Modifier la tâche' : 'Nouvelle tâche'}
+            </Text>
+            <Text style={styles.helper}>
+              {isEditing
+                ? 'Les temps déjà enregistrés conservent leur score d’origine : seule cette définition change.'
+                : 'Le foyer pourra ensuite enregistrer du temps sur cette tâche.'}
+            </Text>
 
             <Text style={styles.label}>Nom</Text>
             <TextInput
@@ -179,7 +198,11 @@ export function TaskFormModal({
 
             <View style={styles.actions}>
               <AppButton label="Annuler" variant="ghost" onPress={onClose} style={styles.action} />
-              <AppButton label="Ajouter la tâche" onPress={submit} style={styles.action} />
+              <AppButton
+                label={isEditing ? 'Enregistrer' : 'Ajouter la tâche'}
+                onPress={submit}
+                style={styles.action}
+              />
             </View>
           </ScrollView>
         </View>

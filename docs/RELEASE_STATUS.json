@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "milestone": "demo-rc",
   "governanceVersion": "2026-08-25-v1",
-  "lastCycle": "32857952394",
+  "lastCycle": "32864465631",
   "activeCriteria": [
-    "DRC-03"
+    "DRC-04"
   ],
   "stalledCycles": 0,
-  "progressSummary": "Cycle 32857952394 : la paire recovery reparee du DRC-02 (candidat 77b5c4e + audit final round 2 accept, zero mustFix) est integree dans lab/chorescore ; DRC-02 passe a complete avec ses deux preuves exigees (tests, audit). Etat integre verifie : typecheck OK, 102/102 tests application (79 preexistants + 23 persistance/reprise), export Android demo OK (~2,8 Mo), npm audit prod exit 0 racine et functions, Functions 98/98. Le candidat courant 9d47082 (round 1 accept) n'est pas integre : doublon du meme critere DRC-02, supersede par la version reparee ; ses constats facultatifs sont répondus et tracés.",
+  "progressSummary": "Cycle 32864465631 : la paire mobile round 1 (candidat 1fce8b3, parent unique de l'etat accepte 71c0d5d ; audit reports/audits/CYCLE_32864465631_MOBILE.json decision accept, zero mustFix) est integree bit-a-bit dans lab/chorescore (12 fichiers, +1439/-16, strictement app/, src/, tests/). DRC-03 passe a complete avec ses deux preuves exigees (tests, audit). Etat integre verifie par le directeur : manifeste immuable OK, npm ci OK, typecheck OK, 121/121 tests application (102 -> 121, +19 tests data-control), export Android demo OK (~3,8 Mo), npm audit prod exit 0 racine et functions, Functions 98/98. Aucun candidat backend (HEAD = base, aucun audit) ; preuve legacy prose-only non integrable. MOB-CYCLE32857952394-F1/F2 resolus par le validateur renforce du candidat ; les trois nouveaux constats info sont repondus et traces.",
   "blocker": null,
   "criteria": [
     {
@@ -44,8 +44,19 @@
     },
     {
       "id": "DRC-03",
-      "status": "pending",
-      "evidence": []
+      "status": "complete",
+      "evidence": [
+        {
+          "kind": "tests",
+          "reference": "npm run check sur l'état intégré cycle 32864465631 : typecheck OK, 121/121 tests (102 -> 121, +19 tests data-control couvrant modification/archivage, correction depuis weightSnapshot figé, suppression sans orpheline, annulation de chrono, validateur renforcé, échec fermé production)",
+          "cycle": "32864465631"
+        },
+        {
+          "kind": "audit",
+          "reference": "reports/audits/CYCLE_32864465631_MOBILE.json — round 1, decision accept, 0 mustFix, candidat 1fce8b3 intégré bit-à-bit (12/12 blobs identiques), preuve de mutation de l'auditeur sur copie jetable",
+          "cycle": "32864465631"
+        }
+      ]
     },
     {
       "id": "DRC-04",
@@ -127,9 +138,10 @@
       "role": "mobile",
       "severity": "low",
       "mustFixBeforeRelease": false,
-      "status": "unresolved",
-      "requiredFix": "Ajouter au validateur de persistance un passage d'intégrité référentielle (chaque entry.taskId / entry.userId existe dans tasks / users du même snapshot) et refuser ou repliquer proprement le document sinon, avec cas de test. Constat émis sur le candidat parallèle 9d47082 (non intégré) et vérifié présent à l'identique dans le validateur intégré (isDurableState). Pris en charge dans l'acceptance DRC-03 du cycle suivant.",
-      "origin": "audit round 1 du candidat courant 9d47082, applicable au code intégré"
+      "status": "resolved",
+      "requiredFix": "Ajouter au validateur de persistance un passage d'intégrité référentielle (chaque entry.taskId / entry.userId existe dans tasks / users du même snapshot) et refuser ou repliquer proprement le document sinon, avec cas de test.",
+      "origin": "audit round 1 du candidat courant 9d47082, applicable au code intégré",
+      "resolution": "Résolu par le candidat intégré 1fce8b3 (cycle 32864465631) : isDurableState refuse toute entrée dont taskId/userId est absent des collections du même document, avec mise en quarantaine visible. Quatre cas de test dédiés dans tests/data-control.test.ts ; preuve de mutation de l'auditeur (bloc retiré en copie jetable -> 3 tests rouges). Vérifié à l'identique dans l'état intégré."
     },
     {
       "id": "MOB-CYCLE32857952394-F2",
@@ -137,9 +149,10 @@
       "role": "mobile",
       "severity": "low",
       "mustFixBeforeRelease": false,
-      "status": "unresolved",
-      "requiredFix": "Vérifier l'unicité des identifiants par collection (users, memberships, tasks, entries) dans le validateur de persistance et refuser le document en cas de doublon, avec cas de test. Même origine et même prise en charge que MOB-CYCLE32857952394-F1.",
-      "origin": "audit round 1 du candidat courant 9d47082, applicable au code intégré"
+      "status": "resolved",
+      "requiredFix": "Vérifier l'unicité des identifiants par collection (users, memberships, tasks, entries) dans le validateur de persistance et refuser le document en cas de doublon, avec cas de test.",
+      "origin": "audit round 1 du candidat courant 9d47082, applicable au code intégré",
+      "resolution": "Résolu par le candidat intégré 1fce8b3 (cycle 32864465631) : unicité vérifiée pour users, tasks et entries ; memberships contrôlées par clé naturelle (householdId, userId) car elles n'ont pas d'identifiant propre. Cas de test doublon présent et preuve de mutation associée."
     },
     {
       "id": "MOB-CYCLE32857952394-F4",
@@ -160,6 +173,39 @@
       "status": "unresolved",
       "requiredFix": "Facultatif : ignorer la première écriture suivant une restauration 'restored' si aucune mutation n'a eu lieu (une sauvegarde redondante par lancement). Test associé : zéro appel setItem après hydratation sans mutation.",
       "origin": "audit final round 2 accept du candidat réparé 77b5c4e (intégré)"
+    },
+    {
+      "id": "MOB-CYCLE32864465631-F1",
+      "criterionId": "DRC-05",
+      "role": "mobile",
+      "severity": "info",
+      "mustFixBeforeRelease": false,
+      "status": "deferred",
+      "requiredFix": "Facultatif lors d'une passe DRC-05 : ajouter des tests de composants (rendu des boutons Corriger/Supprimer/Modifier/Archiver/Annuler et des dialogues de confirmation) si un harnais UI est introduit.",
+      "origin": "audit round 1 accept du candidat intégré 1fce8b3",
+      "response": "Réponse du directeur : la couche domaine/service/persistence est entièrement testée (chaque refus et chaque effet des trois opérations) ; le dépôt n'a pas de harnais de test UI, conformément à la stratégie existante. La suggestion est reportée à la passe DRC-05 et ne bloque rien."
+    },
+    {
+      "id": "MOB-CYCLE32864465631-F2",
+      "criterionId": "DRC-03",
+      "role": "mobile",
+      "severity": "info",
+      "mustFixBeforeRelease": false,
+      "status": "noted",
+      "requiredFix": "Aucun. Observation pour mémoire : toute évolution du modèle de plans devrait réexaminer la conservation explicite du poids stocké en scénario gratuit.",
+      "origin": "audit round 1 accept du candidat intégré 1fce8b3",
+      "response": "Réponse du directeur : comportement conforme au canon (le poids effectif des nouvelles entrées reste 1 via getEffectiveWeight, champ verrouillé à l'interface) et encodé par un test dédié qui passe au rouge si la conservation régresse. Aucune action."
+    },
+    {
+      "id": "MOB-CYCLE32864465631-F3",
+      "criterionId": "DRC-03",
+      "role": "mobile",
+      "severity": "info",
+      "mustFixBeforeRelease": false,
+      "status": "noted",
+      "requiredFix": "Aucun. Le refus explicite hors borne (message + aperçu en attente) est préféré à un clamp silencieux ; alternative cosmétique possible : maxLength borné dynamiquement à 1440.",
+      "origin": "audit round 1 accept du candidat intégré 1fce8b3",
+      "response": "Réponse du directeur : le refus explicite est plus honnête qu'un clamp silencieux selon le canon produit ; couvert par les tests de refus 0 / 12,5 / 1441 et le test de borne haute préexistant. Aucune action."
     }
   ]
 }

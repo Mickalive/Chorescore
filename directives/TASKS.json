@@ -1,29 +1,29 @@
 {
   "schemaVersion": 1,
   "milestone": "demo-rc",
-  "updatedBy": "director-32857952394",
+  "updatedBy": "director-32864465631",
   "activeCriteria": [
-    "DRC-03"
+    "DRC-04"
   ],
   "assignments": {
     "mobile": {
       "enabled": true,
-      "criterionId": "DRC-03",
-      "objective": "Rendre réelles, confirmées et couvertes d'invariants la modification/archivage de tâche, la correction/suppression d'entrée terminée et l'annulation d'un chronomètre actif, en cohérence avec le score canonique et la persistance DRC-02.",
+      "criterionId": "DRC-04",
+      "objective": "Rendre réelles et honnêtes en démo les fonctions premium : filtres et synthèses semaine/mois de l'historique, foyers locaux multiples isolés dans le document persisté, export local produisant un résultat réellement consultable ; aucun bouton ne simule un succès ou un achat et le paywall contextuel ne bloque jamais une fonction annoncée gratuite et n'en simule jamais le contournement.",
       "acceptance": [
-        "modifier une tâche (nom, catégorie, poids courant) n'affecte ni les scores historiques ni les weightSnapshot figés",
-        "archiver une tâche est réel et confirmé : plus proposée aux nouveaux chronos, conservée dans l'historique existant",
-        "corriger la durée d'une entrée terminée recalcule le score depuis le weightSnapshot figé, jamais depuis le poids courant",
-        "supprimer une entrée est confirmé et ne laisse aucune orpheline dans classement, historique ou document persisté",
-        "annuler un chronomètre actif est déterministe : pas d'entrée fantôme, cohérent avec applyRestartRules à la relance",
-        "le validateur de persistance refuse un document avec taskId/userId inexistant ou identifiant dupliqué, tests à l'appui (MOB-CYCLE32857952394-F1/F2)",
-        "tests succès, refus, états vides et confirmations pour chaque opération ; npm run check vert ; export Android démo OK sans réseau"
+        "les filtres semaine/mois produisent des synthèses réelles calculées depuis les entrées du foyer actif, avec méthode de calcul visible et bornes de période déterministes",
+        "créer et basculer entre plusieurs foyers locaux est réel : tâches, classement, historique et entrées sont isolés par foyer dans le document persisté versionné",
+        "l'export local produit un contenu réellement consultable (partage ou fichier local), sans réseau, sans compte et sans prétention de synchronisation",
+        "en scénario gratuit le poids effectif reste 1 ; la pondération personnalisée démo n'affecte que les nouvelles entrées via weightSnapshot, jamais les scores historiques",
+        "aucun bouton ne simule un achat ou un succès ; le paywall apparaît calmement au moment pertinent et ne bloque jamais une fonction annoncée gratuite",
+        "états vides, erreurs, confirmations et annonces accessibles traités pour chaque nouvelle surface (grandes tailles de texte incluses)",
+        "tests succès, refus, états vides pour filtres, multi-foyers et export ; npm run check vert ; export Android démo OK sans réseau ; validateur de persistance étendu aux nouveaux champs si le schéma évolue"
       ]
     },
     "backend": {
       "enabled": false,
-      "criterionId": "DRC-03",
-      "objective": "STOP — aucun travail backend nécessaire pour cette tranche mobile. Les constats BE-C4-F1/F2 restent programmés sous DRC-07.",
+      "criterionId": "DRC-04",
+      "objective": "STOP — aucun travail backend nécessaire pour cette tranche mobile locale. Les constats BE-C4-F1/F2 restent programmés sous DRC-07.",
       "acceptance": []
     }
   }

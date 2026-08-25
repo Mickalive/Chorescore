@@ -28,6 +28,9 @@ export function TaskRow({
   onStart,
   onStop,
   onManual,
+  onEdit,
+  onArchive,
+  onCancelTimer,
 }: {
   task: TaskDefinition;
   activeEntry: TaskEntry | null;
@@ -35,6 +38,12 @@ export function TaskRow({
   onStart: () => void;
   onStop: () => void;
   onManual: () => void;
+  /** DRC-03 : ouvre la modification de la définition (jamais proposé pendant un chrono). */
+  onEdit: () => void;
+  /** DRC-03 : archivage confirmé — la tâche quitte les propositions, l'historique reste libellé. */
+  onArchive: () => void;
+  /** DRC-03 : annulation confirmée du chrono actif — aucune entrée fantôme. */
+  onCancelTimer: (entryId: string) => void;
 }) {
   const [elapsed, setElapsed] = useState(0);
 
@@ -80,6 +89,20 @@ export function TaskRow({
             onPress={onManual}
             style={styles.actionButton}
           />
+          <AppButton
+            label="Modifier"
+            accessibilityLabel={`Modifier la tâche ${task.name}`}
+            variant="ghost"
+            onPress={onEdit}
+            style={styles.actionButton}
+          />
+          <AppButton
+            label="Archiver"
+            accessibilityLabel={`Archiver la tâche ${task.name}`}
+            variant="danger"
+            onPress={onArchive}
+            style={styles.actionButton}
+          />
         </View>
       ) : (
         <View style={styles.timerRow} accessibilityLiveRegion="polite">
@@ -87,11 +110,20 @@ export function TaskRow({
             <Text style={styles.timerLabel}>Chrono en cours</Text>
             <Text style={styles.timer}>{formatElapsed(elapsed)}</Text>
           </View>
-          <AppButton
-            label="Terminer"
-            accessibilityLabel={`Terminer le chrono de ${task.name}`}
-            onPress={onStop}
-          />
+          <View style={styles.timerActions}>
+            <AppButton
+              label="Annuler"
+              accessibilityLabel={`Annuler le chrono de ${task.name} sans enregistrer`}
+              variant="ghost"
+              onPress={() => onCancelTimer(activeEntry.id)}
+              style={styles.cancelButton}
+            />
+            <AppButton
+              label="Terminer"
+              accessibilityLabel={`Terminer le chrono de ${task.name}`}
+              onPress={onStop}
+            />
+          </View>
         </View>
       )}
     </Card>
@@ -152,6 +184,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: SPACING.md,
+    gap: SPACING.sm,
+  },
+  timerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  cancelButton: {
+    minWidth: 96,
   },
   timerLabel: {
     color: COLORS.success,

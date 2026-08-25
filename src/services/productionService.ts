@@ -1,4 +1,12 @@
-import type { AppDataService, CompleteTimerInput, CreateTaskInput, ManualEntryInput, StartTimerInput } from './appService';
+import type {
+  AppDataService,
+  CompleteTimerInput,
+  CreateTaskInput,
+  EditEntryDurationInput,
+  ManualEntryInput,
+  StartTimerInput,
+  UpdateTaskInput,
+} from './appService';
 import { ProductionModeDisabledError } from './appService';
 
 export class ProductionAppService implements AppDataService {
@@ -21,6 +29,14 @@ export class ProductionAppService implements AppDataService {
   }
 
   createManualEntry(_input: ManualEntryInput): never {
+    throw new ProductionModeDisabledError();
+  }
+
+  updateTask(_input: UpdateTaskInput): never {
+    throw new ProductionModeDisabledError();
+  }
+
+  editCompletedEntryDuration(_input: EditEntryDurationInput): never {
     throw new ProductionModeDisabledError();
   }
 }

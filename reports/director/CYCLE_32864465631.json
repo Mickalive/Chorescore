@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "cycle": "32864465631",
+  "decision": "continue",
+  "reason": "Progression objective prouvée : la paire mobile round 1 accept (candidat 1fce8b3 + audit CYCLE_32864465631_MOBILE.json, zéro mustFix) est intégrée bit-à-bit et DRC-03 passe à complete avec ses deux preuves exigées. Checks déterministes verts sur l'état intégré, aucun mustFix non résolu dans le code intégré, un critère incomplet exécutable sans blocage humain existe (DRC-04, mobile seul), stalledCycles remis à zéro.",
+  "activeCriteria": ["DRC-04"],
+  "progressEvidence": [
+    "Paire mobile intégrée : candidat 1fce8b3454da6cb629e3e637cd242b68db93de77 (commit unique, parent 71c0d5d = HEAD accepté de lab/chorescore) + reports/audits/CYCLE_32864465631_MOBILE.json round 1 décision accept zéro mustFix ; après application du diff, 12/12 blobs identiques au candidat (vérification git hash-object).",
+    "Backend : aucun candidat (HEAD du snapshot /tmp/chorescore_backend = base acceptée 71c0d5d, aucun audit 32864465631) ; preuve legacy prose-only (CYCLE_32675726760-1.md) non intégrable — rien intégré côté backend.",
+    "Répertoires repaired/final et recovery vides : aucune seconde version à intégrer, l'audit round 1 accept rend toute réparation sans objet.",
+    "Manifeste immuable : sha256sum -c .github/immutable-files.sha256 — toutes lignes OK après intégration.",
+    "npm ci --ignore-scripts OK ; npm run check vert : typecheck OK puis 121/121 tests application (102 -> 121, +19 tests data-control couvrant succès, refus, états vides, validateur renforcé et échec fermé production).",
+    "EXPO_PUBLIC_DATA_MODE=demo npx --no-install expo export --platform android : exit 0, bundle ~3,8 Mo, démo hors ligne intacte.",
+    "npm audit --omit=dev --audit-level=high : exit 0 à la racine (11 moderate, chaîne uuid/expo) et dans functions (7 moderate) ; aucune vulnérabilité haute ou critique.",
+    "Functions : npm ci --ignore-scripts OK, npm run check vert avec 98/98 tests.",
+    "Transition d'état : DRC-03 pending -> complete (tests + audit) ; MOB-CYCLE32857952394-F1/F2 passent à resolved ; stalledCycles = 0."
+  ],
+  "next": {
+    "mobile": "DRC-04 — filtres et synthèses semaine/mois réels, foyers locaux multiples isolés dans le document persisté versionné, export local réellement consultable, pondération démo figée par weightSnapshot sans réécriture historique, paywall honnête qui ne bloque ni ne simule rien ; tests succès/refus/états vides, npm run check vert, export Android démo sans réseau.",
+    "backend": "STOP — poste désactivé : DRC-04 est une tranche purement locale. BE-C4-F1/F2 restent programmés sous DRC-07.",
+    "audit": "Contrôler le candidat mobile DRC-04 : bornes de période déterministes (semaine/mois/année), isolation stricte entre deux foyers locaux, non-régression des invariants DRC-02/DRC-03 (hydratation, validateur), export sans réseau ni prétention de synchronisation, paywall jamais bloquant pour une fonction gratuite, aucune dépendance ni test affaibli ; rejouer les constats hérités quand leur critère devient actif."
+  },
+  "humanActions": [
+    "Information : une modification non commitée tronque le champ summary de reports/audits/CYCLE_32786797876_MOBILE_FINAL.json (audit historique round 2 accept) dans l'arbre de travail de lab/chorescore. Les champs machine (decision accept, findings) sont intacts et la version commitée reste l'enregistrement faisant foi référencé par la preuve DRC-02. Conformément à la discipline de préservation des changements sans rapport, le directeur n'y a pas touché ; à la charge humaine de statuer sur l'origine et le sort de cette troncature."
+  ]
+}

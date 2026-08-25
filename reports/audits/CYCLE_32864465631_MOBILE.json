@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "cycle": "32864465631",
+  "role": "mobile",
+  "round": 1,
+  "decision": "accept",
+  "summary": "Snapshot 1fce8b3 vs base acceptee 71c0d5d : 12 fichiers (+1439/-16), strictement app/, src/, tests/. DRC-03 reellement livre : modification de tache sans reecriture des scores ni des weightSnapshot, archivage confirme refuse aux nouveaux chronos mais tache libellee dans l'historique, correction de duree recalculee depuis le poids fige uniquement, suppression confirmee sans orpheline, annulation de chrono deterministe coherente avec applyRestartRules. Validateur renforce (integrite referentielle + unicite, MOB-CYCLE32857952394-F1/F2) avec preuve de mutation : bloc retire en copie jetable -> les 3 nouveaux tests passent au rouge. Checks verts dans le candidat : typecheck OK, 121/121 tests (+19), export Android demo OK (~2,8 Mo), npm audit prod exit 0, manifeste immuable OK. Aucun reseau, secret, dependance ni test affaibli ; production echoue ferme sur les nouvelles operations. Trois constats info non bloquants. Decision : accepter.",
+  "findings": [
+    {
+      "id": "MOB-CYCLE32864465631-F1",
+      "severity": "info",
+      "path": "app/(tabs)/index.tsx ; app/(tabs)/history.tsx",
+      "mustFix": false,
+      "problem": "Les confirmations utilisateur (Alert.alert pour archivage, suppression d'entree et annulation de chrono) ne sont pas couvertes par un test automatise : seules les couches plan/reducer/service/persistence le sont. Le depot n'a aucun harnais de test UI, donc ce choix suit la strategie existante.",
+      "evidence": "tests/data-control.test.ts couvre chaque refus et chaque effet des trois operations, y compris le parcours de sauvegarde apres mutation ; les handlers Alert.alert restent du code d'interface non execute en CI. Aucun comportement non confirme cote domaine : planArchiveTask refuse un double archivage, planDeleteEntry et planCancelTimer refusent une entree inconnue, terminee ou d'un autre membre.",
+      "requiredFix": "Facultatif lors d'une passe DRC-05 : ajouter des tests de composants (rendu des boutons Corriger/Supprimer/Modifier/Archiver/Annuler et des dialogues de confirmation) si un harnais UI est introduit.",
+      "verification": "Tout nouveau test de composant devrait echouer si un handler de confirmation est debranche ; relancer npm run check."
+    },
+    {
+      "id": "MOB-CYCLE32864465631-F2",
+      "severity": "info",
+      "path": "src/store/appReducer.ts (planUpdateTask)",
+      "mustFix": false,
+      "problem": "En scenario gratuit, modifier une tache conserve son poids existant au lieu de ramener le champ a 1. Ce n'est pas une violation du canon : le poids effectif des nouvelles entrees reste 1 (getEffectiveWeight) et le champ est verrouille dans l'interface, mais le poids stocke peut différer de 1 tant que le foyer est gratuit.",
+      "evidence": "Test 'en scenario gratuit, modifier une tache conserve son poids existant' asserte plan.value.weight === 2 (poids anterieur, ni 1 ni 500 saisi). Comportement documente dans le commentaire de planUpdateTask : un champ que la personne ne peut pas controler n'est jamais reecrit en cachette ; il ressurgit intact si le foyer repasse en essai/premium.",
+      "requiredFix": "Aucun. Observation pour memoire : toute evolution du modele de plans devrait reexaminer cette conservation explicite.",
+      "verification": "Le test existant encode deja le comportement ; il passe au rouge si la conservation regresse."
+    },
+    {
+      "id": "MOB-CYCLE32864465631-F3",
+      "severity": "info",
+      "path": "src/components/EntryCorrectionModal.tsx",
+      "mustFix": false,
+      "problem": "Le champ de duree corrigeee accepte la saisie jusqu'a 4 chiffres (9999) alors que la borne canonique est 1440 minutes : une saisie hors borne affiche le message d'erreur explicite et l'apercu reste en attente au lieu d'etre clampé silencieusement.",
+      "evidence": "maxLength={4} sur le TextInput ; validateManualMinutes refuse toute valeur non entiere ou hors 1..1440 avec le message 'La duree doit etre un nombre entier entre 1 et 1440 minutes.', annonce en region live assertive ; le bouton Corriger ne soumet jamais une valeur invalide (submit retourne avant onSubmit). Tests 0, 12.5 et 1441 refuses.",
+      "requiredFix": "Aucun. Le refus explicite est plus honnete qu'un clamp silencieux ; alternative cosmetique possible : maxLength={4} conserve mais borne dynamique a 1440.",
+      "verification": "Couvert par les tests de refus existants et par le test preexistant 'minutes fractionnaires ou non numeriques refusees, borne haute acceptee'."
+    }
+  ],
+  "checks": [
+    "Identite : git rev-parse HEAD du worktree /tmp/chorescore_mobile (1fce8b3454da6cb629e3e637cd242b68db93de77) == origin/cycle/chorescore/32864465631/mobile ; parent unique 71c0d5d = HEAD accepte de lab/chorescore ; un seul commit candidat, historique lineaire, branche candidate trouvee=true.",
+    "Diff integral relu (git diff 71c0d5d..1fce8b3 --name-status puis diff complet fichier par fichier) : 12 fichiers, +1439/-16, limites a app/(tabs)/history.tsx, app/(tabs)/index.tsx, src/components/{EntryCorrectionModal,TaskFormModal,TaskRow}.tsx, src/services/{appService,demoService,productionService}.ts, src/store/{AppProvider.tsx,appReducer.ts,persistence.ts}, tests/data-control.test.ts ; git diff sur package.json package-lock.json functions vide (0 ligne) : aucune dependance ni lockfile modifies, governance/.github/directives intouches.",
+    "Scan hostile du diff : grep -nEi 'ignore (previous|all)|system prompt|instructions? (to|for) (the )?(agent|model|ai)|curl|fetch\\(|XMLHttpRequest|WebSocket|http://|https://|axios|eval\\(|child_process' -> zero occurrence ; aucun secret, aucune variable EXPO_PUBLIC ajoutee, aucun placeholder presente comme termine, commentaires du diff a contenu technique reel uniquement.",
+    "Manifeste immuable : sha256sum -c .github/immutable-files.sha256 dans le worktree candidat -> toutes lignes OK, sortie 0.",
+    "npm ci --ignore-scripts (worktree candidat) : installation reussie depuis le lockfile conserve.",
+    "npm run check (worktree candidat) : typecheck OK puis 121/121 tests node:test pass, 0 echec (102 preexistants + 19 nouveaux tests data-control couvrant succes, refus, etats vides, confirmations de domaine, persistance apres chacune des cinq mutations, validateur renforce et echec ferme production).",
+    "EXPO_PUBLIC_DATA_MODE=demo npx --no-install expo export --platform android (worktree candidat) : export Android reussi, bundle ~2,8 Mo, demo hors ligne intacte.",
+    "npm audit --omit=dev --audit-level=high (worktree candidat) : sortie 0, 11 vulnerabilites moderees (chaine uuid/xcode/expo), aucune haute ni critique ; parite avec la base acceptee.",
+    "Preuve de mutation en copie jetable /tmp/opencode/mutation_check (jamais sur le candidat) : retrait du bloc d'invariants referentiels d'isDurableState puis npx tsx --test tests/data-control.test.ts -> exactement les tests 15/16/17 (tache inexistante, utilisateur inexistant, identifiant duplique) passent au rouge : 16 pass / 3 fail ; copie supprimee ensuite, candidat intact.",
+    "Recoupements manuels : Membership n'a pas de champ id (cle naturelle householdId+userId correcte dans le validateur) ; getVisibleHistory ne retourne que des entrees completes, donc Corriger/Supprimer ne visent que des entrees terminees et isOwnEntry limite aux entrees du membre actif ; l'effet de sauvegarde global d'AppProvider depend de state.tasks et state.entries donc chaque nouvelle mutation declenche bien l'ecriture durable ; TaskRow masque Modifier/Archiver pendant un chrono actif ; editCompletedEntryDuration ne recoit que l'entree et les minutes (structurellement incapable d'utiliser le poids courant) et preserve startedAt/completedAt/periodKey/isManual.",
+    "Constats herites rejoues : MOB-CYCLE32857952394-F1/F2 resolus avec preuve (validateur + 4 cas de test + preuve de mutation rouge-si-regression) ; MOB-CYCLE32857952394-F4 et MOB-C5-N1 restent sous DRC-05, hors perimetre de ce cycle, non regressés."
+  ]
+}

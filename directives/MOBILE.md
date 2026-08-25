@@ -1,50 +1,46 @@
 # Tâche active — Ingénieur produit mobile
 
-Assignment-Id: DRC-03  
+Assignment-Id: DRC-04  
 Autorité de poste : `governance/roles/MOBILE_PRODUCT_ENGINEER.md`  
 Sélecteur machine : `directives/TASKS.json`
 
 ## Résultat attendu
 
-Le contrôle des données de la démo devient réel. Modifier ou archiver une
-tâche, corriger ou supprimer une entrée terminée et annuler un chronomètre
-actif produisent un effet vrai, confirmé à l'écran, cohérent avec le score
-canonique `(durée en secondes / 60) × poidsFigé` et avec la persistance
-versionnée livrée au DRC-02. Chaque opération est couverte par des invariants
-testés.
+Les fonctions premium deviennent réellement utilisables en démo locale, sans
+simuler un achat ni un succès. Filtres et synthèses semaine/mois, foyers locaux
+multiples et export local produisent un vrai résultat calculé depuis les
+données du foyer actif, dans le prolongement de la persistance versionnée
+(DRC-02) et du contrôle des données (DRC-03).
 
 ## Travail borné
 
-1. Modification d'une tâche : changer nom, catégorie et poids courant ne
-   réécrit ni les scores historiques ni les `weightSnapshot` figés des entrées
-   passées.
-2. Archivage réel d'une tâche : elle n'est plus proposée aux nouveaux
-   chronomètres mais reste visible dans l'historique déjà enregistré, sans
-   libellé cassé.
-3. Correction d'une entrée terminée : durée modifiable, score recalculé
-   uniquement depuis le `weightSnapshot` figé, résultat affiché avant
-   confirmation.
-4. Suppression d'une entrée confirmée : aucune orpheline dans le classement,
-   l'historique ou le document persisté ; états vides traités.
-5. Annulation d'un chronomètre actif : retour propre à l'état précédent,
-   aucune entrée fantôme, comportement cohérent avec `applyRestartRules`
-   (reprise/expiration) à la relance suivante.
-6. Renforcement du validateur de persistance (invariants DRC-03) : refuser un
-   document dont une entrée référence une tâche ou un utilisateur inexistant
-   ou dont un identifiant est dupliqué, avec tests dédiés — répond aux constats
-   reportés MOB-CYCLE32857952394-F1/F2.
-7. Tests ciblés succès, refus, états vides et confirmations pour chaque
-   opération, y compris la persistance après chaque mutation de contrôle.
+1. Filtres et synthèses semaine/mois sur l'historique : calculs réels depuis
+   les entrées du foyer actif, méthode de calcul visible, bornes de période
+   déterministes (frontières semaine/mois/année traitées par tests).
+2. Foyers locaux multiples : création et bascule réelles ; tâches, classement,
+   historique et entrées isolés par foyer dans le document persisté versionné ;
+   le validateur de persistance couvre tout nouveau champ ou collection.
+3. Export local : contenu réellement consultable (partage système ou fichier
+   local), sans réseau, sans compte, sans prétention de synchronisation ; la
+   suppression/locale reste maître des données.
+4. Pondération personnalisée démo : opérationnelle localement, figée par
+   `weightSnapshot` à la validation, sans réécriture des scores historiques ;
+   en gratuit, poids effectif `1` inchangé.
+5. Paywall honnête : contextuel, calme, jamais sur une fonction annoncée
+   gratuite, jamais de simulation d'achat ou de succès.
+6. États vides, erreurs, confirmations et annonces accessibles pour chaque
+   nouvelle surface, grandes tailles de texte et petits écrans inclus.
 
 ## Hors périmètre
 
-Pas de Firebase, Auth, Stripe, export, multi-foyer UI, nouvelle dépendance,
-modification de workflow ou refonte visuelle. Ne pas traiter DRC-04 ni DRC-05 :
-les constats hérités MOB-C4-F1/F2/F3 et MOB-CYCLE32857952394-F4 / MOB-C5-N1
-restent programmés sous DRC-05 et ne sont pas du ressort de cette tranche.
+Pas de Firebase, Auth, Stripe, analytics, réseau, nouvelle dépendance,
+modification de workflow ou refonte visuelle. Ne pas traiter DRC-05 : les
+constats MOB-C4-F1/F2 (obligatoires avant livraison) et MOB-C4-F3,
+MOB-CYCLE32857952394-F4, MOB-C5-N1, MOB-CYCLE32864465631-F1 restent programmés
+sous DRC-05.
 
 ## Preuves attendues
 
-`npm run check` vert avec les tests nouveaux, export Android démo réussi,
-absence de toute requête réseau, confirmations accessibles (rôle annoncé),
-liste exacte des limites résiduelles.
+`npm run check` vert avec les tests nouveaux (succès, refus, états vides,
+bornes de période, isolation entre deux foyers), export Android démo réussi,
+absence de toute requête réseau, liste exacte des limites résiduelles.

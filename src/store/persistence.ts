@@ -269,6 +269,45 @@ export function isDurableState(value: unknown): value is DurableState {
   if (!isNonEmptyString(value.currentUserId)) return false;
   if (typeof value.onboardingComplete !== 'boolean') return false;
   if (!isConsent(value.consent)) return false;
+  // Invariants référentiels (DRC-03, constats MOB-CYCLE32857952394-F1/F2) :
+  // identifiants uniques par collection et entrées rattachées à des tâches et
+  // des utilisateurs existants du même document. Une charge qui viole ces
+  // invariants est refusée comme forme invalide : elle part en quarantaine
+  // avec le même parcours visible qu'une corruption, jamais de perte
+  // silencieuse. Les adhésions n'ont pas d'identifiant propre : leur clé
+  // naturelle est la paire (foyer, utilisateur).
+  const userIds = new Set<string>();
+  for (const user of value.users) {
+    if (userIds.has(user.id)) {
+      return false;
+    }
+    userIds.add(user.id);
+  }
+  const membershipKeys = new Set<string>();
+  for (const membership of value.memberships) {
+    const key = `${membership.householdId}\u0000${membership.userId}`;
+    if (membershipKeys.has(key)) {
+      return false;
+    }
+    membershipKeys.add(key);
+  }
+  const taskIds = new Set<string>();
+  for (const task of value.tasks) {
+    if (taskIds.has(task.id)) {
+      return false;
+    }
+    taskIds.add(task.id);
+  }
+  const entryIds = new Set<string>();
+  for (const entry of value.entries) {
+    if (entryIds.has(entry.id)) {
+      return false;
+    }
+    entryIds.add(entry.id);
+    if (!taskIds.has(entry.taskId) || !userIds.has(entry.userId)) {
+      return false;
+    }
+  }
   return true;
 }
 

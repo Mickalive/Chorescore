@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { AppButton } from '@/src/components/AppButton';
 import { Card } from '@/src/components/Card';
 import { DemoBanner } from '@/src/components/DemoBanner';
@@ -16,20 +16,24 @@ import { getEntitlements, getPlanLabel } from '@/src/domain/entitlements';
 import { buildLeaderboard } from '@/src/domain/leaderboard';
 import { formatMetric } from '@/src/domain/scoring';
 import { selectActiveTasks } from '@/src/domain/tasks';
-import type { TaskDefinition } from '@/src/domain/types';
+import type { TaskDefinition, TaskEntry } from '@/src/domain/types';
 import { useApp } from '@/src/store/AppProvider';
 
 export default function TasksScreen() {
   const {
     state,
     addTask,
+    updateTask,
+    archiveTask,
     startTimer,
     completeTimer,
+    cancelTimer,
     addManualEntry,
     showPaywall,
     dismissNotice,
   } = useApp();
   const [taskFormVisible, setTaskFormVisible] = useState(false);
+  const [editTask, setEditTask] = useState<TaskDefinition | null>(null);
   const [manualTask, setManualTask] = useState<TaskDefinition | null>(null);
   const entitlements = getEntitlements(state.household.plan);
   const currentUser = state.users.find((user) => user.id === state.currentUserId);
@@ -50,6 +54,29 @@ export default function TasksScreen() {
   const completedThisWeek = currentRow?.taskCount ?? 0;
   const currentMetric = currentRow?.value ?? 0;
   const activeTasks = selectActiveTasks(state.tasks);
+  const archivedCount = state.tasks.length - activeTasks.length;
+
+  // DRC-03 : l'archivage est réel mais jamais silencieux — confirmation
+  // explicite avant de retirer la tâche des propositions.
+  const confirmArchive = (task: TaskDefinition) => {
+    Alert.alert(
+      'Archiver cette tâche ?',
+      `« ${task.name} » ne sera plus proposée aux nouveaux chronos. Les temps déjà enregistrés restent visibles dans l’historique.`,
+      [
+        { text: 'Conserver', style: 'cancel' },
+        { text: 'Archiver', style: 'destructive', onPress: () => archiveTask(task.id) },
+      ],
+    );
+  };
+
+  // DRC-03 : annulation déterministe d'un chrono actif, confirmée — le temps
+  // écoulé est ignoré et aucune entrée n'est créée.
+  const confirmCancelTimer = (activeEntry: TaskEntry) => {
+    Alert.alert('Annuler ce chrono ?', 'Le temps écoulé sera ignoré : aucune entrée ne sera créée.', [
+      { text: 'Continuer le chrono', style: 'cancel' },
+      { text: 'Annuler le chrono', style: 'destructive', onPress: () => cancelTimer(activeEntry.id) },
+    ]);
+  };
 
   return (
     <Screen>
@@ -110,17 +137,38 @@ export default function TasksScreen() {
                   if (activeEntry !== null) completeTimer(activeEntry.id);
                 }}
                 onManual={() => setManualTask(task)}
+                onEdit={() => setEditTask(task)}
+                onArchive={() => confirmArchive(task)}
+                onCancelTimer={(entryId) => {
+                  if (activeEntry !== null && activeEntry.id === entryId) confirmCancelTimer(activeEntry);
+                }}
               />
             );
           })}
         </View>
       )}
 
+      {archivedCount > 0 ? (
+        <Text style={styles.archivedNote}>
+          {archivedCount} {archivedCount > 1 ? 'tâches archivées' : 'tâche archivée'} : plus proposée
+          {archivedCount > 1 ? 's' : ''} aux nouveaux chronos, conservée
+          {archivedCount > 1 ? 's' : ''} dans l’historique.
+        </Text>
+      ) : null}
+
       <TaskFormModal
         visible={taskFormVisible}
         canCustomizeWeight={entitlements.canCustomizeWeights}
         onClose={() => setTaskFormVisible(false)}
         onSubmit={addTask}
+        onLockedWeight={() => showPaywall('custom_weights')}
+      />
+      <TaskFormModal
+        visible={editTask !== null}
+        canCustomizeWeight={entitlements.canCustomizeWeights}
+        initialTask={editTask}
+        onClose={() => setEditTask(null)}
+        onSubmit={(input) => (editTask === null ? false : updateTask(editTask.id, input))}
         onLockedWeight={() => showPaywall('custom_weights')}
       />
       <ManualEntryModal
@@ -166,6 +214,15 @@ const styles = StyleSheet.create({
   },
   taskList: {
     gap: SPACING.sm,
+  },
+  archivedNote: {
+    color: COLORS.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+    backgroundColor: COLORS.surfaceAlt,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
   },
   emptyState: {
     gap: SPACING.xs,

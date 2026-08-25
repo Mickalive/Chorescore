@@ -57,6 +57,7 @@ jobs:
       max_cycles: ${{ steps.inputs.outputs.max_cycles }}
       recovery_cycle_key: ${{ steps.inputs.outputs.recovery_cycle_key }}
       work_matrix: ${{ steps.assignments.outputs.work_matrix }}
+      role_matrix: ${{ steps.assignments.outputs.role_matrix }}
     steps:
       - name: Checkout workflow base
         uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
@@ -215,27 +216,102 @@ jobs:
             fi
           done
 
-          matrix=$(jq -cn --slurpfile tasks directives/TASKS.json '
+          python3 <<'PY'
+          import json
+          import re
+
+          with open("directives/TASKS.json", encoding="utf-8") as handle:
+              tasks = json.load(handle)
+
+          broad = {
+              "mobile": ("app", "src", "tests"),
+              "backend": (
+                  "functions/src", "functions/test", "docs/security",
+                  "firestore.rules", "firestore.indexes.json", "storage.rules", "firebase.json",
+              ),
+          }
+
+          def under(path, prefix):
+              return path == prefix or path.startswith(prefix + "/")
+
+          def valid_prefix(prefix):
+              return (
+                  isinstance(prefix, str) and bool(prefix) and
+                  not prefix.startswith("/") and not prefix.endswith("/") and
+                  ".." not in prefix.split("/") and
+                  re.fullmatch(r"[A-Za-z0-9._/-]+", prefix) is not None
+              )
+
+          for role in ("mobile", "backend"):
+              assignment = tasks["assignments"][role]
+              slices = assignment.get("slices") or []
+              if not assignment["enabled"]:
+                  if slices:
+                      raise SystemExit(f"disabled role {role} cannot carry slices")
+                  continue
+              if not slices:
+                  continue
+              if not isinstance(slices, list) or len(slices) != 2:
+                  raise SystemExit(f"{role} slices must contain exactly two entries")
+              if [item.get("id") for item in slices] != ["a", "b"]:
+                  raise SystemExit(f"{role} slice ids must be exactly a then b")
+              scopes = []
+              for item in slices:
+                  if not isinstance(item.get("objective"), str) or not item["objective"].strip():
+                      raise SystemExit(f"{role} slice objective missing")
+                  paths = item.get("allowedPaths")
+                  if not isinstance(paths, list) or not (1 <= len(paths) <= 12) or len(paths) != len(set(paths)):
+                      raise SystemExit(f"{role} slice allowedPaths invalid")
+                  for prefix in paths:
+                      if not valid_prefix(prefix):
+                          raise SystemExit(f"invalid slice path {prefix!r}")
+                      if not any(under(prefix, root) for root in broad[role]):
+                          raise SystemExit(f"slice path {prefix!r} escapes {role} scope")
+                  scopes.append(paths)
+              for left in scopes[0]:
+                  for right in scopes[1]:
+                      if under(left, right) or under(right, left):
+                          raise SystemExit(f"overlapping slice scopes: {left!r} and {right!r}")
+          PY
+
+          role_matrix=$(jq -cn --slurpfile tasks directives/TASKS.json '
             {include: ([
-              {
-                role: "mobile",
-                label: "Mobile product engineer",
-                agent: "mobile-cycle-runner",
-                lockfile: "package-lock.json",
-                install: "npm ci --ignore-scripts --no-audit --no-fund"
-              },
-              {
-                role: "backend",
-                label: "Backend and integration engineer",
-                agent: "backend-cycle-runner",
-                lockfile: "functions/package-lock.json",
-                install: "npm --prefix functions ci --ignore-scripts --no-audit --no-fund"
-              }
-            ] | map(. as $entry |
-              select($tasks[0].assignments[$entry.role].enabled == true)))}
+              {role:"mobile", label:"Mobile product engineer", agent:"mobile-cycle-runner", lockfile:"package-lock.json", install:"npm ci --ignore-scripts --no-audit --no-fund"},
+              {role:"backend", label:"Backend and integration engineer", agent:"backend-cycle-runner", lockfile:"functions/package-lock.json", install:"npm --prefix functions ci --ignore-scripts --no-audit --no-fund"}
+            ] | map(. as $entry | select($tasks[0].assignments[$entry.role].enabled == true)))}
           ')
-          jq -e '.include | length > 0' <<<"$matrix" >/dev/null
-          echo "work_matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+          work_matrix=$(jq -cn --slurpfile tasks directives/TASKS.json '
+            def entries: [
+              {role:"mobile", label:"Mobile product engineer", agent:"mobile-cycle-runner", lockfile:"package-lock.json", install:"npm ci --ignore-scripts --no-audit --no-fund", defaultPaths:["app","src","tests"]},
+              {role:"backend", label:"Backend and integration engineer", agent:"backend-cycle-runner", lockfile:"functions/package-lock.json", install:"npm --prefix functions ci --ignore-scripts --no-audit --no-fund", defaultPaths:["functions/src","functions/test","docs/security","firestore.rules","firestore.indexes.json","storage.rules","firebase.json"]}
+            ];
+            {include: ([
+              entries[] as $entry |
+              select($tasks[0].assignments[$entry.role].enabled == true) |
+              ($tasks[0].assignments[$entry.role]) as $assignment |
+              if (($assignment.slices // []) | length) == 2 then
+                $assignment.slices[] |
+                $entry + {
+                  sliceId: .id,
+                  candidateKey: ($entry.role + "-" + .id),
+                  sliceObjective: .objective,
+                  allowedPathsB64: (.allowedPaths | tojson | @base64)
+                } | del(.defaultPaths)
+              else
+                $entry + {
+                  sliceId: "full",
+                  candidateKey: ($entry.role + "-full"),
+                  sliceObjective: $assignment.objective,
+                  allowedPathsB64: ($entry.defaultPaths | tojson | @base64)
+                } | del(.defaultPaths)
+              end
+            ])}
+          ')
+          jq -e '.include | length > 0 and length <= 4' <<<"$work_matrix" >/dev/null
+          jq -e '.include | length > 0 and length <= 2' <<<"$role_matrix" >/dev/null
+          echo "work_matrix=$work_matrix" >> "$GITHUB_OUTPUT"
+          echo "role_matrix=$role_matrix" >> "$GITHUB_OUTPUT"
 
       - name: Report cycle start
         continue-on-error: true
@@ -259,7 +335,7 @@ jobs:
           printf '%s\n' "$body"
 
   candidate:
-    name: ${{ matrix.label }}
+    name: ${{ matrix.label }} — ${{ matrix.sliceId }}
     needs: prepare
     permissions:
       contents: write
@@ -300,7 +376,11 @@ jobs:
           CYCLE_INDEX: ${{ needs.prepare.outputs.cycle_index }}
           ROLE: ${{ matrix.role }}
           AGENT: ${{ matrix.agent }}
-          OPENCODE_RETRY_LABEL: ${{ matrix.role }}
+          SLICE_ID: ${{ matrix.sliceId }}
+          CANDIDATE_KEY: ${{ matrix.candidateKey }}
+          SLICE_OBJECTIVE: ${{ matrix.sliceObjective }}
+          ALLOWED_PATHS_B64: ${{ matrix.allowedPathsB64 }}
+          OPENCODE_RETRY_LABEL: ${{ matrix.candidateKey }}
         shell: bash
         run: |
           if [[ "$ROLE" == mobile ]]; then
@@ -309,29 +389,47 @@ jobs:
             mission="Complete one bounded backend security priority with negative tests. Keep Stripe, analytics and deployment disabled. Do not touch the client."
           fi
           role_upper=$(tr '[:lower:]' '[:upper:]' <<<"$ROLE")
-          mission="$mission Before new feature work, inspect the newest reports/audits/*_${role_upper}_FINAL.json on the accepted lane; any unresolved requiredFix from a non-accept decision has priority. Keep this coding pass bounded to a coherent slice that should touch at most about 12 files. If the whole criterion is larger, complete the highest-value self-contained slice only and leave the remaining slice explicit for the next cycle instead of broadening this call."
+          allowed_paths=$(printf '%s' "$ALLOWED_PATHS_B64" | base64 -d)
+          mission="$mission Before new feature work, inspect the newest reports/audits/*_${role_upper}_FINAL.json on the accepted lane; any unresolved requiredFix from a non-accept decision has priority. This pass is slice $SLICE_ID with objective: $SLICE_OBJECTIVE. You may change only these path prefixes: $allowed_paths. Keep the slice to at most 12 changed files. If the objective cannot be completed inside that perimeter, leave the blocked remainder explicit instead of crossing the perimeter."
           bash .github/scripts/run-opencode-with-retry.sh opencode run \
             --model "$OX_MODEL" \
             --agent "$AGENT" \
-            "Run ChoreScore $ROLE cycle $CYCLE_INDEX (GitHub run $CYCLE_KEY) from the persistent accepted lane. Read MAIN_PROMPT.md first, then the active $ROLE directive and accepted history. $mission Do not touch orchestration, dependencies or the constitution. Do not change branches, commit or push. Human note, subordinate to the constitution: ${HUMAN_NOTE:-}"
+            "Run ChoreScore $ROLE/$SLICE_ID cycle $CYCLE_INDEX (GitHub run $CYCLE_KEY) from the persistent accepted lane. Read MAIN_PROMPT.md first, then the active $ROLE directive and accepted history. $mission Do not touch orchestration, dependencies or the constitution. Do not change branches, commit or push. Human note, subordinate to the constitution: ${HUMAN_NOTE:-}"
 
       - name: Persist isolated candidate snapshot
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
           ROLE: ${{ matrix.role }}
-          BRANCH: cycle/chorescore/${{ github.run_id }}/${{ matrix.role }}
+          CANDIDATE_KEY: ${{ matrix.candidateKey }}
+          ALLOWED_PATHS_B64: ${{ matrix.allowedPathsB64 }}
+          BRANCH: cycle/chorescore/${{ github.run_id }}/${{ matrix.candidateKey }}
         shell: bash
         run: |
           set -euo pipefail
           unexpected=0
+          changed_count=0
+          allowed_json=$(printf '%s' "$ALLOWED_PATHS_B64" | base64 -d)
+          allowed_by_slice() {
+            local changed_path="$1"
+            jq -e --arg path "$changed_path" 'any(.[]; . as $prefix | ($path == $prefix or ($path | startswith($prefix + "/"))))' <<<"$allowed_json" >/dev/null
+          }
           while IFS= read -r -d '' path; do
+            changed_count=$((changed_count + 1))
             if [[ "$ROLE" == mobile ]]; then
               case "$path" in app/*|src/*|tests/*) ;; *) unexpected=1; echo "::error::Unexpected mobile path: $path" ;; esac
             else
               case "$path" in functions/src/*|functions/test/*|docs/security/*|firestore.rules|firestore.indexes.json|storage.rules|firebase.json) ;; *) unexpected=1; echo "::error::Unexpected backend path: $path" ;; esac
             fi
+            if ! allowed_by_slice "$path"; then
+              unexpected=1
+              echo "::error::Path outside assigned slice $CANDIDATE_KEY: $path"
+            fi
           done < <({ git diff --name-only -z; git diff --cached --name-only -z; git ls-files --others --exclude-standard -z; })
+          if (( changed_count > 12 )); then
+            unexpected=1
+            echo "::error::Slice $CANDIDATE_KEY changed $changed_count files; maximum is 12."
+          fi
           git config user.name "chorescore-$ROLE-runner"
           git config user.email "chorescore-$ROLE-runner@users.noreply.github.com"
           git switch -C "$BRANCH"
@@ -343,20 +441,85 @@ jobs:
               test ! -e "$path" || git add -- "$path"
             done
           fi
-          git commit --allow-empty -m "ChoreScore $CYCLE_KEY: $ROLE snapshot"
+          git commit --allow-empty -m "ChoreScore $CYCLE_KEY: $CANDIDATE_KEY snapshot"
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
           git -c "http.extraheader=AUTHORIZATION: basic $auth" push --force origin "HEAD:refs/heads/$BRANCH"
           test "$unexpected" -eq 0
           bash .github/scripts/verify-immutable-governance.sh
 
 
-  preflight:
-    name: Parallel deterministic preflight — ${{ matrix.role }}
+  merge_candidate:
+    name: Merge disjoint candidate slices — ${{ matrix.role }}
     needs: [prepare, candidate]
     if: ${{ always() && needs.prepare.result == 'success' && needs.candidate.result != 'cancelled' }}
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.prepare.outputs.work_matrix) }}
+      matrix: ${{ fromJSON(needs.prepare.outputs.role_matrix) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout accepted ChoreScore lane
+        uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          fetch-depth: 0
+          ref: lab/chorescore
+          persist-credentials: false
+
+      - name: Merge non-overlapping slices into canonical candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ROLE: ${{ matrix.role }}
+          CANONICAL_BRANCH: cycle/chorescore/${{ github.run_id }}/${{ matrix.role }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash .github/scripts/verify-immutable-governance.sh
+          base=$(git rev-parse HEAD)
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          slice_count=$(jq -r --arg role "$ROLE" '(.assignments[$role].slices // []) | length' directives/TASKS.json)
+          if [[ "$slice_count" == 2 ]]; then
+            keys=("$ROLE-a" "$ROLE-b")
+          else
+            keys=("$ROLE-full")
+          fi
+
+          declare -A seen=()
+          for key in "${keys[@]}"; do
+            branch="cycle/chorescore/$GITHUB_RUN_ID/$key"
+            git -c "http.extraheader=AUTHORIZATION: basic $auth" fetch origin "$branch:refs/remotes/origin/$branch"
+            mapfile -d '' changed < <(git diff --name-only -z "$base" "origin/$branch")
+            if (( ${#changed[@]} > 12 )); then
+              echo "::error::$key contains ${#changed[@]} changed files; maximum is 12."
+              exit 1
+            fi
+            for path in "${changed[@]}"; do
+              if [[ -n "${seen[$path]+x}" ]]; then
+                echo "::error::Candidate slices overlap on $path (${seen[$path]} and $key)."
+                exit 1
+              fi
+              seen[$path]="$key"
+            done
+            if (( ${#changed[@]} > 0 )); then
+              git diff --binary "$base" "origin/$branch" | git apply --index --3way
+            fi
+          done
+
+          git config user.name "chorescore-$ROLE-merger"
+          git config user.email "chorescore-$ROLE-merger@users.noreply.github.com"
+          git commit --allow-empty -m "ChoreScore $CYCLE_KEY: merge $ROLE candidate slices"
+          git -c "http.extraheader=AUTHORIZATION: basic $auth" push --force origin "HEAD:refs/heads/$CANONICAL_BRANCH"
+          bash .github/scripts/verify-immutable-governance.sh
+
+
+  preflight:
+    name: Parallel deterministic preflight — ${{ matrix.role }}
+    needs: [prepare, merge_candidate]
+    if: ${{ always() && needs.prepare.result == 'success' && needs.merge_candidate.result != 'cancelled' }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.role_matrix) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -397,13 +560,13 @@ jobs:
           fi
   audit:
     name: Independent ${{ matrix.role }} auditor
-    needs: [prepare, candidate]
+    needs: [prepare, merge_candidate]
     permissions:
       contents: write
-    if: ${{ always() && needs.prepare.result == 'success' && needs.candidate.result != 'cancelled' }}
+    if: ${{ always() && needs.prepare.result == 'success' && needs.merge_candidate.result != 'cancelled' }}
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.prepare.outputs.work_matrix) }}
+      matrix: ${{ fromJSON(needs.prepare.outputs.role_matrix) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     steps:
@@ -502,13 +665,13 @@ jobs:
 
   repair:
     name: Correct rejected ${{ matrix.role }} candidate
-    needs: [prepare, candidate, audit]
+    needs: [prepare, merge_candidate, audit]
     permissions:
       contents: write
     if: ${{ always() && needs.prepare.result == 'success' && needs.audit.result != 'cancelled' }}
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.prepare.outputs.work_matrix) }}
+      matrix: ${{ fromJSON(needs.prepare.outputs.role_matrix) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     steps:
@@ -634,13 +797,13 @@ jobs:
 
   reaudit:
     name: Independent final ${{ matrix.role }} auditor
-    needs: [prepare, candidate, audit, repair]
+    needs: [prepare, merge_candidate, audit, repair]
     permissions:
       contents: write
     if: ${{ always() && needs.prepare.result == 'success' && needs.repair.result != 'cancelled' }}
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.prepare.outputs.work_matrix) }}
+      matrix: ${{ fromJSON(needs.prepare.outputs.role_matrix) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     steps:
@@ -766,7 +929,7 @@ jobs:
 
   director:
     name: Audited application director
-    needs: [prepare, candidate, preflight, audit, repair, reaudit]
+    needs: [prepare, candidate, merge_candidate, preflight, audit, repair, reaudit]
     permissions:
       contents: write
       actions: write
@@ -793,11 +956,6 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             functions/package-lock.json
-
-      - name: Install locked dependencies
-        run: |
-          npm ci --ignore-scripts --no-audit --no-fund
-          npm --prefix functions ci --ignore-scripts --no-audit --no-fund
 
       - name: Mount candidates, corrections, audits and recovery
         id: mount
@@ -993,6 +1151,7 @@ jobs:
           CYCLE_INDEX: ${{ needs.prepare.outputs.cycle_index }}
           MAX_CYCLES: ${{ needs.prepare.outputs.max_cycles }}
           CANDIDATE_RESULT: ${{ needs.candidate.result }}
+          MERGE_RESULT: ${{ needs.merge_candidate.result }}
           AUDIT_RESULT: ${{ needs.audit.result }}
           REPAIR_RESULT: ${{ needs.repair.result }}
           REAUDIT_RESULT: ${{ needs.reaudit.result }}
@@ -1020,11 +1179,28 @@ jobs:
         shell: bash
         run: |
           trusted_integration=$(cat "$RUNNER_TEMP/chorescore-trusted-integration.json")
+          verification_status="$RUNNER_TEMP/chorescore-parallel-verification.status"
+          verification_log="$RUNNER_TEMP/chorescore-verification.log"
+          (
+            set +e
+            set -o pipefail
+            {
+              npm ci --ignore-scripts --no-audit --no-fund
+              npm --prefix functions ci --ignore-scripts --no-audit --no-fund
+              npm run check
+              npx --no-install expo export --platform android --output-dir "$RUNNER_TEMP/chorescore-android"
+              npm --prefix functions run check
+            } 2>&1 | tee "$verification_log"
+            status=${PIPESTATUS[0]}
+            printf '%s\n' "$status" > "$verification_status"
+            exit 0
+          ) &
+          verification_pid=$!
           prompt=$(cat <<EOF
           You are ChoreScore Application Director for cycle $CYCLE_INDEX (GitHub run $CYCLE_KEY; cap $MAX_CYCLES where 0 is unlimited).
-          The current checkout is the persistent accepted branch lab/chorescore. Read MAIN_PROMPT.md, governance/roles/RELEASE_DIRECTOR.md, governance/RELEASE_DEFINITION.json, docs/RELEASE_STATUS.json, directives/TASKS.json and directives/DIRECTOR.md first. Stay on the structured control plane: use the trusted integration manifest and audit JSON as evidence, do not rescan the repository or reread the full candidate diff, and do not rerun deterministic tests. Open product source only when one specific unresolved audit finding cannot be decided from the structured evidence. Keep each next coding assignment to one coherent sub-slice expected to touch no more than about 12 files; defer the rest to a later cycle.
+          The current checkout is the persistent accepted branch lab/chorescore. Read MAIN_PROMPT.md, governance/roles/RELEASE_DIRECTOR.md, governance/RELEASE_DEFINITION.json, docs/RELEASE_STATUS.json, directives/TASKS.json and directives/DIRECTOR.md first. Stay on the structured control plane: use the trusted integration manifest and audit JSON as evidence, do not rescan the repository or reread the full candidate diff, and do not rerun deterministic tests. Open product source only when one specific unresolved audit finding cannot be decided from the structured evidence, or inspect only the relevant path tree when an exact two-slice partition needs real existing path prefixes. Keep each next coding assignment to one coherent sub-slice expected to touch no more than about 12 files; defer the rest to a later cycle.
 
-          Aggregate job state: candidate=$CANDIDATE_RESULT, deterministic-preflight=$PREFLIGHT_RESULT, initial-audit=$AUDIT_RESULT, repair=$REPAIR_RESULT, final-audit=$REAUDIT_RESULT.
+          Aggregate job state: candidate=$CANDIDATE_RESULT, slice-merge=$MERGE_RESULT, deterministic-preflight=$PREFLIGHT_RESULT, initial-audit=$AUDIT_RESULT, repair=$REPAIR_RESULT, final-audit=$REAUDIT_RESULT.
           Trusted shell integration manifest: $trusted_integration
 
           The accepted candidate deltas in that manifest are already applied exactly by the trusted shell. Do not edit app/, src/, tests/, functions/, rules, Firebase files or docs/security. Your job is now to record or reject this evidence, update release state and assign the next bounded work. Any deterministic defect must be returned to the relevant coding specialist for a fresh audit; never repair product code yourself.
@@ -1049,33 +1225,42 @@ jobs:
           4. A missing or invalid audit, decision "repair" or "reject", mismatched cycle/role/round, or missing matching candidate means do not integrate that role.
           5. For every non-accepted final audit, copy every unresolved requiredFix and verification into the next directive for that same code specialist before assigning new feature work. These corrections have priority in the next global cycle.
           6. Treat recovery candidates by the same matching-pair rules. Legacy prose-only evidence is not sufficient for integration.
-          7. Deterministic checks run after your planning pass. If they fail, record the proven cause for the next code/audit cycle; never alter product code or weaken a check.
+          7. Broad deterministic checks and Android export run concurrently with your planning pass on the frozen audited product tree. Do not duplicate them. If their result later fails, the workflow fails closed and returns the proven cause to a later code/audit cycle; never alter product code or weaken a check.
 
-          The trusted shell has already integrated only independently accepted work. Record exactly which manifest candidate/audit pair was used or rejected and answer every finding. Update docs/RELEASE_STATUS.json, directives/TASKS.json, directives/MOBILE.md, directives/BACKEND.md, directives/AUDITOR.md and docs/NEXT_CYCLE.md. Activate only roles needed by one or two incomplete DRC criteria. Then write reports/director/CYCLE_${CYCLE_KEY}.md and its required JSON, including activeCriteria and progressEvidence. Apply the deterministic stagnation rule from your immutable job description. Do not edit product code, workflows, agent definitions, dependencies, governance or MAIN_PROMPT.md. Human note, subordinate to the constitution: ${HUMAN_NOTE:-}
+          The trusted shell has already integrated only independently accepted work. Record exactly which manifest candidate/audit pair was used or rejected and answer every finding. Update docs/RELEASE_STATUS.json, directives/TASKS.json, directives/MOBILE.md, directives/BACKEND.md, directives/AUDITOR.md and docs/NEXT_CYCLE.md. Activate only roles needed by one or two incomplete DRC criteria. For each enabled role, decide the next work shape in directives/TASKS.json: if the next coherent mission is realistically expected to require more than about 12 changed files and can be separated safely, add assignments.<role>.slices with exactly two entries in order, ids "a" and "b"; each entry must have a precise objective and a non-empty allowedPaths array of clean relative path prefixes, the two path-prefix perimeters must not overlap, and each slice must be independently implementable from the same accepted base within at most 12 changed files. If those conditions are not all true, omit/remove slices and assign one bounded coherent mission instead. Never create more than two slices and never split work that needs both slices editing the same file. Then write reports/director/CYCLE_${CYCLE_KEY}.md and its required JSON, including activeCriteria and progressEvidence. Apply the deterministic stagnation rule from your immutable job description. Do not edit product code, workflows, agent definitions, dependencies, governance or MAIN_PROMPT.md. Human note, subordinate to the constitution: ${HUMAN_NOTE:-}
           EOF
           )
+          set +e
           bash .github/scripts/run-opencode-with-retry.sh opencode run \
             --model "$OX_MODEL" \
             --agent cycle-director \
             "$prompt"
+          director_status=$?
+          set -e
+          wait "$verification_pid" || true
+          test -s "$verification_status" || printf '1\n' > "$verification_status"
+          exit "$director_status"
 
       - name: Verify Director preserved the audited product tree
         id: trusted_product
         shell: bash
         run: bash .github/scripts/trusted-product-tree.sh verify "$RUNNER_TEMP/chorescore-trusted-product.sha256"
 
-      - name: Verify integrated application
+      - name: Complete parallel deterministic verification
         id: verification
         continue-on-error: true
         shell: bash
         run: |
-          set -o pipefail
-          {
-            npm run check
-            npx --no-install expo export --platform android --output-dir "$RUNNER_TEMP/chorescore-android"
-            npm --prefix functions run check
-            bash .github/scripts/verify-product-coherence.sh
-          } 2>&1 | tee "$RUNNER_TEMP/chorescore-verification.log"
+          set -euo pipefail
+          status_file="$RUNNER_TEMP/chorescore-parallel-verification.status"
+          log_file="$RUNNER_TEMP/chorescore-verification.log"
+          test -s "$status_file"
+          status=$(cat "$status_file")
+          if [[ "$status" != 0 ]]; then
+            test ! -f "$log_file" || tail -n 300 "$log_file"
+            exit "$status"
+          fi
+          bash .github/scripts/verify-product-coherence.sh
 
       - name: Validate Director decision and scope
         id: decision
@@ -1119,6 +1304,46 @@ jobs:
           done < <({ git diff --name-only -z; git diff --cached --name-only -z; git ls-files --others --exclude-standard -z; })
           test "$unexpected" -eq 0
           bash .github/scripts/verify-immutable-governance.sh
+          python3 <<'PY'
+          import json
+          import re
+
+          with open("directives/TASKS.json", encoding="utf-8") as handle:
+              tasks = json.load(handle)
+          broad = {
+              "mobile": ("app", "src", "tests"),
+              "backend": ("functions/src", "functions/test", "docs/security", "firestore.rules", "firestore.indexes.json", "storage.rules", "firebase.json"),
+          }
+          def under(path, prefix):
+              return path == prefix or path.startswith(prefix + "/")
+          def clean(prefix):
+              return (isinstance(prefix, str) and bool(prefix) and not prefix.startswith("/") and
+                      not prefix.endswith("/") and ".." not in prefix.split("/") and
+                      re.fullmatch(r"[A-Za-z0-9._/-]+", prefix) is not None)
+          for role in ("mobile", "backend"):
+              assignment = tasks["assignments"][role]
+              slices = assignment.get("slices") or []
+              if not assignment["enabled"]:
+                  if slices:
+                      raise SystemExit(f"disabled role {role} cannot carry slices")
+                  continue
+              if not slices:
+                  continue
+              if not isinstance(slices, list) or len(slices) != 2 or [s.get("id") for s in slices] != ["a", "b"]:
+                  raise SystemExit(f"{role} slice plan must be exactly a,b")
+              scopes = []
+              for item in slices:
+                  paths = item.get("allowedPaths")
+                  if not isinstance(item.get("objective"), str) or not item["objective"].strip():
+                      raise SystemExit(f"{role} slice objective missing")
+                  if not isinstance(paths, list) or not (1 <= len(paths) <= 12) or len(paths) != len(set(paths)):
+                      raise SystemExit(f"{role} slice allowedPaths invalid")
+                  if any((not clean(prefix)) or not any(under(prefix, root) for root in broad[role]) for prefix in paths):
+                      raise SystemExit(f"{role} slice escapes its product scope")
+                  scopes.append(paths)
+              if any(under(left, right) or under(right, left) for left in scopes[0] for right in scopes[1]):
+                  raise SystemExit(f"{role} slice path perimeters overlap")
+          PY
           BEFORE_STATUS="$RUNNER_TEMP/chorescore-release-status-before.json" DIRECTOR_REPORT="$report" bash .github/scripts/validate-release-state.sh
           echo "decision=$(jq -r '.decision' "$report")" >> "$GITHUB_OUTPUT"
 
@@ -1378,7 +1603,7 @@ jobs:
 
   terminal_failure_report:
     name: Report failed autonomous cycle
-    needs: [prepare, candidate, audit, repair, reaudit, director]
+    needs: [prepare, candidate, merge_candidate, audit, repair, reaudit, director]
     permissions:
       contents: read
       actions: write
@@ -1392,13 +1617,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PREPARE_RESULT: ${{ needs.prepare.result }}
           CANDIDATE_RESULT: ${{ needs.candidate.result }}
+          MERGE_RESULT: ${{ needs.merge_candidate.result }}
           AUDIT_RESULT: ${{ needs.audit.result }}
           REPAIR_RESULT: ${{ needs.repair.result }}
           REAUDIT_RESULT: ${{ needs.reaudit.result }}
           DIRECTOR_RESULT: ${{ needs.director.result }}
         shell: bash
         run: |
-          body=$(printf '### Cycle ChoreScore arrêté avant intégration\n\n- Run : [%s](https://github.com/%s/actions/runs/%s)\n- Préparation : **%s**\n- Candidats : **%s**\n- Audits initiaux : **%s**\n- Corrections par les codeurs : **%s**\n- Seconds audits : **%s**\n- Directeur : **%s**\n\nLes snapshots déjà poussés restent récupérables ; `lab/chorescore` n’est pas avancée sans validation.' "$GITHUB_RUN_ID" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$PREPARE_RESULT" "$CANDIDATE_RESULT" "$AUDIT_RESULT" "$REPAIR_RESULT" "$REAUDIT_RESULT" "$DIRECTOR_RESULT")
+          body=$(printf '### Cycle ChoreScore arrêté avant intégration\n\n- Run : [%s](https://github.com/%s/actions/runs/%s)\n- Préparation : **%s**\n- Candidats : **%s**\n- Fusion des tranches : **%s**\n- Audits initiaux : **%s**\n- Corrections par les codeurs : **%s**\n- Seconds audits : **%s**\n- Directeur : **%s**\n\nLes snapshots déjà poussés restent récupérables ; `lab/chorescore` n’est pas avancée sans validation.' "$GITHUB_RUN_ID" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$PREPARE_RESULT" "$CANDIDATE_RESULT" "$MERGE_RESULT" "$AUDIT_RESULT" "$REPAIR_RESULT" "$REAUDIT_RESULT" "$DIRECTOR_RESULT")
           printf '%s\n' "$body"
 
       - name: Wait five minutes before autonomous recovery

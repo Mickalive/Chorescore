@@ -93,7 +93,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
-      IMMUTABLE_MANIFEST_SHA256: f95a28f17d28875297e067522aaf421c0ed12072d50e22fd058605fd1a43ffca
+      IMMUTABLE_MANIFEST_SHA256: 1b1b56c701a7dfda5f2ece268636bf5aff0d13c93e35f8a4b6195f2e6ad09f5c
     steps:
       - name: Checkout immutable governance
         uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
@@ -110,12 +110,17 @@ jobs:
           bash -n .github/scripts/verify-immutable-governance.sh
           bash -n .github/scripts/validate-release-state.sh
           bash -n .github/scripts/run-opencode-with-retry.sh
-          bash -n .github/scripts/recover-transient-opencode.sh
           bash -n .github/scripts/ensure-continuous-loop.sh
           bash -n .github/scripts/normalize-audit-json.sh
+          bash -n .github/scripts/validate-audit-json.sh
+          bash -n .github/scripts/integrate-audited-candidates.sh
+          bash -n .github/scripts/trusted-product-tree.sh
+          bash -n .github/scripts/verify-final-release.sh
           bash -n .github/scripts/smoke-android-apk.sh
           bash -n .github/scripts/verify-product-coherence.sh
+          bash -n .github/scripts/verify-workflow-architecture.sh
           bash .github/scripts/verify-product-coherence.sh
+          bash .github/scripts/verify-workflow-architecture.sh
           jq empty governance/RELEASE_DEFINITION.json
           jq empty docs/RELEASE_STATUS.json
           jq empty directives/TASKS.json

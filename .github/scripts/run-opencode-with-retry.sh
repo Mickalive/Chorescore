@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-max_attempts="${OPENCODE_MAX_ATTEMPTS:-6}"
+max_attempts="${OPENCODE_MAX_ATTEMPTS:-3}"
 retry_delay="${OPENCODE_RETRY_DELAY_SECONDS:-300}"
 attempt_timeout="${OPENCODE_ATTEMPT_TIMEOUT_SECONDS:-2400}"
 label="${OPENCODE_RETRY_LABEL:-agent}"
@@ -19,18 +19,7 @@ trap 'rm -f "$log_file"' EXIT
 
 validate_director_audit() {
   local file="$1" role="$2" round="$3"
-  test -s "$file" || return 1
-  jq -e --arg cycle "${CYCLE_KEY:?}" --arg role "$role" --argjson round "$round" '
-    .schemaVersion == 1 and
-    (.cycle | tostring) == $cycle and
-    .role == $role and
-    .round == $round and
-    (.decision == "accept" or .decision == "repair" or .decision == "reject") and
-    (.summary | type == "string" and length > 0 and length <= 1000) and
-    (.findings | type == "array" and length <= 50) and
-    (.checks | type == "array" and length <= 50 and all(type == "string" and length > 0 and length <= 1000)) and
-    (.decision == "accept" or (.findings | length) > 0)
-  ' "$file" >/dev/null
+  bash .github/scripts/validate-audit-json.sh "$file" "${CYCLE_KEY:?}" "$role" "$round"
 }
 
 if [[ "$label" == director ]]; then
@@ -91,7 +80,7 @@ for ((attempt = 1; attempt <= max_attempts; attempt++)); do
 
   if (( attempt == max_attempts )); then
     echo "CHORESCORE_OPENCODE_FAILURE_KIND=transient label=${label} attempts=${max_attempts}" >&2
-    echo "::error::OpenCode ${label} reste indisponible après ${max_attempts} tentatives espacées; le watchdog reprendra ce même run." >&2
+    echo "::error::OpenCode ${label} reste indisponible après ${max_attempts} tentatives espacées; un nouveau cycle de récupération reprendra les snapshots conservés." >&2
     exit 75
   fi
 

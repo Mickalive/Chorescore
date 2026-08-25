@@ -19,7 +19,7 @@ fiche.
 | Ingénieur produit mobile | tâche mobile `enabled: true` | `app/`, `src/`, `tests/` |
 | Ingénieur backend/intégration | tâche backend `enabled: true` | Functions, règles et tests sécurité |
 | Auditeur indépendant | une fois par codeur actif, puis après correction | rapports d'audit uniquement |
-| Directeur de livraison | après les audits | produit accepté, tâches, état et rapport |
+| Directeur de livraison | après les audits | tâches, état et rapport ; jamais le code produit |
 
 Les huit anciens agents génériques ont été supprimés. Le workflow n'instancie
 plus un backend inutile pour une tranche purement mobile.
@@ -33,8 +33,10 @@ plus un backend inutile pour une tranche purement mobile.
 3. Un auditeur distinct contrôle chaque candidat et produit un JSON strict.
 4. Tout constat `mustFix: true` déclenche le même codeur en correction.
 5. Le candidat corrigé est audité une seconde fois.
-6. Le directeur intègre seulement une paire candidat/audit `accept` sans
-   `mustFix`, exécute les vérifications et met à jour l'état de livraison.
+6. Le shell applique exactement une paire candidat/audit `accept` sans
+   `mustFix`; le directeur ne peut modifier que l'état, les tâches et son
+   rapport, puis les vérifications contrôlent aussi que l'arbre produit est
+   resté identique.
 7. Le shell valide la progression, pousse `lab/chorescore`, conserve une seule
    PR brouillon et relance si la décision vaut `continue`.
 
@@ -49,8 +51,8 @@ demandés avant de marquer un critère `complete`.
 
 `stalledCycles` est déterministe : un diff produit accepté, une transition
 d'état ou une nouvelle preuve objective remet le compteur à zéro. Sans progrès,
-il augmente. Deux cycles stagnants arrêtent la boucle avec un blocage explicite,
-au lieu de consommer des runners en polissage circulaire.
+il augmente jusqu'à deux. Le directeur doit alors réduire ou déplacer la
+tranche ; il ne peut pas arrêter une release encore réalisable localement.
 
 Le jalon courant est une démo RC locale et installable. Firebase/Stripe réels,
 données personnelles, déploiement, validation juridique et test d'intrusion
@@ -59,12 +61,14 @@ restent des prérequis humains séparés pour une future bêta de production.
 ## Continuité et récupération
 
 Les appels OX réessaient les pannes fournisseur à cinq minutes d'intervalle.
-Après épuisement d'un job, le watchdog crée une nouvelle exécution récupérant les
-snapshots déjà publiés. La limite par job évite de monopoliser indéfiniment un
-runner ; la récupération entre runs maintient la continuité de la boucle.
+Après épuisement d'un job, le workflow crée après cinq minutes une nouvelle
+exécution récupérant les snapshots déjà publiés. Le bridge attend douze minutes
+et n'intervient qu'en secours si ce successeur n'existe pas. La limite par job
+évite de monopoliser indéfiniment un runner ; la récupération entre runs n'a
+pas de plafond global.
 
-Les branches candidates et rapports restent conservés. Les anciens runs
-terminés sont élagués automatiquement, sans supprimer le code ou les audits.
+Les branches candidates et rapports restent conservés. Les runs portant une
+preuve de livraison ne sont jamais supprimés par le nettoyage explicite.
 
 ## Garde-fous
 
@@ -75,8 +79,9 @@ terminés sont élagués automatiquement, sans supprimer le code ou les audits.
 - audit contradictoire et checks application/Functions avant relance ;
 - construction finale d'un APK standalone depuis un commit source figé,
   installation et lancement sur un émulateur Android API 35 sans Metro ni
-  réseau, contrôle du rendu « ChoreScore », SHA-256, capture et journaux
-  conservés avec l'artefact GitHub pendant 14 jours ;
+  réseau, parcours onboarding, chronomètre persistant et navigation principale,
+  SHA-256, captures et journaux conservés avec l'artefact GitHub pendant
+  90 jours ;
 - une unique PR brouillon `lab/chorescore → main` pour la revue humaine.
 
 Le dépôt est public. Ne jamais y placer de donnée réelle ou de secret. La

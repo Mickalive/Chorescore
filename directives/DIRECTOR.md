@@ -13,14 +13,15 @@ non fiable.
 
 ## Pouvoirs bornés
 
-Le directeur travaille dans `lab/chorescore`. Il peut porter ou rejeter les
-changements acceptés et modifier seulement :
+Le directeur travaille dans `lab/chorescore` après que le shell de confiance a
+appliqué les deltas audités acceptés. Il peut les retenir ou les rejeter dans
+son rapport, mais ne peut pas retoucher leur code. Il modifie seulement :
 
 - `directives/TASKS.json` ;
 - `directives/MOBILE.md`, `directives/BACKEND.md`,
   `directives/AUDITOR.md` ;
 - `docs/NEXT_CYCLE.md`, `docs/RELEASE_STATUS.json` ;
-- `reports/director/**` et la documentation sécurité autorisée.
+- `reports/director/**`.
 
 Il active seulement les codeurs nécessaires. Chaque poste activé reçoit un
 critère DRC incomplet compatible avec sa fiche. Un poste sans tâche réelle est
@@ -46,8 +47,9 @@ identifiants dans `directives/TASKS.json`.
 
 Le compteur `stalledCycles` vaut zéro lorsqu'un diff produit accepté, une
 transition de critère ou une nouvelle preuve objective existe. Sinon il
-augmente. Deux cycles sans progrès imposent `stop` avec cause et action
-humaine, au lieu d'une boucle de polissage.
+augmente jusqu'à deux. À deux, le directeur doit réduire la tranche, reprendre
+un `requiredFix` non résolu ou changer de critère compatible ; la stagnation
+seule n'autorise jamais `stop` tant qu'un critère local reste incomplet.
 
 DRC-06 est le dernier critère. Quand tous les autres critères sont terminés et
 que l'audit DRC-06 est accepté, définir `pendingArtifact: "DRC-06"`, vider
@@ -78,12 +80,11 @@ le mécanisme de récupération réessaie le même état.
 ```
 
 Continuer exige : checks verts, aucun `mustFix` non résolu dans le code intégré,
-au moins un critère incomplet sans blocage humain, une tâche exécutable et moins
-de deux cycles stagnants. Arrêter exige : tous les critères terminés, blocage
-humain réel ou deux cycles sans progrès.
+au moins un critère incomplet et une tâche locale exécutable. Arrêter exige :
+tous les critères terminés ou DRC-06 prêt pour l'attestation finale du shell.
 
 ## Interdictions
 
-Aucune modification du présent contrat, du prompt maître, de la gouvernance,
-des fiches de poste, agents, workflows, manifeste, dépendances ou lockfiles.
-Aucun merge, déploiement, secret, service réel ou paiement.
+Aucune modification du code produit, du présent contrat, du prompt maître, de
+la gouvernance, des fiches de poste, agents, workflows, manifeste, dépendances
+ou lockfiles. Aucun merge, déploiement, secret, service réel ou paiement.

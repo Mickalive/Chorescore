@@ -58,6 +58,30 @@ jq -e --slurpfile definition "$definition" '
   )
 ' "$status" >/dev/null
 
+jq -e --slurpfile definition "$definition" '
+  (.openFindings | type == "array" and length <= 200) and
+  ([.openFindings[].id] | length == (unique | length)) and
+  all(.openFindings[];
+    . as $finding |
+    (.id | type == "string" and length > 0 and length <= 100) and
+    (.criterionId | type == "string" and
+      any($definition[0].criteria[]; .id == $finding.criterionId)) and
+    (.role == "mobile" or .role == "backend") and
+    (.severity == "critical" or .severity == "high" or .severity == "medium" or
+      .severity == "low" or .severity == "info") and
+    (.mustFixBeforeRelease | type == "boolean") and
+    (.status == "unresolved" or .status == "resolved") and
+    (.requiredFix | type == "string" and length > 0 and length <= 2000)
+  ) and
+  . as $release |
+  all(.criteria[];
+    . as $criterion |
+    $criterion.status != "complete" or
+    ([ $release.openFindings[] |
+       select(.criterionId == $criterion.id and .mustFixBeforeRelease == true and .status != "resolved") ] | length) == 0
+  )
+' "$status" >/dev/null
+
 jq -e --slurpfile before "$BEFORE_STATUS" '
   def rank($value):
     if $value == "pending" then 0
@@ -69,6 +93,21 @@ jq -e --slurpfile before "$BEFORE_STATUS" '
     ($before[0].criteria[] | select(.id == $current.id)) as $old |
     rank($current.status) >= rank($old.status) and
     ($current.evidence | length) >= ($old.evidence | length)
+  )
+' "$status" >/dev/null
+
+jq -e --slurpfile before "$BEFORE_STATUS" '
+  . as $release |
+  all($before[0].openFindings[]?;
+    . as $old |
+    any($release.openFindings[];
+      .id == $old.id and
+      .criterionId == $old.criterionId and
+      .role == $old.role and
+      .mustFixBeforeRelease == $old.mustFixBeforeRelease and
+      .requiredFix == $old.requiredFix and
+      ($old.status == "unresolved" or .status == "resolved")
+    )
   )
 ' "$status" >/dev/null
 

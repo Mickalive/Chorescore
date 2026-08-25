@@ -25,9 +25,7 @@ on:
         default: "none"
 
 permissions:
-  contents: write
-  actions: write
-  pull-requests: write
+  contents: read
 
 concurrency:
   group: chorescore-autonomous-app-loop
@@ -35,11 +33,13 @@ concurrency:
 
 env:
   OX_MODEL: opencode/x-preview-f-free
-  OPENCODE_MAX_ATTEMPTS: "6"
+  # Three bounded 40-minute attempts fit inside agent jobs. Exhaustion starts
+  # a new recovery run after five minutes, so the global chain is unbounded.
+  OPENCODE_MAX_ATTEMPTS: "3"
   OPENCODE_RETRY_DELAY_SECONDS: "300"
   LANE_BRANCH: lab/chorescore
   MAIN_PROMPT_SHA256: c3e1b4e0b0a42af3fb64a4ee10043252e763866d670c6e942f5f380583d30d97
-  IMMUTABLE_MANIFEST_SHA256: f95a28f17d28875297e067522aaf421c0ed12072d50e22fd058605fd1a43ffca
+  IMMUTABLE_MANIFEST_SHA256: 1b1b56c701a7dfda5f2ece268636bf5aff0d13c93e35f8a4b6195f2e6ad09f5c
   CYCLE_KEY: ${{ github.run_id }}
   CI: "true"
   EXPO_NO_TELEMETRY: "1"
@@ -48,6 +48,8 @@ env:
 jobs:
   prepare:
     name: Prepare persistent accepted state
+    permissions:
+      contents: write
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
@@ -86,30 +88,6 @@ jobs:
           echo "cycle_index=$CYCLE_INDEX" >> "$GITHUB_OUTPUT"
           echo "max_cycles=$MAX_CYCLES" >> "$GITHUB_OUTPUT"
           echo "recovery_cycle_key=$RECOVERY_CYCLE_KEY" >> "$GITHUB_OUTPUT"
-
-      - name: Prune completed runs superseded by this cycle
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          gh run list --repo "$GITHUB_REPOSITORY" --limit 100 \
-            --json databaseId,status,workflowName,headSha,createdAt |
-          jq -c '.[]' |
-          while IFS= read -r run; do
-            id=$(jq -r '.databaseId' <<<"$run")
-            status=$(jq -r '.status' <<<"$run")
-            workflow=$(jq -r '.workflowName' <<<"$run")
-            head_sha=$(jq -r '.headSha' <<<"$run")
-
-            [[ "$id" == "$GITHUB_RUN_ID" ]] && continue
-            [[ "$status" != completed ]] && continue
-            [[ "$workflow" == CI && "$head_sha" == "$GITHUB_SHA" ]] && continue
-
-            echo "Deleting superseded run $id ($workflow)"
-            gh run delete "$id" --repo "$GITHUB_REPOSITORY" || \
-              echo "::warning::Unable to delete run $id"
-          done
 
       - name: Checkout or initialize accepted ChoreScore lane
         env:
@@ -283,6 +261,8 @@ jobs:
   candidate:
     name: ${{ matrix.label }}
     needs: prepare
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.prepare.outputs.work_matrix) }}
@@ -372,6 +352,8 @@ jobs:
   audit:
     name: Independent ${{ matrix.role }} auditor
     needs: [prepare, candidate]
+    permissions:
+      contents: write
     if: ${{ always() && needs.prepare.result == 'success' && needs.candidate.result != 'cancelled' }}
     strategy:
       fail-fast: false
@@ -469,35 +451,14 @@ jobs:
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
           git -c "http.extraheader=AUTHORIZATION: basic $auth" push --force origin "HEAD:refs/heads/$BRANCH"
           test "$unexpected" -eq 0
-          jq -e --arg cycle "$CYCLE_KEY" --arg role "$ROLE" '
-            .schemaVersion == 1 and
-            (.cycle | tostring) == $cycle and
-            .role == $role and
-            .round == 1 and
-            (.decision == "accept" or .decision == "repair" or .decision == "reject") and
-            (.summary | type == "string" and length > 0 and length <= 1000) and
-            (.findings | type == "array" and length <= 50 and all(
-              (.id | type == "string" and length > 0 and length <= 100) and
-              (.severity == "critical" or .severity == "high" or .severity == "medium" or .severity == "low" or .severity == "info") and
-              (.path | type == "string" and length <= 500) and
-              (.problem | type == "string" and length > 0 and length <= 2000) and
-              (.evidence | type == "string" and length > 0 and length <= 2000) and
-              (.mustFix | type == "boolean") and
-              (.requiredFix | type == "string" and length > 0 and length <= 2000) and
-              (.verification | type == "string" and length > 0 and length <= 2000)
-            )) and
-            (.checks | type == "array" and length <= 50 and all(type == "string" and length <= 1000)) and
-            (
-              (.decision == "accept" and all(.findings[]; .mustFix == false)) or
-              ((.decision == "repair" or .decision == "reject") and
-                any(.findings[]; .mustFix == true))
-            )
-          ' "$report_json" >/dev/null
+          bash .github/scripts/validate-audit-json.sh "$report_json" "$CYCLE_KEY" "$ROLE" 1
           bash .github/scripts/verify-immutable-governance.sh
 
   repair:
     name: Correct rejected ${{ matrix.role }} candidate
     needs: [prepare, candidate, audit]
+    permissions:
+      contents: write
     if: ${{ always() && needs.prepare.result == 'success' && needs.audit.result != 'cancelled' }}
     strategy:
       fail-fast: false
@@ -535,30 +496,9 @@ jobs:
             exit 0
           fi
           audit_json=$(git show "origin/$audit_branch:$report" 2>/dev/null || true)
-          if ! jq -e --arg cycle "$CYCLE_KEY" --arg role "$ROLE" '
-            .schemaVersion == 1 and
-            (.cycle | tostring) == $cycle and
-            .role == $role and
-            .round == 1 and
-            (.decision == "accept" or .decision == "repair" or .decision == "reject") and
-            (.summary | type == "string" and length > 0 and length <= 1000) and
-            (.findings | type == "array" and length <= 50 and all(
-              (.id | type == "string" and length > 0 and length <= 100) and
-              (.severity == "critical" or .severity == "high" or .severity == "medium" or .severity == "low" or .severity == "info") and
-              (.path | type == "string" and length <= 500) and
-              (.problem | type == "string" and length > 0 and length <= 2000) and
-              (.evidence | type == "string" and length > 0 and length <= 2000) and
-              (.mustFix | type == "boolean") and
-              (.requiredFix | type == "string" and length > 0 and length <= 2000) and
-              (.verification | type == "string" and length > 0 and length <= 2000)
-            )) and
-            (.checks | type == "array" and length <= 50 and all(type == "string" and length <= 1000)) and
-            (
-              (.decision == "accept" and all(.findings[]; .mustFix == false)) or
-              ((.decision == "repair" or .decision == "reject") and
-                any(.findings[]; .mustFix == true))
-            )
-          ' <<<"$audit_json" >/dev/null 2>&1; then
+          audit_tmp=$(mktemp)
+          printf '%s\n' "$audit_json" >"$audit_tmp"
+          if ! bash .github/scripts/validate-audit-json.sh "$audit_tmp" "$CYCLE_KEY" "$ROLE" 1; then
             echo "::warning::Audit $ROLE non structuré; aucune correction automatique non fiable."
             exit 0
           fi
@@ -649,6 +589,8 @@ jobs:
   reaudit:
     name: Independent final ${{ matrix.role }} auditor
     needs: [prepare, candidate, audit, repair]
+    permissions:
+      contents: write
     if: ${{ always() && needs.prepare.result == 'success' && needs.repair.result != 'cancelled' }}
     strategy:
       fail-fast: false
@@ -685,30 +627,9 @@ jobs:
             exit 0
           fi
           audit_json=$(git show "origin/$audit_branch:$report" 2>/dev/null || true)
-          if ! jq -e --arg cycle "$CYCLE_KEY" --arg role "$ROLE" '
-            .schemaVersion == 1 and
-            (.cycle | tostring) == $cycle and
-            .role == $role and
-            .round == 1 and
-            (.decision == "accept" or .decision == "repair" or .decision == "reject") and
-            (.summary | type == "string" and length > 0 and length <= 1000) and
-            (.findings | type == "array" and length <= 50 and all(
-              (.id | type == "string" and length > 0 and length <= 100) and
-              (.severity == "critical" or .severity == "high" or .severity == "medium" or .severity == "low" or .severity == "info") and
-              (.path | type == "string" and length <= 500) and
-              (.problem | type == "string" and length > 0 and length <= 2000) and
-              (.evidence | type == "string" and length > 0 and length <= 2000) and
-              (.mustFix | type == "boolean") and
-              (.requiredFix | type == "string" and length > 0 and length <= 2000) and
-              (.verification | type == "string" and length > 0 and length <= 2000)
-            )) and
-            (.checks | type == "array" and length <= 50 and all(type == "string" and length <= 1000)) and
-            (
-              (.decision == "accept" and all(.findings[]; .mustFix == false)) or
-              ((.decision == "repair" or .decision == "reject") and
-                any(.findings[]; .mustFix == true))
-            )
-          ' <<<"$audit_json" >/dev/null 2>&1; then
+          audit_tmp=$(mktemp)
+          printf '%s\n' "$audit_json" >"$audit_tmp"
+          if ! bash .github/scripts/validate-audit-json.sh "$audit_tmp" "$CYCLE_KEY" "$ROLE" 1; then
             echo "::warning::Audit $ROLE invalide; aucun second audit ne sera lancé sur des corrections non fiables."
             exit 0
           fi
@@ -794,35 +715,16 @@ jobs:
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
           git -c "http.extraheader=AUTHORIZATION: basic $auth" push --force origin "HEAD:refs/heads/$BRANCH"
           test "$unexpected" -eq 0
-          jq -e --arg cycle "$CYCLE_KEY" --arg role "$ROLE" '
-            .schemaVersion == 1 and
-            (.cycle | tostring) == $cycle and
-            .role == $role and
-            .round == 2 and
-            (.decision == "accept" or .decision == "repair" or .decision == "reject") and
-            (.summary | type == "string" and length > 0 and length <= 1000) and
-            (.findings | type == "array" and length <= 50 and all(
-              (.id | type == "string" and length > 0 and length <= 100) and
-              (.severity == "critical" or .severity == "high" or .severity == "medium" or .severity == "low" or .severity == "info") and
-              (.path | type == "string" and length <= 500) and
-              (.problem | type == "string" and length > 0 and length <= 2000) and
-              (.evidence | type == "string" and length > 0 and length <= 2000) and
-              (.mustFix | type == "boolean") and
-              (.requiredFix | type == "string" and length > 0 and length <= 2000) and
-              (.verification | type == "string" and length > 0 and length <= 2000)
-            )) and
-            (.checks | type == "array" and length <= 50 and all(type == "string" and length <= 1000)) and
-            (
-              (.decision == "accept" and all(.findings[]; .mustFix == false)) or
-              ((.decision == "repair" or .decision == "reject") and
-                any(.findings[]; .mustFix == true))
-            )
-          ' "$report_json" >/dev/null
+          bash .github/scripts/validate-audit-json.sh "$report_json" "$CYCLE_KEY" "$ROLE" 2
           bash .github/scripts/verify-immutable-governance.sh
 
   director:
     name: Audited application director
     needs: [prepare, candidate, audit, repair, reaudit]
+    permissions:
+      contents: write
+      actions: write
+      pull-requests: write
     if: ${{ always() && needs.prepare.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 300
@@ -969,31 +871,7 @@ jobs:
           set -euo pipefail
           validate_audit() {
             local file="$1" role="$2" round="$3"
-            test -s "$file" || return 1
-            jq -e --arg cycle "$CYCLE_KEY" --arg role "$role" --argjson round "$round" '
-              .schemaVersion == 1 and
-              (.cycle | tostring) == $cycle and
-              .role == $role and
-              .round == $round and
-              (.decision == "accept" or .decision == "repair" or .decision == "reject") and
-              (.summary | type == "string" and length > 0 and length <= 1000) and
-              (.findings | type == "array" and length <= 50 and all(
-                (.id | type == "string" and length > 0 and length <= 100) and
-                (.severity == "critical" or .severity == "high" or .severity == "medium" or .severity == "low" or .severity == "info") and
-                (.path | type == "string" and length <= 500) and
-                (.problem | type == "string" and length > 0 and length <= 2000) and
-                (.evidence | type == "string" and length > 0 and length <= 2000) and
-              (.mustFix | type == "boolean") and
-                (.requiredFix | type == "string" and length > 0 and length <= 2000) and
-                (.verification | type == "string" and length > 0 and length <= 2000)
-              )) and
-              (.checks | type == "array" and length <= 50 and all(type == "string" and length <= 1000)) and
-              (
-              (.decision == "accept" and all(.findings[]; .mustFix == false)) or
-              ((.decision == "repair" or .decision == "reject") and
-                any(.findings[]; .mustFix == true))
-            )
-            ' "$file" >/dev/null
+            bash .github/scripts/validate-audit-json.sh "$file" "$CYCLE_KEY" "$role" "$round"
           }
 
           for role in mobile backend; do
@@ -1027,6 +905,34 @@ jobs:
             fi
           done
 
+      - name: Apply independently accepted candidate deltas
+        id: trusted_integration
+        env:
+          RECOVERY_CYCLE_KEY: ${{ needs.prepare.outputs.recovery_cycle_key }}
+          TRUSTED_INTEGRATION_JSON: ${{ runner.temp }}/chorescore-trusted-integration.json
+          MOBILE_FOUND: ${{ steps.mount.outputs.mobile_found }}
+          BACKEND_FOUND: ${{ steps.mount.outputs.backend_found }}
+          MOBILE_AUDIT_FOUND: ${{ steps.mount.outputs.mobile_audit_found }}
+          BACKEND_AUDIT_FOUND: ${{ steps.mount.outputs.backend_audit_found }}
+          MOBILE_REPAIRED_FOUND: ${{ steps.mount.outputs.mobile_repaired_found }}
+          BACKEND_REPAIRED_FOUND: ${{ steps.mount.outputs.backend_repaired_found }}
+          MOBILE_FINAL_AUDIT_FOUND: ${{ steps.mount.outputs.mobile_final_audit_found }}
+          BACKEND_FINAL_AUDIT_FOUND: ${{ steps.mount.outputs.backend_final_audit_found }}
+          RECOVERY_MOBILE_FOUND: ${{ steps.mount.outputs.recovery_mobile_found }}
+          RECOVERY_BACKEND_FOUND: ${{ steps.mount.outputs.recovery_backend_found }}
+          RECOVERY_MOBILE_AUDIT_FOUND: ${{ steps.mount.outputs.recovery_mobile_audit_found }}
+          RECOVERY_BACKEND_AUDIT_FOUND: ${{ steps.mount.outputs.recovery_backend_audit_found }}
+          RECOVERY_MOBILE_REPAIRED_FOUND: ${{ steps.mount.outputs.recovery_mobile_repaired_found }}
+          RECOVERY_BACKEND_REPAIRED_FOUND: ${{ steps.mount.outputs.recovery_backend_repaired_found }}
+          RECOVERY_MOBILE_FINAL_AUDIT_FOUND: ${{ steps.mount.outputs.recovery_mobile_final_audit_found }}
+          RECOVERY_BACKEND_FINAL_AUDIT_FOUND: ${{ steps.mount.outputs.recovery_backend_final_audit_found }}
+        shell: bash
+        run: bash .github/scripts/integrate-audited-candidates.sh
+
+      - name: Freeze audited product tree before Director
+        shell: bash
+        run: bash .github/scripts/trusted-product-tree.sh snapshot "$RUNNER_TEMP/chorescore-trusted-product.sha256"
+
       - name: Snapshot delivery state before Director
         shell: bash
         run: cp docs/RELEASE_STATUS.json "$RUNNER_TEMP/chorescore-release-status-before.json"
@@ -1035,6 +941,7 @@ jobs:
         uses: ./.github/actions/setup-opencode
 
       - name: Run audited application director with public Ox
+        id: director_run
         env:
           HUMAN_NOTE: ${{ inputs.human_note }}
           CYCLE_INDEX: ${{ needs.prepare.outputs.cycle_index }}
@@ -1065,11 +972,15 @@ jobs:
           OPENCODE_RETRY_LABEL: director
         shell: bash
         run: |
+          trusted_integration=$(cat "$RUNNER_TEMP/chorescore-trusted-integration.json")
           prompt=$(cat <<EOF
           You are ChoreScore Application Director for cycle $CYCLE_INDEX (GitHub run $CYCLE_KEY; cap $MAX_CYCLES where 0 is unlimited).
           The current checkout is the persistent accepted branch lab/chorescore. Read MAIN_PROMPT.md, governance/roles/RELEASE_DIRECTOR.md, governance/RELEASE_DEFINITION.json, docs/RELEASE_STATUS.json, directives/TASKS.json and directives/DIRECTOR.md first.
 
           Aggregate job state: candidate=$CANDIDATE_RESULT, initial-audit=$AUDIT_RESULT, repair=$REPAIR_RESULT, final-audit=$REAUDIT_RESULT.
+          Trusted shell integration manifest: $trusted_integration
+
+          The accepted candidate deltas in that manifest are already applied exactly by the trusted shell. Do not edit app/, src/, tests/, functions/, rules, Firebase files or docs/security. Your job is now to record or reject this evidence, update release state and assign the next bounded work. Any deterministic defect must be returned to the relevant coding specialist for a fresh audit; never repair product code yourself.
 
           Current evidence:
           - MOBILE original=/tmp/chorescore_mobile found=$MOBILE_FOUND; initial audit=/tmp/chorescore_audit_mobile found=$MOBILE_AUDIT_FOUND.
@@ -1084,16 +995,16 @@ jobs:
           - recovery BACKEND repaired=/tmp/chorescore_recovery_backend_repaired found=$RECOVERY_BACKEND_REPAIRED_FOUND; final audit=/tmp/chorescore_recovery_audit_backend_final found=$RECOVERY_BACKEND_FINAL_AUDIT_FOUND.
           Legacy evidence exists only for reference: backend=/tmp/chorescore_legacy_backend found=$LEGACY_BACKEND_FOUND; audit=/tmp/chorescore_legacy_audit found=$LEGACY_AUDIT_FOUND.
 
-          Apply these non-negotiable integration rules independently for mobile and backend:
+          Review these non-negotiable evidence rules independently for mobile and backend:
           1. A repaired candidate plus its round-2 final audit supersedes the original candidate and initial audit. Never integrate both versions.
           2. If no repair was requested, only the original candidate plus its matching round-1 audit may be considered.
           3. Integration requires a present matching JSON audit whose schema is valid, whose decision is exactly "accept", and whose findings all have mustFix=false. Markdown prose, an upstream success status, or a passing check never substitutes for that JSON decision.
           4. A missing or invalid audit, decision "repair" or "reject", mismatched cycle/role/round, or missing matching candidate means do not integrate that role.
           5. For every non-accepted final audit, copy every unresolved requiredFix and verification into the next directive for that same code specialist before assigning new feature work. These corrections have priority in the next global cycle.
           6. Treat recovery candidates by the same matching-pair rules. Legacy prose-only evidence is not sufficient for integration.
-          7. Re-run deterministic checks after integration and revert or repair only proven causes. Never weaken a check.
+          7. Deterministic checks run after your planning pass. If they fail, record the proven cause for the next code/audit cycle; never alter product code or weaken a check.
 
-          Integrate only independently accepted and still-applicable work into the accepted checkout. Record exactly which candidate/audit pair was used or rejected and answer every finding. Update docs/RELEASE_STATUS.json, directives/TASKS.json, directives/MOBILE.md, directives/BACKEND.md, directives/AUDITOR.md and docs/NEXT_CYCLE.md. Activate only roles needed by one or two incomplete DRC criteria. Then write reports/director/CYCLE_${CYCLE_KEY}.md and its required JSON, including activeCriteria and progressEvidence. Apply the deterministic stagnation rule from your immutable job description. Do not edit workflows, agent definitions, dependencies, governance or MAIN_PROMPT.md. Human note, subordinate to the constitution: ${HUMAN_NOTE:-}
+          The trusted shell has already integrated only independently accepted work. Record exactly which manifest candidate/audit pair was used or rejected and answer every finding. Update docs/RELEASE_STATUS.json, directives/TASKS.json, directives/MOBILE.md, directives/BACKEND.md, directives/AUDITOR.md and docs/NEXT_CYCLE.md. Activate only roles needed by one or two incomplete DRC criteria. Then write reports/director/CYCLE_${CYCLE_KEY}.md and its required JSON, including activeCriteria and progressEvidence. Apply the deterministic stagnation rule from your immutable job description. Do not edit product code, workflows, agent definitions, dependencies, governance or MAIN_PROMPT.md. Human note, subordinate to the constitution: ${HUMAN_NOTE:-}
           EOF
           )
           bash .github/scripts/run-opencode-with-retry.sh opencode run \
@@ -1101,8 +1012,13 @@ jobs:
             --agent cycle-director \
             "$prompt"
 
+      - name: Verify Director preserved the audited product tree
+        id: trusted_product
+        shell: bash
+        run: bash .github/scripts/trusted-product-tree.sh verify "$RUNNER_TEMP/chorescore-trusted-product.sha256"
+
       - name: Verify integrated application
-        id: first_verification
+        id: verification
         continue-on-error: true
         shell: bash
         run: |
@@ -1114,27 +1030,9 @@ jobs:
             bash .github/scripts/verify-product-coherence.sh
           } 2>&1 | tee "$RUNNER_TEMP/chorescore-verification.log"
 
-      - name: Repair once from deterministic evidence
-        if: ${{ steps.first_verification.outcome == 'failure' }}
-        env:
-          OPENCODE_RETRY_LABEL: director-repair
-        shell: bash
-        run: |
-          bash .github/scripts/run-opencode-with-retry.sh opencode run \
-            --model "$OX_MODEL" \
-            --agent cycle-director \
-            "Deterministic verification for ChoreScore cycle $CYCLE_KEY failed. Read $RUNNER_TEMP/chorescore-verification.log, repair only proven causes inside the Director scope, and update both Director reports. Never mask a check, add a dependency, alter orchestration or touch MAIN_PROMPT.md."
-
-      - name: Verify repaired application
-        if: ${{ steps.first_verification.outcome == 'failure' }}
-        run: |
-          npm run check
-          npx --no-install expo export --platform android --output-dir "$RUNNER_TEMP/chorescore-android-repaired"
-          npm --prefix functions run check
-          bash .github/scripts/verify-product-coherence.sh
-
       - name: Validate Director decision and scope
         id: decision
+        if: ${{ steps.trusted_product.outcome == 'success' && steps.verification.outcome == 'success' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -1261,7 +1159,7 @@ jobs:
             ${{ steps.apk_build.outputs.apk_path }}
             ${{ runner.temp }}/chorescore-runtime-smoke
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 90
           compression-level: 0
 
       - name: Record successful APK evidence
@@ -1277,7 +1175,7 @@ jobs:
           mkdir -p reports/artifacts
           artifact_name="chorescore-demo-rc-$SOURCE_SHA"
           report="reports/artifacts/DEMO_APK_$SOURCE_SHA.json"
-          jq -n             --arg sourceSha "$SOURCE_SHA"             --arg runId "$GITHUB_RUN_ID"             --arg artifactName "$artifact_name"             --arg apkSha256 "$APK_SHA256"             '{schemaVersion:1, sourceSha:$sourceSha, workflowRun:$runId, artifactName:$artifactName, apkSha256:$apkSha256, installable:true, standalone:true, runtimeSmoke:{apiLevel:35, networkDisabled:true, metroRequired:false, renderedText:"ChoreScore"}}'             > "$report"
+          jq -n             --arg sourceSha "$SOURCE_SHA"             --arg runId "$GITHUB_RUN_ID"             --arg artifactName "$artifact_name"             --arg apkSha256 "$APK_SHA256"             '{schemaVersion:1, sourceSha:$sourceSha, workflowRun:$runId, artifactName:$artifactName, apkSha256:$apkSha256, installable:true, standalone:true, runtimeSmoke:{apiLevel:35, networkDisabled:true, metroRequired:false, renderedText:"ChoreScore", onboardingCompleted:true, timerPersistedAcrossRestart:true, coreNavigationVisited:true}}'             > "$report"
 
           tmp=$(mktemp)
           jq --arg cycle "$CYCLE_KEY" --arg report "$report" --arg sha "$APK_SHA256" '
@@ -1292,7 +1190,7 @@ jobs:
                   },
                   {
                     kind: "runtime-smoke",
-                    reference: ($report + " — démarrage Android API 35 sans Metro, réseau désactivé, interface ChoreScore rendue"),
+                    reference: ($report + " — onboarding traversé, chronomètre repris après redémarrage et quatre destinations visitées sur Android API 35 sans Metro ni réseau"),
                     cycle: $cycle
                   }
                 ]
@@ -1318,8 +1216,19 @@ jobs:
           mv "$tmp" "$director_json"
           printf '\n## Artefact final\n\n- Source : `%s`\n- APK SHA-256 : `%s`\n- Run : %s\n'             "$SOURCE_SHA" "$APK_SHA256" "$GITHUB_RUN_ID" >> "$director_md"
 
+      - name: Verify committed final release attestation
+        id: final_release_gate
+        if: >-
+          ${{ steps.decision.outcome == 'success' &&
+              steps.decision.outputs.decision == 'stop' &&
+              (steps.apk_source.outputs.required != 'true' ||
+               steps.finalize_apk.outcome == 'success') }}
+        continue-on-error: true
+        shell: bash
+        run: bash .github/scripts/verify-final-release.sh
+
       - name: Preserve rejected Director state for recovery
-        if: ${{ always() && (steps.decision.outcome == 'failure' || steps.apk_build.outcome == 'failure' || steps.android_kvm.outcome == 'failure' || steps.apk_smoke.outcome == 'failure' || steps.apk_upload.outcome == 'failure' || steps.finalize_apk.outcome == 'failure') }}
+        if: ${{ always() && (steps.director_run.outcome == 'failure' || steps.trusted_product.outcome == 'failure' || steps.verification.outcome == 'failure' || steps.decision.outcome == 'failure' || steps.apk_build.outcome == 'failure' || steps.android_kvm.outcome == 'failure' || steps.apk_smoke.outcome == 'failure' || steps.apk_upload.outcome == 'failure' || steps.finalize_apk.outcome == 'failure' || (steps.decision.outputs.decision == 'stop' && steps.final_release_gate.outcome != 'success')) }}
         env:
           GH_TOKEN: ${{ github.token }}
           SNAPSHOT_BRANCH: cycle/chorescore/${{ github.run_id }}/director-recovery
@@ -1340,10 +1249,10 @@ jobs:
           git -c "http.extraheader=AUTHORIZATION: basic $auth" push --force origin "HEAD:refs/heads/$SNAPSHOT_BRANCH"
           echo "::warning::Director state preserved on $SNAPSHOT_BRANCH; accepted lane unchanged."
 
-      - name: Fail closed when final APK evidence is incomplete
-        if: ${{ steps.apk_source.outputs.required == 'true' && (steps.apk_build.outcome != 'success' || steps.android_kvm.outcome != 'success' || steps.apk_smoke.outcome != 'success' || steps.apk_upload.outcome != 'success' || steps.finalize_apk.outcome != 'success') }}
+      - name: Fail closed when integration or final evidence is incomplete
+        if: ${{ always() && (steps.director_run.outcome == 'failure' || steps.trusted_product.outcome == 'failure' || steps.verification.outcome == 'failure' || steps.decision.outcome == 'failure' || (steps.apk_source.outputs.required == 'true' && (steps.apk_build.outcome != 'success' || steps.android_kvm.outcome != 'success' || steps.apk_smoke.outcome != 'success' || steps.apk_upload.outcome != 'success' || steps.finalize_apk.outcome != 'success')) || (steps.decision.outputs.decision == 'stop' && steps.final_release_gate.outcome != 'success')) }}
         run: |
-          echo "::error::The final APK was not built, launched offline, uploaded and recorded; accepted state remains unchanged."
+          echo "::error::Trusted integration, deterministic verification or final APK attestation is incomplete; accepted state remains unchanged."
           exit 1
 
       - name: Advance persistent accepted lane
@@ -1358,7 +1267,7 @@ jobs:
           git config user.email chorescore-application-director@users.noreply.github.com
           git add -- app src tests functions/src functions/test docs/NEXT_CYCLE.md docs/RELEASE_STATUS.json docs/security \
             directives/TASKS.json directives/MOBILE.md directives/BACKEND.md directives/AUDITOR.md reports/audits reports/director
-          for path in firestore.rules firestore.indexes.json storage.rules firebase.json; do
+          for path in reports/artifacts firestore.rules firestore.indexes.json storage.rules firebase.json; do
             test ! -e "$path" || git add -- "$path"
           done
           git commit --allow-empty -m "ChoreScore cycle $CYCLE_KEY: audited accepted state"
@@ -1404,14 +1313,28 @@ jobs:
           MAX_CYCLES: ${{ needs.prepare.outputs.max_cycles }}
         shell: bash
         run: |
+          set -euo pipefail
           next=$((CYCLE_INDEX + 1))
           gh workflow run chorescore-loop.yml --repo "$GITHUB_REPOSITORY" --ref main \
             -f human_note="$HUMAN_NOTE" -f cycle_index="$next" -f max_cycles="$MAX_CYCLES" \
             -f recovery_cycle_key=none
+          for _ in {1..20}; do
+            successor=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow chorescore-loop.yml --limit 20 \
+              --json databaseId,status,createdAt |
+              jq -c --argjson current "$GITHUB_RUN_ID" \
+                '[.[] | select(.databaseId != $current and .status != "completed")] | sort_by(.createdAt) | last // empty')
+            [[ -n "$successor" ]] && exit 0
+            sleep 2
+          done
+          echo "::error::Le cycle suivant a été demandé mais aucun successeur n'est observable."
+          exit 1
 
   terminal_failure_report:
     name: Report failed autonomous cycle
     needs: [prepare, candidate, audit, repair, reaudit, director]
+    permissions:
+      contents: read
+      actions: write
     if: ${{ always() && needs.director.result != 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -1458,3 +1381,13 @@ jobs:
           gh workflow run chorescore-loop.yml --repo "$GITHUB_REPOSITORY" --ref main \
             -f human_note="$HUMAN_NOTE" -f cycle_index="$cycle_index" -f max_cycles=0 \
             -f recovery_cycle_key="$GITHUB_RUN_ID"
+          for _ in {1..20}; do
+            successor=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow chorescore-loop.yml --limit 20 \
+              --json databaseId,status,createdAt |
+              jq -c --argjson current "$GITHUB_RUN_ID" \
+                '[.[] | select(.databaseId != $current and .status != "completed")] | sort_by(.createdAt) | last // empty')
+            [[ -n "$successor" ]] && exit 0
+            sleep 2
+          done
+          echo "::error::La récupération a été demandée mais aucun nouveau cycle n'est observable."
+          exit 1

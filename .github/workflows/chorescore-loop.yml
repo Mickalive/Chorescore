@@ -451,7 +451,7 @@ jobs:
   merge_candidate:
     name: Merge disjoint candidate slices — ${{ matrix.role }}
     needs: [prepare, candidate]
-    if: ${{ always() && needs.prepare.result == 'success' && needs.candidate.result == 'success' }}
+    if: ${{ always() && needs.prepare.result == 'success' && needs.candidate.result != 'cancelled' }}
     permissions:
       contents: write
     strategy:
@@ -516,7 +516,7 @@ jobs:
   preflight:
     name: Parallel deterministic preflight — ${{ matrix.role }}
     needs: [prepare, merge_candidate]
-    if: ${{ always() && needs.prepare.result == 'success' && needs.merge_candidate.result == 'success' }}
+    if: ${{ always() && needs.prepare.result == 'success' && needs.merge_candidate.result != 'cancelled' }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.prepare.outputs.role_matrix) }}
@@ -563,7 +563,7 @@ jobs:
     needs: [prepare, merge_candidate]
     permissions:
       contents: write
-    if: ${{ always() && needs.prepare.result == 'success' && needs.merge_candidate.result == 'success' }}
+    if: ${{ always() && needs.prepare.result == 'success' && needs.merge_candidate.result != 'cancelled' }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.prepare.outputs.role_matrix) }}
@@ -957,11 +957,6 @@ jobs:
             package-lock.json
             functions/package-lock.json
 
-      - name: Install locked dependencies
-        run: |
-          npm ci --ignore-scripts --no-audit --no-fund
-          npm --prefix functions ci --ignore-scripts --no-audit --no-fund
-
       - name: Mount candidates, corrections, audits and recovery
         id: mount
         env:
@@ -1184,6 +1179,23 @@ jobs:
         shell: bash
         run: |
           trusted_integration=$(cat "$RUNNER_TEMP/chorescore-trusted-integration.json")
+          verification_status="$RUNNER_TEMP/chorescore-parallel-verification.status"
+          verification_log="$RUNNER_TEMP/chorescore-verification.log"
+          (
+            set +e
+            set -o pipefail
+            {
+              npm ci --ignore-scripts --no-audit --no-fund
+              npm --prefix functions ci --ignore-scripts --no-audit --no-fund
+              npm run check
+              npx --no-install expo export --platform android --output-dir "$RUNNER_TEMP/chorescore-android"
+              npm --prefix functions run check
+            } 2>&1 | tee "$verification_log"
+            status=${PIPESTATUS[0]}
+            printf '%s\n' "$status" > "$verification_status"
+            exit 0
+          ) &
+          verification_pid=$!
           prompt=$(cat <<EOF
           You are ChoreScore Application Director for cycle $CYCLE_INDEX (GitHub run $CYCLE_KEY; cap $MAX_CYCLES where 0 is unlimited).
           The current checkout is the persistent accepted branch lab/chorescore. Read MAIN_PROMPT.md, governance/roles/RELEASE_DIRECTOR.md, governance/RELEASE_DEFINITION.json, docs/RELEASE_STATUS.json, directives/TASKS.json and directives/DIRECTOR.md first. Stay on the structured control plane: use the trusted integration manifest and audit JSON as evidence, do not rescan the repository or reread the full candidate diff, and do not rerun deterministic tests. Open product source only when one specific unresolved audit finding cannot be decided from the structured evidence, or inspect only the relevant path tree when an exact two-slice partition needs real existing path prefixes. Keep each next coding assignment to one coherent sub-slice expected to touch no more than about 12 files; defer the rest to a later cycle.
@@ -1213,33 +1225,42 @@ jobs:
           4. A missing or invalid audit, decision "repair" or "reject", mismatched cycle/role/round, or missing matching candidate means do not integrate that role.
           5. For every non-accepted final audit, copy every unresolved requiredFix and verification into the next directive for that same code specialist before assigning new feature work. These corrections have priority in the next global cycle.
           6. Treat recovery candidates by the same matching-pair rules. Legacy prose-only evidence is not sufficient for integration.
-          7. Deterministic checks run after your planning pass. If they fail, record the proven cause for the next code/audit cycle; never alter product code or weaken a check.
+          7. Broad deterministic checks and Android export run concurrently with your planning pass on the frozen audited product tree. Do not duplicate them. If their result later fails, the workflow fails closed and returns the proven cause to a later code/audit cycle; never alter product code or weaken a check.
 
           The trusted shell has already integrated only independently accepted work. Record exactly which manifest candidate/audit pair was used or rejected and answer every finding. Update docs/RELEASE_STATUS.json, directives/TASKS.json, directives/MOBILE.md, directives/BACKEND.md, directives/AUDITOR.md and docs/NEXT_CYCLE.md. Activate only roles needed by one or two incomplete DRC criteria. For each enabled role, decide the next work shape in directives/TASKS.json: if the next coherent mission is realistically expected to require more than about 12 changed files and can be separated safely, add assignments.<role>.slices with exactly two entries in order, ids "a" and "b"; each entry must have a precise objective and a non-empty allowedPaths array of clean relative path prefixes, the two path-prefix perimeters must not overlap, and each slice must be independently implementable from the same accepted base within at most 12 changed files. If those conditions are not all true, omit/remove slices and assign one bounded coherent mission instead. Never create more than two slices and never split work that needs both slices editing the same file. Then write reports/director/CYCLE_${CYCLE_KEY}.md and its required JSON, including activeCriteria and progressEvidence. Apply the deterministic stagnation rule from your immutable job description. Do not edit product code, workflows, agent definitions, dependencies, governance or MAIN_PROMPT.md. Human note, subordinate to the constitution: ${HUMAN_NOTE:-}
           EOF
           )
+          set +e
           bash .github/scripts/run-opencode-with-retry.sh opencode run \
             --model "$OX_MODEL" \
             --agent cycle-director \
             "$prompt"
+          director_status=$?
+          set -e
+          wait "$verification_pid" || true
+          test -s "$verification_status" || printf '1\n' > "$verification_status"
+          exit "$director_status"
 
       - name: Verify Director preserved the audited product tree
         id: trusted_product
         shell: bash
         run: bash .github/scripts/trusted-product-tree.sh verify "$RUNNER_TEMP/chorescore-trusted-product.sha256"
 
-      - name: Verify integrated application
+      - name: Complete parallel deterministic verification
         id: verification
         continue-on-error: true
         shell: bash
         run: |
-          set -o pipefail
-          {
-            npm run check
-            npx --no-install expo export --platform android --output-dir "$RUNNER_TEMP/chorescore-android"
-            npm --prefix functions run check
-            bash .github/scripts/verify-product-coherence.sh
-          } 2>&1 | tee "$RUNNER_TEMP/chorescore-verification.log"
+          set -euo pipefail
+          status_file="$RUNNER_TEMP/chorescore-parallel-verification.status"
+          log_file="$RUNNER_TEMP/chorescore-verification.log"
+          test -s "$status_file"
+          status=$(cat "$status_file")
+          if [[ "$status" != 0 ]]; then
+            test ! -f "$log_file" || tail -n 300 "$log_file"
+            exit "$status"
+          fi
+          bash .github/scripts/verify-product-coherence.sh
 
       - name: Validate Director decision and scope
         id: decision

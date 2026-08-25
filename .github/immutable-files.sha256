@@ -1,4 +1,5 @@
 e0aa2d2d61a099b925f678a6ababbe661cddfdf02573f1fa25aea714244c66e3  .github/scripts/ensure-continuous-loop.sh
+60dc3bb70926c279fcd671e3f9a6cb77ae011a5c7e645515bb50ff0eb1369b0d  .github/scripts/normalize-audit-json.sh
 7a24597fef493aba8b18e33db755083d69e86a2ae286f18f5c37565739802731  .github/scripts/validate-release-state.sh
 0b821695627fbfcc52dd79fab05e22fcc5b2469984d25712a458fd28f52bf80f  .github/scripts/verify-immutable-governance.sh
 6a84e3946f3abd6c8379e549dee86feae5210ed853457eccd4292a6a79d43ecd  .opencode/agents/backend-cycle-runner.md

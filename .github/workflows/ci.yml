@@ -93,7 +93,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
-      IMMUTABLE_MANIFEST_SHA256: a1ca772acf99f51a2ebc8f0ac336724601c3609f8a401c8b7ada8b465ef4e991
+      IMMUTABLE_MANIFEST_SHA256: f95a28f17d28875297e067522aaf421c0ed12072d50e22fd058605fd1a43ffca
     steps:
       - name: Checkout immutable governance
         uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
@@ -112,6 +112,7 @@ jobs:
           bash -n .github/scripts/run-opencode-with-retry.sh
           bash -n .github/scripts/recover-transient-opencode.sh
           bash -n .github/scripts/ensure-continuous-loop.sh
+          bash -n .github/scripts/normalize-audit-json.sh
           bash -n .github/scripts/smoke-android-apk.sh
           bash -n .github/scripts/verify-product-coherence.sh
           bash .github/scripts/verify-product-coherence.sh

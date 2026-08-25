@@ -39,7 +39,7 @@ env:
   OPENCODE_RETRY_DELAY_SECONDS: "300"
   LANE_BRANCH: lab/chorescore
   MAIN_PROMPT_SHA256: c3e1b4e0b0a42af3fb64a4ee10043252e763866d670c6e942f5f380583d30d97
-  IMMUTABLE_MANIFEST_SHA256: a1ca772acf99f51a2ebc8f0ac336724601c3609f8a401c8b7ada8b465ef4e991
+  IMMUTABLE_MANIFEST_SHA256: f95a28f17d28875297e067522aaf421c0ed12072d50e22fd058605fd1a43ffca
   CYCLE_KEY: ${{ github.run_id }}
   CI: "true"
   EXPO_NO_TELEMETRY: "1"
@@ -454,6 +454,9 @@ jobs:
           role_upper=$(tr '[:lower:]' '[:upper:]' <<<"$ROLE")
           report_md="reports/audits/CYCLE_${CYCLE_KEY}_${role_upper}.md"
           report_json="reports/audits/CYCLE_${CYCLE_KEY}_${role_upper}.json"
+          test -s "$report_md"
+          test -s "$report_json"
+          bash .github/scripts/normalize-audit-json.sh "$report_json"
           unexpected=0
           while IFS= read -r -d '' path; do
             case "$path" in reports/audits/*) ;; *) unexpected=1; echo "::error::Unexpected audit path: $path" ;; esac
@@ -466,8 +469,6 @@ jobs:
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
           git -c "http.extraheader=AUTHORIZATION: basic $auth" push --force origin "HEAD:refs/heads/$BRANCH"
           test "$unexpected" -eq 0
-          test -s "$report_md"
-          test -s "$report_json"
           jq -e --arg cycle "$CYCLE_KEY" --arg role "$ROLE" '
             .schemaVersion == 1 and
             (.cycle | tostring) == $cycle and
@@ -778,6 +779,9 @@ jobs:
           role_upper=$(tr '[:lower:]' '[:upper:]' <<<"$ROLE")
           report_md="reports/audits/CYCLE_${CYCLE_KEY}_${role_upper}_FINAL.md"
           report_json="reports/audits/CYCLE_${CYCLE_KEY}_${role_upper}_FINAL.json"
+          test -s "$report_md"
+          test -s "$report_json"
+          bash .github/scripts/normalize-audit-json.sh "$report_json"
           unexpected=0
           while IFS= read -r -d '' path; do
             case "$path" in reports/audits/*) ;; *) unexpected=1; echo "::error::Unexpected final audit path: $path" ;; esac
@@ -790,8 +794,6 @@ jobs:
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
           git -c "http.extraheader=AUTHORIZATION: basic $auth" push --force origin "HEAD:refs/heads/$BRANCH"
           test "$unexpected" -eq 0
-          test -s "$report_md"
-          test -s "$report_json"
           jq -e --arg cycle "$CYCLE_KEY" --arg role "$ROLE" '
             .schemaVersion == 1 and
             (.cycle | tostring) == $cycle and
@@ -952,6 +954,9 @@ jobs:
               find "$directory/reports/audits" -maxdepth 1 -type f -exec cp {} reports/audits/ \;
             fi
           done
+          while IFS= read -r audit_json; do
+            bash .github/scripts/normalize-audit-json.sh "$audit_json"
+          done < <(find reports/audits -maxdepth 1 -type f -name '*.json' -print)
 
       - name: Require complete structured audit evidence
         env:
@@ -1409,7 +1414,7 @@ jobs:
     needs: [prepare, candidate, audit, repair, reaudit, director]
     if: ${{ always() && needs.director.result != 'success' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Report terminal failure
         continue-on-error: true
@@ -1425,3 +1430,31 @@ jobs:
         run: |
           body=$(printf '### Cycle ChoreScore arrêté avant intégration\n\n- Run : [%s](https://github.com/%s/actions/runs/%s)\n- Préparation : **%s**\n- Candidats : **%s**\n- Audits initiaux : **%s**\n- Corrections par les codeurs : **%s**\n- Seconds audits : **%s**\n- Directeur : **%s**\n\nLes snapshots déjà poussés restent récupérables ; `lab/chorescore` n’est pas avancée sans validation.' "$GITHUB_RUN_ID" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$PREPARE_RESULT" "$CANDIDATE_RESULT" "$AUDIT_RESULT" "$REPAIR_RESULT" "$REAUDIT_RESULT" "$DIRECTOR_RESULT")
           printf '%s\n' "$body"
+
+      - name: Wait five minutes before autonomous recovery
+        run: sleep 300
+
+      - name: Dispatch a recovery cycle from this failed run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HUMAN_NOTE: ${{ inputs.human_note }}
+          PREPARED_CYCLE_INDEX: ${{ needs.prepare.outputs.cycle_index }}
+          INPUT_CYCLE_INDEX: ${{ inputs.cycle_index }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cycle_index="${PREPARED_CYCLE_INDEX:-${INPUT_CYCLE_INDEX:-1}}"
+          [[ "$cycle_index" =~ ^[1-9][0-9]*$ ]] || cycle_index=1
+
+          active=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow chorescore-loop.yml --limit 20 \
+            --json databaseId,status,createdAt |
+            jq -c --argjson current "$GITHUB_RUN_ID" \
+              '[.[] | select(.databaseId != $current and .status != "completed")] | sort_by(.createdAt) | last // empty')
+          if [[ -n "$active" ]]; then
+            echo "Un cycle successeur existe déjà ; aucune duplication."
+            exit 0
+          fi
+
+          gh workflow run chorescore-loop.yml --repo "$GITHUB_REPOSITORY" --ref main \
+            -f human_note="$HUMAN_NOTE" -f cycle_index="$cycle_index" -f max_cycles=0 \
+            -f recovery_cycle_key="$GITHUB_RUN_ID"

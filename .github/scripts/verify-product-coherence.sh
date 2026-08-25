@@ -4,6 +4,16 @@ set -euo pipefail
 status="docs/RELEASE_STATUS.json"
 test -s "$status"
 
+jq -e '
+  . as $release |
+  all(.criteria[];
+    . as $criterion |
+    $criterion.status != "complete" or
+    ([ $release.openFindings[]? |
+       select(.criterionId == $criterion.id and .mustFixBeforeRelease == true and .status != "resolved") ] | length) == 0
+  )
+' "$status" >/dev/null
+
 criterion_complete() {
   local id="$1"
   jq -e --arg id "$id" 'any(.criteria[]; .id == $id and .status == "complete")' "$status" >/dev/null

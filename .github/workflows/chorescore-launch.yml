@@ -122,19 +122,28 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          latest_loop=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow chorescore-loop.yml --limit 1 \
-            --json databaseId --jq '.[0].databaseId // empty')
+          release_status=$(gh api "repos/$GITHUB_REPOSITORY/contents/docs/RELEASE_STATUS.json?ref=lab%2Fchorescore" \
+            --jq '.content' 2>/dev/null | tr -d '\n' | base64 --decode 2>/dev/null || printf '{}')
+          evidence_runs=$(jq -c '[.criteria[]?.evidence[]?.cycle | select(test("^[1-9][0-9]*$")) | tonumber] | unique' <<<"$release_status")
+          recent_loops=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow chorescore-loop.yml --limit 3 \
+            --json databaseId --jq '[.[].databaseId]')
+          recent_ci=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --limit 3 \
+            --json databaseId --jq '[.[].databaseId]')
+          protected=$(jq -cn --argjson evidence "$evidence_runs" --argjson loops "$recent_loops" --argjson ci "$recent_ci" \
+            '$evidence + $loops + $ci | unique')
+          latest_loop=$(jq -r '.[0] // empty' <<<"$recent_loops")
           deleted_ids=()
           while IFS= read -r run; do
             id=$(jq -r '.databaseId' <<<"$run")
             status=$(jq -r '.status' <<<"$run")
             workflow=$(jq -r '.workflowName' <<<"$run")
-            head_sha=$(jq -r '.headSha' <<<"$run")
 
             [[ "$id" == "$GITHUB_RUN_ID" ]] && continue
-            [[ -n "$latest_loop" && "$id" == "$latest_loop" ]] && continue
             [[ "$status" != completed ]] && continue
-            [[ "$workflow" == CI && "$head_sha" == "$GITHUB_SHA" ]] && continue
+            if jq -e --argjson id "$id" 'index($id) != null' <<<"$protected" >/dev/null; then
+              echo "Preserving evidence/recent run $id ($workflow)"
+              continue
+            fi
 
             echo "Deleting superseded run $id ($workflow)"
             if gh run delete "$id" --repo "$GITHUB_REPOSITORY"; then
@@ -144,7 +153,7 @@ jobs:
             fi
           done < <(
             gh run list --repo "$GITHUB_REPOSITORY" --limit 100 \
-              --json databaseId,status,workflowName,headSha,createdAt |
+              --json databaseId,status,workflowName,createdAt |
             jq -c '.[]'
           )
 
@@ -154,7 +163,7 @@ jobs:
           else
             deleted_list=$(IFS=', '; echo "${deleted_ids[*]}")
           fi
-          body=$(printf '### Nettoyage GitHub Actions terminé\n\n- Runs obsolètes supprimés : **%s**\n- Identifiants : `%s`\n- Dernier cycle autonome préservé : `%s`\n\nBranches, commits, snapshots et rapports inchangés.' "$deleted_count" "$deleted_list" "$latest_loop")
+          body=$(printf '### Nettoyage GitHub Actions terminé\n\n- Runs obsolètes supprimés : **%s**\n- Identifiants : `%s`\n- Cycles porteurs de preuves et trois derniers runs de chaque pipeline : préservés\n- Dernier cycle autonome : `%s`\n\nBranches, commits, snapshots et rapports inchangés.' "$deleted_count" "$deleted_list" "$latest_loop")
           printf '%s\n' "$body" ||
             echo "::warning::Nettoyage terminé, mais commentaire de suivi impossible."
 
@@ -169,20 +178,9 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Wait five minutes after a completed autonomous run
+      - name: Wait for the loop's own five-minute recovery
         if: ${{ github.event_name == 'workflow_run' }}
-        run: sleep 300
-
-      - name: Re-run only transiently failed jobs
-        if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure' }}
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-          CHORESCORE_LOOP_WORKFLOW: chorescore-loop.yml
-          CHORESCORE_TRACKING_ISSUE: "3"
-          CHORESCORE_RERUN_ROLLOVER_ATTEMPT: "45"
-        shell: bash
-        run: bash .github/scripts/recover-transient-opencode.sh
+        run: sleep 720
 
       - name: Guarantee a successor until the release is complete
         if: ${{ always() }}

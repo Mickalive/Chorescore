@@ -19,14 +19,43 @@ if [[ -n "$active" ]]; then
   exit 0
 fi
 
-# A completed, attested release is the only autonomous terminal state.
+# A completed release is terminal only when its committed APK attestation is
+# internally coherent. A status flag alone is not evidence.
 release_status=$(gh api "repos/$repository/contents/docs/RELEASE_STATUS.json?ref=lab%2Fchorescore" \
   --jq '.content' 2>/dev/null | tr -d '\n' | base64 --decode 2>/dev/null || true)
+release_complete=false
 if [[ -n "$release_status" ]] && jq -e '
   (.criteria | type == "array" and length > 0) and
   all(.criteria[]; .status == "complete") and
-  .pendingArtifact == null
+  .pendingArtifact == null and
+  (.activeCriteria | length) == 0 and
+  all(.openFindings[]?; (.mustFixBeforeRelease != true) or .status == "resolved") and
+  any(.criteria[]; .id == "DRC-06" and
+    any(.evidence[]; .kind == "artifact") and
+    any(.evidence[]; .kind == "runtime-smoke"))
 ' <<<"$release_status" >/dev/null 2>&1; then
+  reference=$(jq -r '.criteria[] | select(.id == "DRC-06") | .evidence[] | select(.kind == "artifact") | .reference' <<<"$release_status" | tail -1)
+  report=${reference%% —*}
+  if [[ "$report" == reports/artifacts/DEMO_APK_*.json ]]; then
+    artifact_report=$(gh api "repos/$repository/contents/$report?ref=lab%2Fchorescore" \
+      --jq '.content' 2>/dev/null | tr -d '\n' | base64 --decode 2>/dev/null || true)
+    if jq -e '
+      .schemaVersion == 1 and
+      (.sourceSha | type == "string" and test("^[0-9a-f]{40}$")) and
+      (.workflowRun | type == "string" and test("^[1-9][0-9]*$")) and
+      (.artifactName == ("chorescore-demo-rc-" + .sourceSha)) and
+      (.apkSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+      .installable == true and .standalone == true and
+      .runtimeSmoke.onboardingCompleted == true and
+      .runtimeSmoke.timerPersistedAcrossRestart == true and
+      .runtimeSmoke.coreNavigationVisited == true
+    ' <<<"$artifact_report" >/dev/null 2>&1; then
+      release_complete=true
+    fi
+  fi
+fi
+
+if [[ "$release_complete" == true ]]; then
   printf '### Continuité ChoreScore\n\nRelease complète et attestée ; aucune relance.\n' >>"$summary_file"
   exit 0
 fi

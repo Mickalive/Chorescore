@@ -9,8 +9,8 @@ preuve.
 ## Résultats dont le poste est responsable
 
 - une branche `lab/chorescore` cumulative, cohérente et vérifiée ;
-- l'intégration exclusive des candidats associés à un audit machine valide
-  `accept` ;
+- le contrôle de l'intégration déterministe, par le shell de confiance, des
+  seuls candidats associés à un audit machine valide `accept` ;
 - un état de livraison fidèle dans `docs/RELEASE_STATUS.json` ;
 - des tâches suivantes petites, verticales et reliées à un critère rouge ;
 - l'activation du nombre minimal de codeurs nécessaire au cycle ;
@@ -18,9 +18,10 @@ preuve.
 
 ## Pouvoirs
 
-Le directeur peut intégrer ou rejeter le code candidat dans son périmètre
-produit. Il peut modifier exclusivement les fiches de tâches et l'état énumérés
-dans `governance/README.md`. Il peut désactiver un poste, imposer une correction
+Le directeur peut accepter ou rejeter une paire candidat/audit ; le shell de
+confiance applique son delta exact avant son passage. Il peut modifier
+exclusivement les fiches de tâches, l'état et ses rapports énumérés dans
+`governance/README.md`. Il peut désactiver un poste, imposer une correction
 prioritaire ou changer de critère après preuve de stagnation.
 
 ## Obligations
@@ -29,23 +30,25 @@ prioritaire ou changer de critère après preuve de stagnation.
    candidats et leurs audits correspondants.
 2. Répondre à chaque constat marqué `mustFix: true`.
 3. Ne jamais intégrer un candidat absent, non apparié ou non accepté.
-4. Ne déclarer un critère terminé que si chaque type de preuve exigé existe.
-5. Mettre à jour les tâches avec un identifiant de critère valide.
-6. Réinitialiser le compteur de stagnation uniquement sur progression objective.
-7. Tant qu'un critère reste incomplet, décider `continue`. Après deux cycles
+4. Ne jamais retoucher le code produit appliqué par le shell. Une vérification
+   rouge renvoie une correction prouvée au codeur et exige un nouvel audit.
+5. Ne déclarer un critère terminé que si chaque type de preuve exigé existe.
+6. Mettre à jour les tâches avec un identifiant de critère valide.
+7. Réinitialiser le compteur de stagnation uniquement sur progression objective.
+8. Tant qu'un critère reste incomplet, décider `continue`. Après deux cycles
    sans progrès ou face à un blocage, réduire, déplacer ou reformuler la tranche
    et poursuivre tout travail local encore possible. Ne décider `stop` que si
    tous les critères sont complets ou si DRC-06 est prêt pour l'attestation
    finale par le shell de confiance.
-8. Pour le dernier critère DRC-06, préparer l'état `pendingArtifact` et laisser
+9. Pour le dernier critère DRC-06, préparer l'état `pendingArtifact` et laisser
    le shell de confiance construire et attester l'APK avant tout avancement.
 
 ## Interdictions
 
-Aucune modification du prompt maître, des fiches de poste, de la définition de
-livraison, des workflows, des agents, du manifeste, des dépendances ou des
-lockfiles. Aucun secret, déploiement, paiement, fusion, contournement de test ou
-affirmation de sécurité absolue.
+Aucune modification du code produit, du prompt maître, des fiches de poste, de
+la définition de livraison, des workflows, des agents, du manifeste, des
+dépendances ou des lockfiles. Aucun secret, déploiement, paiement, fusion,
+contournement de test ou affirmation de sécurité absolue.
 
 ## Définition de terminé du poste
 

@@ -97,7 +97,10 @@ jobs:
               id=$(jq -r '.databaseId' <<<"$run")
               created=$(jq -r '.createdAt' <<<"$run")
               echo "Cancelling stale queued ChoreScore run $id (queued since $created)."
-              gh run cancel "$id" --repo "$GITHUB_REPOSITORY" || true
+              if ! gh run cancel "$id" --repo "$GITHUB_REPOSITORY"; then
+                echo "Cancellation API disagrees with listing; deleting stale ghost run $id."
+                gh run delete "$id" --repo "$GITHUB_REPOSITORY" || true
+              fi
             done <<<"$stale"
           }
 
@@ -237,7 +240,10 @@ jobs:
             id=$(jq -r '.databaseId' <<<"$run")
             created=$(jq -r '.createdAt' <<<"$run")
             echo "Cancelling stale queued ChoreScore run $id (queued since $created)."
-            gh run cancel "$id" --repo "$GITHUB_REPOSITORY" || true
+            if ! gh run cancel "$id" --repo "$GITHUB_REPOSITORY"; then
+              echo "Cancellation API disagrees with listing; deleting stale ghost run $id."
+              gh run delete "$id" --repo "$GITHUB_REPOSITORY" || true
+            fi
           done <<<"$stale"
 
           for attempt in {1..15}; do
@@ -247,7 +253,7 @@ jobs:
             (( remaining == 0 )) && exit 0
             sleep 2
           done
-          echo "::warning::A stale queued run is still cancelling; successor logic will retry on the next bridge event."
+          echo "::warning::A stale queued run is still visible after purge attempts; successor logic will retry on the next bridge event."
 
       - name: Guarantee a successor until the release is complete
         if: ${{ always() }}

@@ -8,6 +8,8 @@ on:
     paths-ignore:
       - ".chorescore/cleanup/**"
   workflow_dispatch:
+  schedule:
+    - cron: '*/30 * * * *'
 
 permissions:
   contents: read
@@ -24,6 +26,7 @@ env:
 jobs:
   app:
     name: Application
+    if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -58,6 +61,7 @@ jobs:
 
   functions:
     name: Functions
+    if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     defaults:
@@ -92,6 +96,7 @@ jobs:
 
   governance:
     name: Governance
+    if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
@@ -128,3 +133,26 @@ jobs:
           jq empty directives/TASKS.json
           test "$(find .opencode/agents -maxdepth 1 -type f -name '*.md' | wc -l)" -eq 4
           test "$(find .github/workflows -maxdepth 1 -type f -name '*.yml' | wc -l)" -eq 3
+
+  watchdog:
+    name: Continuity watchdog
+    needs: [app, functions, governance]
+    if: ${{ always() && (github.event_name == 'schedule' || ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.app.result == 'success' && needs.functions.result == 'success' && needs.governance.result == 'success')) }}
+    permissions:
+      contents: read
+      actions: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout continuity controller
+        uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Ensure unfinished ChoreScore factory is alive
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHORESCORE_LOOP_WORKFLOW: chorescore-loop.yml
+        shell: bash
+        run: bash .github/scripts/ensure-continuous-loop.sh

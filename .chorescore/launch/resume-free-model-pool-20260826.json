@@ -1,0 +1,5 @@
+{
+  "cycles": 0,
+  "human_note": "Continuer automatiquement jusqu'au produit final attesté. Terminer le blocker DRC-05 de contraste textSecondary et la documentation DRC-07, auditer chaque delta, puis DRC-06 avec APK standalone construit, installé sur Android API 35 et smoke-testé sans Metro ni réseau. Réutiliser l'état et les preuves déjà acceptés. Le pool de modèles gratuits doit basculer automatiquement si un fournisseur/modèle est indisponible.",
+  "recovery_cycle_key": "33002519799"
+}

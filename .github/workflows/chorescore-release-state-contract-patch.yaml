@@ -100,7 +100,6 @@ jobs:
             bash "$GITHUB_WORKSPACE/.github/scripts/validate-release-state.sh"
           )
 
-          # Negative guard: deferred/noted may never hide a release blocker.
           jq -n -e '
             def valid($f):
               ($f.status == "unresolved" or $f.status == "resolved" or $f.status == "deferred" or $f.status == "noted") and
@@ -120,14 +119,17 @@ jobs:
           bash .github/scripts/verify-workflow-architecture.sh
           test "$(find .github/workflows -maxdepth 1 -type f -name '*.yml' | wc -l)" -eq 3
 
-      - name: Publish corrected immutable contract atomically
+      - name: Stage validated replacement blobs
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p contract-generated
+          cp .github/scripts/validate-release-state.sh contract-generated/validate-release-state.sh.txt
+          cp .github/immutable-files.sha256 contract-generated/immutable-files.sha256.txt
+          cp .github/workflows/chorescore-loop.yml contract-generated/chorescore-loop.yml.txt
+          cp .github/workflows/ci.yml contract-generated/ci.yml.txt
           git config user.name chorescore-governance-fix
           git config user.email chorescore-governance-fix@users.noreply.github.com
-          git add .github/scripts/validate-release-state.sh .github/immutable-files.sha256 \
-            .github/workflows/chorescore-loop.yml .github/workflows/ci.yml
-          git add -u .github/workflows/chorescore-release-state-contract-patch.yaml
-          git commit -m 'ci: accept nonblocking finding lifecycle states safely'
+          git add contract-generated
+          git commit -m 'ci: stage validated release-state contract blobs'
           git push origin HEAD:main

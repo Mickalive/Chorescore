@@ -9,7 +9,7 @@ on:
       - ".chorescore/cleanup/**"
   workflow_dispatch:
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '*/5 * * * *'
 
 permissions:
   contents: read

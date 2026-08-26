@@ -1,0 +1,10 @@
+{
+  "requestedAt": "2026-08-26T21:13:00Z",
+  "reason": "Purge stale queued/ghost ChoreScore workflow runs and obsolete cycle branches after preserving accepted state and recent recovery snapshots under archive/chorescore/pre-cleanup-20260826/*.",
+  "preserved": [
+    "archive/chorescore/pre-cleanup-20260826/accepted",
+    "archive/chorescore/pre-cleanup-20260826/main",
+    "archive/chorescore/pre-cleanup-20260826/recovery-33008646265",
+    "archive/chorescore/pre-cleanup-20260826/recovery-33002519799"
+  ]
+}

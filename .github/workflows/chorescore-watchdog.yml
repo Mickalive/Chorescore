@@ -1,0 +1,33 @@
+name: ChoreScore Continuity Watchdog
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: chorescore-continuity-watchdog
+  cancel-in-progress: true
+
+jobs:
+  ensure-continuity:
+    name: Ensure autonomous loop is alive
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Relaunch only when no loop is active and release is incomplete
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHORESCORE_LOOP_WORKFLOW: chorescore-loop.yml
+        shell: bash
+        run: bash .github/scripts/ensure-continuous-loop.sh

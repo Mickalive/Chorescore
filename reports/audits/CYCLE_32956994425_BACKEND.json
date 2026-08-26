@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "cycle": "32956994425",
+  "role": "backend",
+  "round": 1,
+  "decision": "accept",
+  "summary": "Candidat backend af3f0c9 (base 33cd4ac = HEAD accepté) : BE-C4-F1 et BE-C4-F2 réalisés. Extracteur partagé observedCaller(request) épinglé par wiring.test.ts ; completeTask alimente decideTaskCompletion avec l'identité observée au lieu de constantes ; refus négatifs bi-foyers cross-foyer et cross-user testés sur le chemin production requête→observation→décision. Preuves de mutation indépendantes de l'auditeur sur copie jetable : retour aux constantes tasks.ts (rouge), retrait partiel + commentaire leurre (rouge), extracteur aveugle (5 rouges comportementaux). Vérifié : tsc strict OK, 105/105 tests (0 ignoré), audit prod exit 0 (7 modérées préexistantes, 0 high/critique), zéro dépendance/lockfile/service réel/secret/réseau, périmètre strictement functions/, MAIN_PROMPT intact, aucun test affaibli. Deux constats info non bloquants : traçage codeur de la preuve de mutation absent du snapshot (comblé par cet audit) et limites fail-closed de l'épinglage sans émulateur.",
+  "findings": [
+    {
+      "id": "BE-CYCLE32956994425-B1",
+      "severity": "info",
+      "path": "directives/TASKS.json",
+      "mustFix": false,
+      "problem": "L'acceptation BE-C4-F1 mentionne une preuve de mutation « fournie par le codeur » et directives/BACKEND.md exige qu'elle soit tracée ; or aucun rapport ou artefact codeur n'accompagne le snapshot candidat (le diff ne contient que les 7 fichiers functions/, aucune trace de la preuve).",
+      "evidence": "git diff 33cd4ac..af3f0c9 --name-status : uniquement functions/src/{callerIdentity,invitations,invites,tasks}.ts et functions/test/{invitations,taskCompletion,wiring}.test.ts ; aucun fichier de rapport nouveau sous reports/ ou docs/security/ dans le candidat ni sur les refs origin/cycle/chorescore/32956994425/backend[-full].",
+      "requiredFix": "Aucune correction du produit requise : la preuve est établie indépendamment par l'auditeur (mutations M1/M2/M3 rouges sur copie jetable, voir rapport MD §2), conformément à directives/AUDITOR.md et à la convention des cycles précédents. Le directeur référencera le présent audit comme traçage de la preuve BE-C4-F1 dans docs/RELEASE_STATUS.json.",
+      "verification": "Rejouer les trois mutations sur copie jetable : (1) tasks.ts caller revenu aux constantes → wiring.test.js échoue (0 !== 1) ; (2) un site invites.ts revenu aux constantes avec commentaire leurre contenant observedCaller(request) → wiring.test.js échoue (comptage 1 ≠ 2 + littéral détecté) ; (3) observedCaller rendu constant → 5 échecs comportementaux invitations+taskCompletion. Restauration : 105/105 verts."
+    },
+    {
+      "id": "BE-CYCLE32956994425-B2",
+      "severity": "info",
+      "path": "functions/test/wiring.test.ts",
+      "mustFix": false,
+      "problem": "L'épinglage repose sur un balayage de source (comptage exact de observedCaller(request) et détection de littéraux), faute d'émulateur pour exercer les handlers onCall bout en bout : il échouera à tort sur des changements bénins (commentaire futur citant l'appel, renommage de la variable request) et sa troisième assertion (présence de chaînes dans callerIdentity.ts) est documentaire ; un sabotage délibéré conservant le texte de l'appel en altérant la sémantique ne serait pas détecté par ce seul test.",
+      "evidence": "wiring.test.ts : countMatches(/observedCaller\\(\\s*request\\s*\\)/gu) égal à 2 (invites.ts) et 1 (tasks.ts) exigés ; CONSTANT_IDENTITY_LITERALS balaye le fichier brut commentaires inclus ; test 3 = includes('request.auth'/'request.app'/'email_verified'). Preuve M2 : le commentaire leurre ne masque pas la régression (fail-closed) ; preuve M3 : l'extracteur aveugle est rattrapé par 5 tests comportementaux, pas par le scan.",
+      "requiredFix": "Facultatif : exclure les commentaires du balayage des littéraux pour réduire les échecs faux ; le rattrapage sémantique complet reste l'incrément émulateur Firestore déjà programmé (constat F2-concurrence-sans-emulateur, cycle 32781937768), à conserver comme limite résiduelle consignée.",
+      "verification": "Direction d'échec vérifiée sûre : toute régression vers des constantes retire l'appel donc fait tomber le comptage (M1/M2 rouges) ; tout extracteur aveugle tombe sous les tests comportementaux (M3, 5 rouges). Aucun scénario de régression réaliste trouvé qui passe vert."
+    }
+  ],
+  "checks": []
+}

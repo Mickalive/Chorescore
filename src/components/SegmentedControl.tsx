@@ -1,5 +1,9 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { COLORS, RADIUS, SPACING } from './theme';
+import {
+  getSegmentContainerStyle,
+  getSegmentOptionStyle,
+} from './segmentedLayout';
+import { COLORS } from './theme';
 
 export type SegmentOption = {
   value: string;
@@ -11,15 +15,23 @@ export function SegmentedControl({
   value,
   onChange,
   accessibilityLabel,
+  wrap = false,
 }: {
   options: SegmentOption[];
   value: string;
   onChange: (value: string) => void;
   accessibilityLabel: string;
+  /**
+   * DRC-05 (MOB-C4-F1) : repli pour les segments au nombre ou au libellé
+   * variable (filtre membre de l'historique). `true` laisse les segments
+   * passer à la ligne au lieu de se compresser sur petit écran ou en grandes
+   * tailles de texte ; les rôles radio et la cible tactile sont conservés.
+   */
+  wrap?: boolean;
 }) {
   return (
     <View
-      style={styles.container}
+      style={getSegmentContainerStyle(wrap)}
       accessibilityRole="radiogroup"
       accessibilityLabel={accessibilityLabel}
     >
@@ -31,7 +43,7 @@ export function SegmentedControl({
             accessibilityRole="radio"
             accessibilityState={{ selected }}
             onPress={() => onChange(option.value)}
-            style={[styles.option, selected && styles.selected]}
+            style={[getSegmentOptionStyle(wrap), selected && styles.selected]}
           >
             <Text style={[styles.label, selected && styles.selectedLabel]}>{option.label}</Text>
           </Pressable>
@@ -42,23 +54,6 @@ export function SegmentedControl({
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    padding: 4,
-    borderRadius: RADIUS.pill,
-    backgroundColor: COLORS.surfaceAlt,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: 4,
-  },
-  option: {
-    flex: 1,
-    minHeight: 42,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: SPACING.sm,
-    borderRadius: RADIUS.pill,
-  },
   selected: {
     backgroundColor: COLORS.surface,
     borderWidth: 1,

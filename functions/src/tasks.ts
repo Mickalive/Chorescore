@@ -4,6 +4,7 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { FUNCTION_REGION } from "./config";
 import { calculateScore, getEffectiveWeight, isoWeekKey } from "./domain";
 import { db } from "./firebase";
+import { observedCaller } from "./observedCaller";
 import { resolveHouseholdPlanInTransaction } from "./plans";
 import {
   enforceRateLimit,
@@ -297,18 +298,14 @@ export const completeTask = onCall(
 
         // Décision d'autorisation et d'idempotence en logique pure :
         // adhésion, rôle, propriété, état, poids figé, temps serveur. Les
-        // booléens d'identité sont fournis constants parce que requireCaller
-        // ci-dessus a déjà refusé tout appel non authentifié, non attesté ou
-        // sans email vérifié ; les branches d'identité de la décision restent
-        // exercées par taskCompletion.test.ts et protègent un futur
-        // réordonnancement du code.
+        // portes d'identité sont alimentées par les valeurs réellement
+        // observées sur la requête brute via observedCaller(request) — même
+        // extracteur que les invitations, câblage épinglé par
+        // test/observedCallerWiring.test.ts (constat F2-constantes-identite-
+        // tasks) : elles restent exécutables si une garde amont venait à
+        // s'affaiblir.
         const decision = decideTaskCompletion({
-          caller: {
-            authenticated: true,
-            appCheckAttested: true,
-            emailVerified: true,
-            uid: caller.uid,
-          },
+          caller: observedCaller(request),
           membership: {
             exists: membershipSnapshot.exists,
             status: membershipSnapshot.data()?.status,

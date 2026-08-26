@@ -6,6 +6,7 @@ import {
   decideTaskCompletion,
   TaskCompletionInput,
 } from "../src/taskCompletion";
+import { observedCaller, ObservedCallableRequest } from "../src/observedCaller";
 
 const NOW = Date.UTC(2026, 7, 24, 12);
 const START = NOW - 60_000;
@@ -321,4 +322,171 @@ test("tous les rôles connus peuvent terminer leur propre tâche par défaut", (
     );
     assert.equal(decision.outcome, "complete");
   }
+});
+
+// --- Identité observée sur la requête brute (constat F2-constantes-identite-
+// tasks / BE-C4-F2) -----------------------------------------------------------
+//
+// Le câblage de completeTask alimente désormais la décision avec
+// `observedCaller(request)` : les tests ci-dessous empruntent exactement le
+// même chemin que la production (requête → observation → décision) afin de
+// prouver qu'une identité dégradée est refusée par le module pur lui-même,
+// pas seulement par la garde amont requireCaller. Le câblage lui-même est
+// épinglé par test/observedCallerWiring.test.ts.
+
+interface ObservedRequestShape {
+  uid?: string | undefined;
+  appCheck?: boolean | undefined;
+  emailVerified?: unknown;
+}
+
+/** Requête appelable réduite aux champs observés, comme `CallableRequest`. */
+function observedRequest(fields: ObservedRequestShape): ObservedCallableRequest {
+  return {
+    ...(fields.uid === undefined
+      ? {}
+      : { auth: { uid: fields.uid, token: { email_verified: fields.emailVerified } } }),
+    ...(fields.appCheck === true ? { app: { appId: "app_check_attested" } } : {}),
+  };
+}
+
+test("une identité dégradée observée est refusée par la décision de complétion", () => {
+  // Requête sans Authentification : la porte du module pur s'exécute avec le
+  // code et le message historiques, avant toute lecture d'adhésion ou
+  // d'idempotence — alors même que toutes les autres entrées seraient valides.
+  assert.deepEqual(
+    decideTaskCompletion(
+      validInput({ caller: observedCaller(observedRequest({})) }),
+    ),
+    { outcome: "reject", code: "unauthenticated", message: "Authentification requise." },
+  );
+  // Authentifié sans attestation App Check.
+  assert.deepEqual(
+    decideTaskCompletion(
+      validInput({
+        caller: observedCaller(observedRequest({ uid: "user_1", emailVerified: true })),
+      }),
+    ),
+    {
+      outcome: "reject",
+      code: "failed-precondition",
+      message: "Attestation App Check requise.",
+    },
+  );
+  // Email non vérifié : la valeur traverse une frontière et doit être
+  // strictement `true`, jamais coercée.
+  for (const flag of [false, undefined, "yes", 1]) {
+    assert.deepEqual(
+      decideTaskCompletion(
+        validInput({
+          caller: observedCaller(
+            observedRequest({ uid: "user_1", appCheck: true, emailVerified: flag }),
+          ),
+        }),
+      ),
+      {
+        outcome: "reject",
+        code: "failed-precondition",
+        message: "Une adresse email vérifiée est requise.",
+      },
+    );
+  }
+  // Identifiant d'utilisateur vide : refusé comme non authentifié.
+  assert.deepEqual(
+    decideTaskCompletion(
+      validInput({
+        caller: observedCaller(observedRequest({ uid: "", appCheck: true, emailVerified: true })),
+      }),
+    ),
+    { outcome: "reject", code: "unauthenticated", message: "Authentification requise." },
+  );
+});
+
+test("une identité dégradée observée est refusée avant même le rejeu d'une clé consommée", () => {
+  // La clé a déjà servi pour task_a1 et rejouerait durée et score : avec un
+  // câblage à constantes, une requête dégradée aurait pu atteindre la branche
+  // de rejeu ; l'observation réelle arrête la requête à la porte d'identité.
+  assert.deepEqual(
+    decideTaskCompletion(
+      validInput({
+        caller: observedCaller(observedRequest({})),
+        operation: { exists: true, resourceId: "task_a1", durationSeconds: 120, score: 6 },
+      }),
+    ),
+    { outcome: "reject", code: "unauthenticated", message: "Authentification requise." },
+  );
+});
+
+test("l'isolation entre deux foyers tient avec l'identité observée : membre du foyer A, refus dans le foyer B", () => {
+  // Foyer A : user_1 membre actif. Foyer B : user_1 exclu mais tâche encore à
+  // son nom. Une requête ciblant le foyer B est refusée malgré la propriété ;
+  // la même identité attestée complète normalement dans le foyer A.
+  const householdBMembership = { exists: false, status: undefined, role: undefined };
+  const householdBTask = { exists: true, ownerUid: "user_1", status: "in_progress", startTimeMs: START, effectiveWeight: 3 };
+  assert.deepEqual(
+    decideTaskCompletion(
+      validInput({
+        caller: observedCaller(
+          observedRequest({ uid: "user_1", appCheck: true, emailVerified: true }),
+        ),
+        membership: householdBMembership,
+        task: householdBTask,
+        expectedTaskId: "task_b1",
+      }),
+    ),
+    { outcome: "reject", code: "permission-denied", message: "Accès au foyer refusé." },
+  );
+  assert.equal(
+    decideTaskCompletion(
+      validInput({
+        caller: observedCaller(
+          observedRequest({ uid: "user_1", appCheck: true, emailVerified: true }),
+        ),
+      }),
+    ).outcome,
+    "complete",
+  );
+});
+
+test("l'isolation entre deux utilisateurs tient avec l'identité observée : un membre actif ne termine pas la tâche d'un autre", () => {
+  // user_2 est membre actif du foyer A mais n'est pas le propriétaire de
+  // task_a1 ; l'uid vient de request.auth côté serveur, jamais du corps.
+  assert.deepEqual(
+    decideTaskCompletion(
+      validInput({
+        caller: observedCaller(
+          observedRequest({ uid: "user_2", appCheck: true, emailVerified: true }),
+        ),
+      }),
+    ),
+    {
+      outcome: "reject",
+      code: "permission-denied",
+      message: "Cette tâche appartient à un autre membre.",
+    },
+  );
+  // Le propriétaire légitime, même forme de requête, complète sa tâche.
+  assert.equal(
+    decideTaskCompletion(
+      validInput({
+        caller: observedCaller(
+          observedRequest({ uid: "user_1", appCheck: true, emailVerified: true }),
+        ),
+      }),
+    ).outcome,
+    "complete",
+  );
+});
+
+test("une identité pleinement attestée observée conserve la complétion nominale", () => {
+  assert.deepEqual(
+    decideTaskCompletion(
+      validInput({
+        caller: observedCaller(
+          observedRequest({ uid: "user_1", appCheck: true, emailVerified: true }),
+        ),
+      }),
+    ),
+    { outcome: "complete", durationSeconds: 60, score: 3 },
+  );
 });

@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "milestone": "demo-rc",
   "governanceVersion": "2026-08-25-v1",
-  "lastCycle": "32919230502",
+  "lastCycle": "32961708279",
   "activeCriteria": [
     "DRC-05",
     "DRC-07"
   ],
   "stalledCycles": 0,
-  "progressSummary": "Cycle 32919230502 : la paire mobile reparee round 2 (candidat 327fba8, parent e1983a7, base 0463683 = HEAD accepte ; audit reports/audits/CYCLE_32919230502_MOBILE_FINAL.json decision accept, zero mustFix) est appliquee exactement par le shell de confiance dans lab/chorescore (11 fichiers, +1787/-68, strictement app/, src/, tests/ ; arbre staged verifie conforme au manifeste d'integration). Le mustFix F1 du tour 1 (migration v1->v2 sans re-validation isDurableState) est resolu et prouve (reproduction independante household_ghost -> invalid + preuve de mutation 4 echecs cibles) ; les cinq ameliorations facultatives F2-F6 sont appliquees et verifiees. DRC-04 passe a complete avec ses deux preuves exigees : tests cibles executes par l'auditeur round 2 sur le contenu integre (tsc OK, 76/76 persistence+premium-local+data-control, 18/18 store-interactions, preuves de mutation) et audit round 2 accept. Aucun candidat backend : rien integre cote backend, preuve legacy prose-only rejetee. Paire de recuperation 32915047376 (candidat aecbb48, accept round 1) non integree : version concurrente du meme critere DRC-04, supersede par le candidat repare conformement a la regle de supersession. Les checks deterministes larges et l'export Android demo tournent en parallele sur l'arbre audite gele ; en cas d'echec le workflow echoue fermé et renvoie la cause prouvee a un cycle ulterieur. Critères actifs suivants : DRC-05 (mobile) et DRC-07 volet code (backend BE-C4-F1/F2). stalledCycles = 0 (diff accepte integre + transition DRC-04).",
+  "progressSummary": "Cycle 32961708279 : les deux paires selectionnees par le shell de confiance sont validees et deja appliquees exactement dans lab/chorescore (base 33cd4ac = HEAD verifie). Mobile : candidat repare e18bf1d (round 2) + audit CYCLE_32961708279_MOBILE_FINAL.json (decision accept, zero mustFix) — 7 fichiers, +357/-26, strictement app/, src/, tests/ ; le mustFix du tour 1 (inventaire de contraste incomplet, fond #FFFDF5 du paywall manquant) est resolu et prouve (recalcul WCAG independant 5,20/5,24/4,98/5,06/5,15:1 pour #56707C, preuves de mutation A/B sur copies jetables) ; MOB-C4-F1 (repli wrap du filtre membre via segmentedLayout.ts, contrat teste) et MOB-C4-F2 (frontieres annee et borne haute now a ±1 s, ancre lundi-based verifiee independamment) sont livres ; verification ciblee 15/15 et suite complete 162/162 sur copie jetable. Backend : candidat 90ef1a6 (round 1, aucun repair demande) + audit CYCLE_32961708279_BACKEND.json (decision accept, zero mustFix) — 7 fichiers functions/ ; extracteur pur observedCaller(request) cablé dans createInvite/redeemInvite/completeTask, epinglage source dedie dont les mutations M1/M2b/M3 sont reproduites par l'auditeur, identite observee appliquee a completeTask avec refus negatifs cross-foyer/cross-user entre deux foyers ; tsc OK, 68/68 fichiers touches, 106/106 copie jetable. Paires de recuperation 32956994425 (mobile et backend, accept round 1) non selectionnees : versions concurrentes supersedees par les paires du cycle courant ; preuve legacy prose-only rejetee. DRC-05 reste in_progress : un nouveau constat bloquant low est etabli sur l'arbre integre — textSecondary #457B9D sur surfaceAlt #F8F9FA = 4,36:1 < 4,5 AA (libelles non selectionnes du controle segmente : filtre membre, periodes historique/classement/profil) et 4,43:1 sur la carte courante #F7FCFB — verifie par calcul WCAG du directeur selon la methode de l'auditeur round 2 (constat F2 de la paire de recuperation non integree, confirme sur le code integre) ; correction assignee au mobile sous DRC-05. DRC-07 passe in_progress : volet code prouve (audit backend round 1), volet documentation restant (docs/security/README.md fige au cycle 32684730787, ne decrit ni observedCaller ni l'etat de tests actuel). stalledCycles = 0 (deux diffs produit acceptes integres).",
   "blocker": null,
   "criteria": [
     {
@@ -83,6 +83,16 @@
           "kind": "tests",
           "reference": "tests domaine et annonces accessibles acceptés au cycle 32692689814",
           "cycle": "32692689814"
+        },
+        {
+          "kind": "tests",
+          "reference": "Vérifications ciblées de l'auditeur round 2 sur le candidat intégré e18bf1d (copies jetables, candidat jamais édité) : clean-test-build + tsc OK ; node --test theme-contrast+segmented-layout+history = 15/15 (paires textMuted y compris #FFFDF5, contrat wrap du filtre membre, frontières année/borne now) ; suite complète 162/162 ; preuves de mutation A (retour #6D8793 → échec AA détecté), B (retrait paire → seule perte de couverture), C (limite statique inventaire documentée)",
+          "cycle": "32961708279"
+        },
+        {
+          "kind": "audit",
+          "reference": "reports/audits/CYCLE_32961708279_MOBILE_FINAL.json — round 2, decision accept, 0 mustFix, candidat réparé e18bf1d appliqué exactement par le shell de confiance sur la base 33cd4ac (7 fichiers, +357/-26, strictement app/, src/, tests/, manifeste immuable OK). Restant bloquant : contraste textSecondary/surfaceAlt 4,36:1 (constat MOB-CYCLE32961708279-SEG)",
+          "cycle": "32961708279"
         }
       ]
     },
@@ -93,8 +103,14 @@
     },
     {
       "id": "DRC-07",
-      "status": "pending",
-      "evidence": []
+      "status": "in_progress",
+      "evidence": [
+        {
+          "kind": "audit",
+          "reference": "reports/audits/CYCLE_32961708279_BACKEND.json — round 1, decision accept, 0 mustFix, candidat 90ef1a6 appliqué exactement par le shell de confiance sur la base 33cd4ac (7 fichiers functions/) : volet code de DRC-07 prouvé (épinglage observedCaller(request) avec mutations M1/M2b/M3 reproduites par l'auditeur ; completeTask sur identité observée avec refus négatifs cross-foyer/cross-user entre deux foyers ; tsc OK, 68/68 fichiers touchés, 106/106 copie jetable). Volet documentation restant : docs/security/README.md non actualisé depuis le cycle 32684730787",
+          "cycle": "32961708279"
+        }
+      ]
     }
   ],
   "pendingArtifact": null,
@@ -105,8 +121,9 @@
       "role": "mobile",
       "severity": "low",
       "mustFixBeforeRelease": true,
-      "status": "unresolved",
-      "requiredFix": "Rendre le filtre membre utilisable sur petit écran et grandes tailles de texte (repli, défilement ou sélection dédiée) et fournir une preuve."
+      "status": "resolved",
+      "requiredFix": "Rendre le filtre membre utilisable sur petit écran et grandes tailles de texte (repli, défilement ou sélection dédiée) et fournir une preuve.",
+      "resolution": "Résolu par le candidat intégré e18bf1d (cycle 32961708279) : mode wrap du SegmentedControl (flexShrink 0, flexBasis auto, flexWrap conteneur) consommé par le filtre membre de l'historique, contrat pur testé dans tests/segmented-layout.test.ts, cible tactile minHeight 42 conservée, comportement de réinitialisation F3-R2 intact. Revue sémantique indépendante de l'auditeur round 2 ; période historique, classement et profil restent en mode défaut à l'identique."
     },
     {
       "id": "MOB-C4-F2",
@@ -114,8 +131,19 @@
       "role": "mobile",
       "severity": "low",
       "mustFixBeforeRelease": true,
+      "status": "resolved",
+      "requiredFix": "Ajouter les tests de frontière année et borne haute now pour les filtres d'historique.",
+      "resolution": "Résolu par le candidat intégré e18bf1d (cycle 32961708279) : tests de frontière d'année et borne haute now dans tests/history.test.ts avec bornes calculées identiques aux bornes filtrées ; ancre non circulaire vérifiée indépendamment par l'auditeur round 2 (now vendredi 01/01/2027 12:00 → début semaine lundi 28/12/2026, borne mois 01/01/2027 00:00, bornes inclusives testées à ±1 s)."
+    },
+    {
+      "id": "MOB-CYCLE32961708279-SEG",
+      "criterionId": "DRC-05",
+      "role": "mobile",
+      "severity": "low",
+      "mustFixBeforeRelease": true,
       "status": "unresolved",
-      "requiredFix": "Ajouter les tests de frontière année et borne haute now pour les filtres d'historique."
+      "requiredFix": "Ramener chaque paire réelle de textSecondary à ≥ 4,5:1 (AA) : ajuster le jeton central du thème ou employer explicitement un jeton conforme, couvrir au minimum surfaceAlt #F8F9FA (4,36:1 mesuré — libellés non sélectionnés du SegmentedControl : filtre membre, périodes historique/classement/profil) et la carte courante #F7FCFB (4,43:1), étendre tests/theme-contrast.test.ts avec l'inventaire secondaire complet des fonds réels (y compris hors jetons), fournir la mesure WCAG tracée et une preuve de mutation, sans régression des paires textMuted/textSecondary déjà conformes.",
+      "origin": "Constat F2 de la paire de récupération 32956994425 (non intégrée), vérifié par le directeur sur l'arbre intégré : lecture ciblée de SegmentedControl.tsx/segmentedLayout.ts/theme.ts + calcul WCAG indépendant (4,3564:1 sur surfaceAlt ; méthode calquée sur les mesures de l'auditeur round 2, reproduites à 4,5532/4,5921). L'audit round 2 intégré ne couvrait que l'inventaire textMuted."
     },
     {
       "id": "MOB-C4-F3",
@@ -124,7 +152,72 @@
       "severity": "info",
       "mustFixBeforeRelease": false,
       "status": "unresolved",
-      "requiredFix": "Documenter ou rafraîchir le passage semaine/mois pendant une session longue."
+      "requiredFix": "Documenter ou rafraîchir le passage semaine/mois pendant une session longue.",
+      "response": "Réponse du directeur (cycle 32961708279) : l'audit round 2 confirme que le candidat intégré ne référence plus MOB-C4-F3 dans theme.ts (traçabilité corrigée) ; le constat reste facultatif et non bloquant, repris uniquement si une passe DRC-05 ultérieure le permet."
+    },
+    {
+      "id": "MOB-CYCLE32961708279-F3-R2",
+      "criterionId": "DRC-05",
+      "role": "mobile",
+      "severity": "info",
+      "mustFixBeforeRelease": false,
+      "status": "resolved",
+      "requiredFix": "Aucun — correction de traçabilité appliquée : le commentaire du jeton textMuted désigne désormais la ligne contraste de directives/TASKS.json au lieu de MOB-C4-F3 (passage semaine/mois), supprimant la confusion de périmètre.",
+      "origin": "audit final round 2 accept du candidat réparé e18bf1d (intégré)",
+      "resolution": "Vérifié par l'auditeur round 2 : aucune occurrence de MOB-C4-F3 dans le diff ; changement de commentaire uniquement, aucun effet d'exécution."
+    },
+    {
+      "id": "MOB-CYCLE32961708279-F2-R2",
+      "criterionId": "DRC-05",
+      "role": "mobile",
+      "severity": "info",
+      "mustFixBeforeRelease": false,
+      "status": "deferred",
+      "requiredFix": "Facultatif : ajouter maxWidth: '100%' à SegmentOptionStyleWrap et épingle la propriété dans tests/segmented-layout.test.ts, à l'occasion d'une future évolution rendant les noms de membres saisissables (scénario aujourd'hui non atteignable : libellés issus des identités de démonstration fixes).",
+      "origin": "audit final round 2 accept du candidat réparé e18bf1d (intégré), report à l'identique du tour 1",
+      "response": "Réponse du directeur : reporté jusqu'à ce qu'une création/renommage d'utilisateur rende le scénario réel ; aucune action maintenant."
+    },
+    {
+      "id": "MOB-CYCLE32961708279-OPT-R2",
+      "criterionId": "DRC-05",
+      "role": "mobile",
+      "severity": "info",
+      "mustFixBeforeRelease": false,
+      "status": "noted",
+      "requiredFix": "Aucun aujourd'hui. À l'occasion d'une future passe thème/paywall : rapporter le backgroundColor codé en dur #FFFDF5 de proCard sur un jeton du thème afin que le garde déterministe protège aussi cette carte, et mettre à jour l'inventaire du test.",
+      "origin": "audit final round 2 accept du candidat réparé e18bf1d (intégré) ; preuve de mutation C (fond dérivé #E3DCC0 non détecté par le test statique)",
+      "response": "Réponse du directeur : risque résiduel documenté dans theme.ts et le docblock du test ; toutes les paires réelles mesurées ≥ 4,5:1. Aucune action avant une passe thème/paywall."
+    },
+    {
+      "id": "BE-CYCLE32961708279-F1",
+      "criterionId": "DRC-07",
+      "role": "backend",
+      "severity": "info",
+      "mustFixBeforeRelease": false,
+      "status": "resolved",
+      "requiredFix": "Aucune correction exigée : la substance de BE-C4-F1 est prouvée objectivement ; le directeur doit citer les preuves de mutation de l'auditeur dans les éléments de preuve DRC-07.",
+      "origin": "audit round 1 accept du candidat intégré 90ef1a6 (aucun rapport codeur accompagnant le snapshot)",
+      "resolution": "Fait : les preuves retenues sont les reproductions indépendantes de l'auditeur sur copies jetables — M1 (observedCaller réécrit en constantes → test 3 rouge), M2b (revert complet de completeTask vers l'objet constant historique → test 2 rouge), M3 (createInvite cesse de lire la requête → test 1 rouge), chacune détectée sans collateral ; citées dans l'entrée audit DRC-07 et à rejouer par l'audit documentation."
+    },
+    {
+      "id": "BE-CYCLE32961708279-F2",
+      "criterionId": "DRC-07",
+      "role": "backend",
+      "severity": "info",
+      "mustFixBeforeRelease": false,
+      "status": "noted",
+      "requiredFix": "Aucune action requise pour ce cycle. Lors d'une future passe avec émulateur Firestore, remplacer ou compléter l'épinglage source (regex WIRING_PATTERN + IDENTITY_LITERAL_PATTERN) par un épinglage comportemental au niveau handler ; tout renommage légitime de request/observedCaller devra mettre à jour l'épinglage explicitement avec preuve de mutation.",
+      "origin": "audit round 1 accept du candidat intégré 90ef1a6"
+    },
+    {
+      "id": "BE-CYCLE32961708279-F3",
+      "criterionId": "DRC-07",
+      "role": "backend",
+      "severity": "info",
+      "mustFixBeforeRelease": false,
+      "status": "noted",
+      "requiredFix": "Aucune correction avant intégration. Les handlers appelables (createInvite, redeemInvite, completeTask) ne s'exécutent pas bout en bout sans émulateur : à couvrir lors de l'incrément émulateur déjà tracé (concurrence/idempotence sur Firestore émulé), avec refus négatifs cross-foyer/cross-user rejoués au niveau handler.",
+      "origin": "audit round 1 accept du candidat intégré 90ef1a6 ; requireCaller reste appelé en tête des trois handlers, enforceAppCheck conservé"
     },
     {
       "id": "BE-C4-F1",
@@ -132,8 +225,9 @@
       "role": "backend",
       "severity": "low",
       "mustFixBeforeRelease": true,
-      "status": "unresolved",
-      "requiredFix": "Épingler par test le câblage observedInviteCaller(request) afin qu'un retour aux constantes soit détecté."
+      "status": "resolved",
+      "requiredFix": "Épingler par test le câblage observedInviteCaller(request) afin qu'un retour aux constantes soit détecté.",
+      "resolution": "Résolu par le candidat intégré 90ef1a6 (cycle 32961708279) : functions/test/observedCallerWiring.test.ts épingle le câblage observedCaller(request) (comptes exacts 2 dans invites.ts, 1 dans tasks.ts) et interdit les littéraux d'identité inline ; preuves de mutation reproduites par l'auditeur sur copies jetables (M1/M2b/M3 → exactement un échec ciblé à chaque mutation, copie saine 3/3 verte). Voir BE-CYCLE32961708279-F1 pour l'adoption formelle des preuves."
     },
     {
       "id": "BE-C4-F2",
@@ -141,8 +235,9 @@
       "role": "backend",
       "severity": "info",
       "mustFixBeforeRelease": false,
-      "status": "unresolved",
-      "requiredFix": "Appliquer l'identité observée à completeTask lors du prochain incrément backend pertinent."
+      "status": "resolved",
+      "requiredFix": "Appliquer l'identité observée à completeTask lors du prochain incrément backend pertinent.",
+      "resolution": "Résolu par le candidat intégré 90ef1a6 (cycle 32961708279) : completeTask valide l'appelant via observedCaller(request) côté serveur ; refus cross-foyer et cross-user couverts par tests négatifs entre au moins deux foyers ; les nouveaux tests d'isolation échouent si les portes adhésion/propriété sont neutralisées (mutation M4b de l'auditeur)."
     },
     {
       "id": "MOB-CYCLE32857952394-F1",

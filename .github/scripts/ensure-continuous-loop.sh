@@ -92,14 +92,17 @@ if jq -e --arg run "$run_id" '
   .schemaVersion == 1 and
   (.run_id | tostring) == $run and
   (.cycle_index | type == "number" and floor == . and . >= 1 and . <= 10000) and
-  (.human_note | type == "string" and length <= 4000)
+  (.human_note | type == "string" and length <= 4000) and
+  (.recovery_cycle_key | type == "string" and (. == "none" or test("^[1-9][0-9]*$")))
 ' <<<"$control_state" >/dev/null 2>&1; then
   cycle_index=$(jq -r '.cycle_index' <<<"$control_state")
   human_note=$(jq -r '.human_note' <<<"$control_state")
+  prior_recovery=$(jq -r '.recovery_cycle_key' <<<"$control_state")
   state_source=structured
 else
   cycle_index=1
   human_note=""
+  prior_recovery=none
   state_source=safe-fallback
 fi
 
@@ -110,8 +113,15 @@ if [[ "$conclusion" == success ]]; then
   recovery=none
   reason="successeur manquant après cycle incomplet"
 else
-  recovery="$run_id"
-  reason="récupération après cycle interrompu ($conclusion)"
+  recovery="$prior_recovery"
+  if gh api "repos/$repository/git/ref/heads/cycle/chorescore/$run_id/director-recovery" >/dev/null 2>&1; then
+    recovery="$run_id"
+    reason="récupération du snapshot Director vérifié après cycle interrompu ($conclusion)"
+  elif [[ "$recovery" != none ]]; then
+    reason="récupération conservant le dernier snapshot utile $recovery après cycle interrompu ($conclusion)"
+  else
+    reason="reprise depuis la branche acceptée après cycle interrompu sans snapshot utile ($conclusion)"
+  fi
 fi
 
 # Close the race with the Director's direct dispatch or the transient watchdog.

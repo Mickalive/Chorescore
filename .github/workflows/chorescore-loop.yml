@@ -164,7 +164,8 @@ jobs:
             bootstrap_paths=()
           fi
 
-          git add -A -- "${human_owned_paths[@]}" "$marker" "${bootstrap_paths[@]}"
+          python3 .github/scripts/normalize-task-slices.py directives/TASKS.json
+          git add -A -- "${human_owned_paths[@]}" "$marker" "${bootstrap_paths[@]}" directives/TASKS.json
           if [[ "$alignment_required" == true ]] || ! git diff --cached --quiet; then
             git commit -m "chore: align accepted lane with human controls $version"
             auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
@@ -1227,7 +1228,7 @@ jobs:
           6. Treat recovery candidates by the same matching-pair rules. Legacy prose-only evidence is not sufficient for integration.
           7. Broad deterministic checks and Android export run concurrently with your planning pass on the frozen audited product tree. Do not duplicate them. If their result later fails, the workflow fails closed and returns the proven cause to a later code/audit cycle; never alter product code or weaken a check.
 
-          The trusted shell has already integrated only independently accepted work. Record exactly which manifest candidate/audit pair was used or rejected and answer every finding. Update docs/RELEASE_STATUS.json, directives/TASKS.json, directives/MOBILE.md, directives/BACKEND.md, directives/AUDITOR.md and docs/NEXT_CYCLE.md. Activate only roles needed by one or two incomplete DRC criteria. For each enabled role, decide the next work shape in directives/TASKS.json: if the next coherent mission is realistically expected to require more than about 12 changed files and can be separated safely, add assignments.<role>.slices with exactly two entries in order, ids "a" and "b"; each entry must have a precise objective and a non-empty allowedPaths array of clean relative path prefixes, the two path-prefix perimeters must not overlap, and each slice must be independently implementable from the same accepted base within at most 12 changed files. If those conditions are not all true, omit/remove slices and assign one bounded coherent mission instead. Never create more than two slices and never split work that needs both slices editing the same file. Then write reports/director/CYCLE_${CYCLE_KEY}.md and its required JSON, including activeCriteria and progressEvidence. Apply the deterministic stagnation rule from your immutable job description. Do not edit product code, workflows, agent definitions, dependencies, governance or MAIN_PROMPT.md. Human note, subordinate to the constitution: ${HUMAN_NOTE:-}
+          The trusted shell has already integrated only independently accepted work. Record exactly which manifest candidate/audit pair was used or rejected and answer every finding. Update docs/RELEASE_STATUS.json, directives/TASKS.json, directives/MOBILE.md, directives/BACKEND.md, directives/AUDITOR.md and docs/NEXT_CYCLE.md. Activate only roles needed by one or two incomplete DRC criteria. For each enabled role, decide the next work shape in directives/TASKS.json: if the next coherent mission is realistically expected to require more than about 12 changed files and can be separated safely, add assignments.<role>.slices with exactly two entries in this canonical JSON form: "slices": [{"id":"a","objective":"first independent objective","allowedPaths":["first/role-valid/prefix"]},{"id":"b","objective":"second independent objective","allowedPaths":["second/role-valid/prefix"]}]. The slices value MUST be a JSON array in a-then-b order; NEVER write it as an object/map keyed by "a" and "b". Each entry must have a precise objective and a non-empty allowedPaths array of clean relative path prefixes, the two path-prefix perimeters must not overlap, and each slice must be independently implementable from the same accepted base within at most 12 changed files. If those conditions are not all true, omit/remove slices and assign one bounded coherent mission instead. Never create more than two slices and never split work that needs both slices editing the same file. Then write reports/director/CYCLE_${CYCLE_KEY}.md and its required JSON, including activeCriteria and progressEvidence. Apply the deterministic stagnation rule from your immutable job description. Do not edit product code, workflows, agent definitions, dependencies, governance or MAIN_PROMPT.md. Human note, subordinate to the constitution: ${HUMAN_NOTE:-}
           EOF
           )
           set +e
@@ -1240,6 +1241,15 @@ jobs:
           wait "$verification_pid" || true
           test -s "$verification_status" || printf '1\n' > "$verification_status"
           exit "$director_status"
+
+      - name: Canonicalize Director task slicing contract
+        id: task_contract
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/normalize-task-slices.py directives/TASKS.json
 
       - name: Verify Director preserved the audited product tree
         id: trusted_product
@@ -1264,7 +1274,7 @@ jobs:
 
       - name: Validate Director decision and scope
         id: decision
-        if: ${{ steps.trusted_product.outcome == 'success' && steps.verification.outcome == 'success' }}
+        if: ${{ steps.task_contract.outcome == 'success' && steps.trusted_product.outcome == 'success' && steps.verification.outcome == 'success' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -1500,7 +1510,7 @@ jobs:
         run: bash .github/scripts/verify-final-release.sh
 
       - name: Preserve rejected Director state for recovery
-        if: ${{ always() && (steps.director_run.outcome == 'failure' || steps.trusted_product.outcome == 'failure' || steps.verification.outcome == 'failure' || steps.decision.outcome == 'failure' || steps.apk_build.outcome == 'failure' || steps.android_kvm.outcome == 'failure' || steps.apk_smoke.outcome == 'failure' || steps.apk_upload.outcome == 'failure' || steps.finalize_apk.outcome == 'failure' || (steps.decision.outputs.decision == 'stop' && steps.final_release_gate.outcome != 'success')) }}
+        if: ${{ always() && (steps.director_run.outcome == 'failure' || steps.task_contract.outcome == 'failure' || steps.trusted_product.outcome == 'failure' || steps.verification.outcome == 'failure' || steps.decision.outcome == 'failure' || steps.apk_build.outcome == 'failure' || steps.android_kvm.outcome == 'failure' || steps.apk_smoke.outcome == 'failure' || steps.apk_upload.outcome == 'failure' || steps.finalize_apk.outcome == 'failure' || (steps.decision.outputs.decision == 'stop' && steps.final_release_gate.outcome != 'success')) }}
         env:
           GH_TOKEN: ${{ github.token }}
           SNAPSHOT_BRANCH: cycle/chorescore/${{ github.run_id }}/director-recovery
@@ -1522,7 +1532,7 @@ jobs:
           echo "::warning::Director state preserved on $SNAPSHOT_BRANCH; accepted lane unchanged."
 
       - name: Fail closed when integration or final evidence is incomplete
-        if: ${{ always() && (steps.director_run.outcome == 'failure' || steps.trusted_product.outcome == 'failure' || steps.verification.outcome == 'failure' || steps.decision.outcome == 'failure' || (steps.apk_source.outputs.required == 'true' && (steps.apk_build.outcome != 'success' || steps.android_kvm.outcome != 'success' || steps.apk_smoke.outcome != 'success' || steps.apk_upload.outcome != 'success' || steps.finalize_apk.outcome != 'success')) || (steps.decision.outputs.decision == 'stop' && steps.final_release_gate.outcome != 'success')) }}
+        if: ${{ always() && (steps.director_run.outcome == 'failure' || steps.task_contract.outcome == 'failure' || steps.trusted_product.outcome == 'failure' || steps.verification.outcome == 'failure' || steps.decision.outcome == 'failure' || (steps.apk_source.outputs.required == 'true' && (steps.apk_build.outcome != 'success' || steps.android_kvm.outcome != 'success' || steps.apk_smoke.outcome != 'success' || steps.apk_upload.outcome != 'success' || steps.finalize_apk.outcome != 'success')) || (steps.decision.outputs.decision == 'stop' && steps.final_release_gate.outcome != 'success')) }}
         run: |
           echo "::error::Trusted integration, deterministic verification or final APK attestation is incomplete; accepted state remains unchanged."
           exit 1

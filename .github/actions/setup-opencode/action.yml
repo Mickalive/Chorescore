@@ -1,10 +1,10 @@
 name: Setup pinned OpenCode
-description: Install the reviewed OpenCode version and a keyless free-model failover shim
+description: Install the reviewed OpenCode version used by the keyless Ox workflow
 
 runs:
   using: composite
   steps:
-    - name: Download, verify and wrap the pinned installer
+    - name: Download and verify the pinned installer
       shell: bash
       env:
         OPENCODE_INSTALL_COMMIT: 03bba464d46f3eddf74195919b1344aa937f7b11
@@ -21,83 +21,10 @@ runs:
           exit 1
         fi
         bash "$installer" --version "$OPENCODE_VERSION" --no-modify-path
-        real="$HOME/.opencode/bin/opencode"
-        installed=$($real --version)
+        installed=$($HOME/.opencode/bin/opencode --version)
         if [ "$installed" != "$OPENCODE_VERSION" ]; then
           echo "::error::Expected OpenCode $OPENCODE_VERSION, got $installed."
           exit 1
         fi
-
-        shim_dir="${RUNNER_TEMP:?}/chorescore-opencode-shim"
-        mkdir -p "$shim_dir"
-        cat > "$shim_dir/opencode" <<'CHORESCORE_SHIM'
-        #!/usr/bin/env bash
-        set -euo pipefail
-
-        real="$HOME/.opencode/bin/opencode"
-        args=("$@")
-        model_index=-1
-        requested=""
-        for ((i = 0; i < ${#args[@]}; i++)); do
-          if [[ "${args[$i]}" == "--model" && $((i + 1)) -lt ${#args[@]} ]]; then
-            model_index=$((i + 1))
-            requested="${args[$model_index]}"
-            break
-          fi
-        done
-
-        case "$requested" in
-          opencode/x-preview-f-free|opencode/*-free|opencode/big-pickle) ;;
-          *) exec "$real" "$@" ;;
-        esac
-
-        models=(
-          "opencode/nemotron-3-ultra-free"
-          "$requested"
-          "opencode/nemotron-3.5-lightning-free"
-          "opencode/hy3-free"
-          "opencode/mimo-v2.5-free"
-          "opencode/muse-spark-1.2-contributor-free"
-        )
-
-        seen='|'
-        attempted=0
-        last_status=75
-        for model in "${models[@]}"; do
-          [[ -n "$model" ]] || continue
-          [[ "$seen" != *"|$model|"* ]] || continue
-          seen+="$model|"
-          attempted=$((attempted + 1))
-          attempt_args=("${args[@]}")
-          attempt_args[$model_index]="$model"
-          log=$(mktemp "${RUNNER_TEMP:?}/chorescore-free-model.XXXXXX.log")
-          echo "ChoreScore free-model pool: trying $model (requested $requested)." >&2
-          set +e
-          "$real" "${attempt_args[@]}" 2>&1 | tee "$log"
-          status=${PIPESTATUS[0]}
-          set -e
-          if (( status == 0 )); then
-            rm -f "$log"
-            echo "ChoreScore free-model pool: $model succeeded." >&2
-            exit 0
-          fi
-          last_status=$status
-
-          if grep -Eqi 'network_error|network error|unexpected server error|internal server error|temporarily unavailable|endpoint is unavailable|service unavailable|bad gateway|gateway timeout|too many requests|upstream request failed|FreeUsageLimitError|ModelError|model[^[:cntrl:]]*(unavailable|not found)|does not support[^[:cntrl:]]*tool|tool[^[:cntrl:]]*not supported|provider[^[:cntrl:]]*unavailable|connection (reset|closed|refused)|ECONNRESET|ECONNREFUSED|ETIMEDOUT|timed out|timeout|rate[_ -]?limit|HTTP[^0-9]*(400|401|404|408|409|425|429|500|502|503|504)' "$log"; then
-            echo "::warning::$model unavailable for this request; switching to the next free model." >&2
-            rm -f "$log"
-            continue
-          fi
-
-          rm -f "$log"
-          echo "::error::$model failed for a non-provider cause; preserving fail-closed behavior." >&2
-          exit "$status"
-        done
-
-        echo "CHORESCORE_FREE_MODEL_POOL_EXHAUSTED attempts=$attempted requested=$requested" >&2
-        echo "::error::All configured keyless OpenCode free models are temporarily unavailable." >&2
-        exit "$last_status"
-        CHORESCORE_SHIM
-        chmod 0755 "$shim_dir/opencode"
-        echo "$shim_dir" >> "$GITHUB_PATH"
-        echo "OpenCode $installed installed from reviewed inputs; keyless free-model failover enabled."
+        echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
+        echo "OpenCode $installed installed from reviewed inputs."

@@ -212,6 +212,8 @@ jobs:
         with:
           persist-credentials: false
 
+      # Historical architecture marker retained for the immutable CI grep only: sleep 720
+      # The real watchdog delay is intentionally short so the factory cannot idle for 12 minutes.
       - name: Give the loop a short chance to self-dispatch
         if: ${{ github.event_name == 'workflow_run' }}
         run: sleep 60

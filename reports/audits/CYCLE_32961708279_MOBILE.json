@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "cycle": "32961708279",
+  "role": "mobile",
+  "round": 1,
+  "decision": "repair",
+  "summary": "Candidat DRC-05 solide : repli wrap du filtre membre adossé à un contrat de mise en page testé (mode par défaut inchangé pour les autres surfaces), tests MOB-C4-F2 réels et non circulaires (frontière d'année, bornes inclusives start/now, 4 preuves de mutation positives), jeton textMuted conforme AA sur tous les fonds mesurés (5,20 / 5,24 / 4,98 / 5,06:1 recalculés indépendamment), non-régression F3-R2 intacte, périmètre propre (7 fichiers app/src/tests, aucune dépendance ni réseau, manifeste immuable OK). Un défaut bloque la preuve exigée : tests/theme-contrast.test.ts revendique l'inventaire exhaustif des fonds réels de textMuted mais omet #FFFDF5 (carte Pro du paywall via perMonth), paire réelle pourtant conforme aujourd'hui (5,15:1) — trou du garde déterministe précisément sur un fond codé en dur. Correction d'une ligne exigée avant intégration ; décision repair.",
+  "findings": [
+    {
+      "id": "MOB-CYCLE32961708279-F1",
+      "severity": "low",
+      "path": "tests/theme-contrast.test.ts",
+      "mustFix": true,
+      "problem": "Le test de contraste présente un inventaire exhaustif des fonds réels de textMuted (« Fonds réels de textMuted (inventaire du code) ») et n'épingle que background #FEFEFE, surface #FFFFFF, surfaceAlt #F8F9FA et #F7FCFB. Or COLORS.textMuted est aussi rendu sur la carte Pro du PaywallModal : le Text styles.perMonth (« par mois et par foyer ») est enfant de la View [styles.planCard, styles.proCard] dont proCard impose backgroundColor '#FFFDF5' (couleur codée en dur, hors jetons). La paire réelle textMuted/#FFFDF5 n'est donc couverte par aucun garde déterministe, alors que le critère DRC-05 assigné exige un test couvrant « chaque fond où il est réellement employé » et que le commentaire de theme.ts revendique la même exhaustivité. Aucune violation utilisateur aujourd'hui (mesure indépendante 5,15:1 ≥ 4,5), mais la preuve exigée par le critère est incomplète et son inventaire déclaré est factuellement faux : c'est exactement le type de surface non-tokenisée qui peut dériver silencieusement lors d'une prochaine retouche du thème ou de la carte.",
+      "evidence": "Inventaire indépendant des 13 sites d'usage de COLORS.textMuted dans app/ et src/ : ManualEntryModal.help, PaywallModal.perMonth et .current, TaskFormModal.footnote, EntryCorrectionModal.current/.help, leaderboard.memberMeta/.disclaimer, tabBarInactiveTintColor (_layout.tsx, fond surface), history.entryMeta/.entryMinutes/.retentionText, onboarding.footer, NativeBarChart.value, MetricCard.detail — tous retombent sur background/surface/surfaceAlt/#F7FCFB sauf perMonth sur proCard '#FFFDF5' (PaywallModal.tsx : planRow JSX avec deux cartes, proCard en override backgroundColor). Calcul WCAG indépendant de l'auditeur (implémentation propre, seuil linéaire 0,04045) : #56707C sur #FFFDF5 = 5,15:1 (conforme) ; les quatre paires couvertes mesurées 5,20 / 5,24 / 4,98 / 5,06:1, conformes aux annonces du candidat ; ancien #6D8793 = 3,76–3,79:1 (garde de régression justifié).",
+      "requiredFix": "Dans tests/theme-contrast.test.ts, ajouter la paire manquante au tableau mutedBackgrounds : ['#FFFDF5', 'carte Pro du paywall (proCard — perMonth)'], et corriger si besoin le docblock pour refléter l'inventaire complet. Optionnel mais bienvenu : noter dans le commentaire que #FFFDF5 est un fond codé en dur candidat à une future tokenisation. Aucun changement de code produit n'est requis : le jeton passe déjà sur ce fond.",
+      "verification": "Sur copie jetable puis sur le candidat corrigé : node scripts/clean-test-build.mjs && tsc -p tsconfig.test.json && node --test .test-build/tests/theme-contrast.test.js — tous les tests verts y compris la nouvelle paire (5,15:1 ≥ 4,5). Preuve de sensibilité déjà établie par l'auditeur : remettre textMuted à #6D8793 fait échouer le test (mutation A, 1 échec constaté). Vérifier aussi que la paire apparaît bien dans le tableau et que npm run check reste vert."
+    },
+    {
+      "id": "MOB-CYCLE32961708279-F2",
+      "severity": "info",
+      "path": "src/components/segmentedLayout.ts",
+      "mustFix": false,
+      "problem": "SegmentOptionStyleWrap combine flexShrink: 0 et flexBasis: 'auto' sans bride de largeur : un libellé de segment plus large que le conteneur déborderait horizontalement (pas de rétrécissement possible, pas de retour à la ligne interne du Text) au lieu de rester contenu, y compris en grandes tailles de texte.",
+      "evidence": "Scénario non atteignable dans l'état actuel : les libellés du filtre membre proviennent exclusivement des identités de démonstration fixes (Noa, Camille, Sam — demoData.ts) ; appReducer.ts ne possède aucune action de création ni de renommage d'utilisateur, et createLocalHousehold n'ajoute que le membre courant. Le segment le plus long possible reste court même à forte échelle de police et passe à la ligne grâce à flexWrap. Observation pour mémoire uniquement : si les noms de membres deviennent un jour saisissables (par exemple maxLength 60 comme le nom de foyer), le mode wrap pourrait déborder sans maxWidth.",
+      "requiredFix": "Aucune correction exigée maintenant. Amélioration facultative à l'occasion d'une future évolution rendant les noms de membres saisissables : ajouter maxWidth: '100%' à SegmentOptionStyleWrap (le Text repasse alors en multi-lignes dans la cible tactile conservée) et épingle la propriété dans tests/segmented-layout.test.ts.",
+      "verification": "Si appliqué ultérieurement : test de layout affirmant 'maxWidth' in option pour le mode wrap, et vérification manuelle petit écran/grande police avec un nom long fictif — aucun débordement horizontal du conteneur pill, cible toujours joignable."
+    },
+    {
+      "id": "MOB-CYCLE32961708279-F3",
+      "severity": "info",
+      "path": "src/components/theme.ts",
+      "mustFix": false,
+      "problem": "Le commentaire du jeton rattache le travail de contraste à « DRC-05 (MOB-C4-F3) », or MOB-C4-F3 désigne dans docs/RELEASE_STATUS.json un autre constat (fraîcheur du passage semaine/mois pendant une session longue), qui n'est pas traité par ce diff. Le rattachement correct est la ligne « contraste » de directives/TASKS.json (acceptance DRC-05). Risque limité de confusion de traçabilité lors de la clôture des constats par le directeur.",
+      "evidence": "docs/RELEASE_STATUS.json openFindings : MOB-C4-F3 = « Documenter ou rafraîchir le passage semaine/mois pendant une session longue » (info, unresolved, non touché par le candidat) ; directives/TASKS.json acceptance mobile ligne 3 = ajustement central du jeton textMuted avec mesure WCAG et test déterministe — c'est ce travail que réalise le diff de theme.ts.",
+      "requiredFix": "Aucune correction obligatoire. Reformulation facultative du commentaire de theme.ts, par exemple « DRC-05 (passe contraste textMuted, directives/TASKS.json) : … », afin de ne pas laisser croire que MOB-C4-F3 est résolu par ce changement.",
+      "verification": "Lecture du commentaire après correction : aucune référence à MOB-C4-F3 pour le travail de contraste ; MOB-C4-F3 reste correctement listé unresolved dans l'état de livraison jusqu'à traitement dédié."
+    }
+  ],
+  "checks": []
+}

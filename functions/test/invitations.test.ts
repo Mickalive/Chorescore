@@ -16,9 +16,8 @@ import {
   MAX_INVITE_EXPIRY_HOURS,
   MIN_INVITE_EXPIRY_HOURS,
   MIN_INVITE_TOKEN_ENTROPY_BITS,
-  ObservedCallableRequest,
-  observedInviteCaller,
 } from "../src/invitations";
+import { observedCaller, ObservedCallableRequest } from "../src/observedCaller";
 
 const NOW = Date.UTC(2026, 7, 24, 12);
 const HOUR_MS = 3_600_000;
@@ -632,7 +631,7 @@ test("la capacité n'est consultée qu'après les portes de validité", () => {
 // --- Observation réelle de l'identité (constat F1) ---------------------------
 //
 // Le câblage transmet désormais à la décision la requête brute via
-// `observedInviteCaller` : les tests ci-dessous empruntent exactement le
+// `observedCaller` : les tests ci-dessous empruntent exactement le
 // même chemin que la production (requête → observation → décision) afin de
 // prouver qu'une identité dégradée est refusée par le module pur lui-même,
 // pas seulement par les gardes amont.
@@ -655,13 +654,13 @@ function observedRequest(fields: ObservedRequestShape): ObservedCallableRequest 
 
 test("l'observation reflète exactement la requête reçue, sans constante", () => {
   assert.deepEqual(
-    observedInviteCaller(
+    observedCaller(
       observedRequest({ uid: "user_1", appCheck: true, emailVerified: true }),
     ),
     { authenticated: true, appCheckAttested: true, emailVerified: true, uid: "user_1" },
   );
   // Sans Authentification : aucune porte n'est supposée acquise.
-  assert.deepEqual(observedInviteCaller(observedRequest({})), {
+  assert.deepEqual(observedCaller(observedRequest({})), {
     authenticated: false,
     appCheckAttested: false,
     emailVerified: false,
@@ -669,7 +668,7 @@ test("l'observation reflète exactement la requête reçue, sans constante", () 
   });
   // Authentifié mais sans attestation App Check : seule cette porte tombe.
   assert.deepEqual(
-    observedInviteCaller(observedRequest({ uid: "user_1", emailVerified: true })),
+    observedCaller(observedRequest({ uid: "user_1", emailVerified: true })),
     { authenticated: true, appCheckAttested: false, emailVerified: true, uid: "user_1" },
   );
 });
@@ -680,7 +679,7 @@ test("une identité dégradée observée est refusée par la décision de créat
   // capacité — alors même que toutes les autres entrées seraient valides.
   assert.deepEqual(
     decideInviteCreation(
-      creationInput({ caller: observedInviteCaller(observedRequest({})) }),
+      creationInput({ caller: observedCaller(observedRequest({})) }),
     ),
     { outcome: "reject", code: "unauthenticated", message: "Authentification requise." },
   );
@@ -688,7 +687,7 @@ test("une identité dégradée observée est refusée par la décision de créat
   assert.deepEqual(
     decideInviteCreation(
       creationInput({
-        caller: observedInviteCaller(observedRequest({ uid: "user_1", emailVerified: true })),
+        caller: observedCaller(observedRequest({ uid: "user_1", emailVerified: true })),
       }),
     ),
     {
@@ -703,7 +702,7 @@ test("une identité dégradée observée est refusée par la décision de créat
     assert.deepEqual(
       decideInviteCreation(
         creationInput({
-          caller: observedInviteCaller(
+          caller: observedCaller(
             observedRequest({ uid: "user_1", appCheck: true, emailVerified: flag }),
           ),
         }),
@@ -719,7 +718,7 @@ test("une identité dégradée observée est refusée par la décision de créat
   assert.deepEqual(
     decideInviteCreation(
       creationInput({
-        caller: observedInviteCaller(
+        caller: observedCaller(
           observedRequest({ uid: "", appCheck: true, emailVerified: true }),
         ),
       }),
@@ -729,7 +728,7 @@ test("une identité dégradée observée est refusée par la décision de créat
 });
 
 test("une identité pleinement attestée observée conserve l'acceptation historique", () => {
-  const attested = observedInviteCaller(
+  const attested = observedCaller(
     observedRequest({ uid: "user_1", appCheck: true, emailVerified: true }),
   );
   assert.deepEqual(decideInviteCreation(creationInput({ caller: attested })), {
@@ -745,7 +744,7 @@ test("une identité dégradée observée est refusée à l'acceptation, avant m�
   assert.deepEqual(
     decideRedemption(
       redemptionInput({
-        caller: observedInviteCaller(observedRequest({})),
+        caller: observedCaller(observedRequest({})),
         invite: {
           exists: true,
           householdId: "household_b",
@@ -764,7 +763,7 @@ test("une identité dégradée observée est refusée à l'acceptation, avant m�
   assert.deepEqual(
     decideRedemption(
       redemptionInput({
-        caller: observedInviteCaller(
+        caller: observedCaller(
           observedRequest({ uid: "user_9", emailVerified: true }),
         ),
       }),
@@ -780,7 +779,7 @@ test("une identité dégradée observée est refusée à l'acceptation, avant m�
     assert.deepEqual(
       decideRedemption(
         redemptionInput({
-          caller: observedInviteCaller(
+          caller: observedCaller(
             observedRequest({ uid: "user_9", appCheck: true, emailVerified: flag }),
           ),
         }),
@@ -796,7 +795,7 @@ test("une identité dégradée observée est refusée à l'acceptation, avant m�
 
 test("une identité pleinement attestée observée conserve l'acceptation à l'arrivée", () => {
   const attested = redemptionInput({
-    caller: observedInviteCaller(
+    caller: observedCaller(
       observedRequest({ uid: "user_9", appCheck: true, emailVerified: true }),
     ),
   });

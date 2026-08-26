@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "cycle": "32961708279",
+  "role": "backend",
+  "round": 1,
+  "decision": "accept",
+  "summary": "Candidat backend 90ef1a6 (base acceptée 33cd4ac) : extracteur pur partagé observedCaller(request), câblage createInvite/redeemInvite/completeTask alimenté par la requête brute, épinglage source dédié et refus négatifs cross-foyer/cross-user. Périmètre strictement functions/ (7 fichiers), aucune dépendance ni lockfile, aucun service réel, échec fermé et requireCaller préservés. Vérifications ciblées auditeur : tsc OK, 68/68 tests des fichiers touchés, 106/106 sur copie jetable ; preuves de mutation M1/M2b/M3 (extracteur à constantes, revert complet de completeTask aux constantes historiques, site d'appel ne lisant plus la requête) : échec ciblé du test d'épinglage à chaque fois ; M4b : les nouveaux tests d'isolation échouent si les portes adhésion/propriété sont neutralisées. Trois constats info, aucun mustFix. Décision : accept.",
+  "findings": [
+    {
+      "id": "BE-CYCLE32961708279-F1",
+      "severity": "info",
+      "path": "functions/test/observedCallerWiring.test.ts",
+      "mustFix": false,
+      "problem": "Aucun rapport de codeur accompagnant le candidat ne documente la preuve de mutation demandée par la ligne d'acceptation BE-C4-F1 (« preuve de mutation fournie par le codeur »).",
+      "evidence": "Le diff 33cd4ac..90ef1a6 ne contient que les 7 fichiers functions/ ; aucun rapport de candidat n'existe sous reports/. L'auditeur a donc reproduit la preuve lui-même sur copie jetable /tmp/opencode/beaudit : M1 (observedCaller réécrit en constantes) -> not ok 3 ; M2b (revert propre de completeTask vers l'objet constant historique, import retiré) -> not ok 2 ; M3 (createInvite cesse de lire la requête via observedCaller({})) -> not ok 1. Chaque mutation est détectée par le test d'épinglage sans collateral.",
+      "requiredFix": "Aucune correction exigée : la substance du critère est prouvée objectivement par les preuves de mutation reproductibles de l'auditeur (conformément à la directive AUDITOR.md qui charge l'auditeur de vérifier par mutation sur copie jetable). Le directeur doit citer ces preuves dans les éléments de preuve DRC-07.",
+      "verification": "Rejouer les trois mutations sur une copie jetable de functions/ (jamais sur le candidat) puis node --test lib/test/observedCallerWiring.test.js après tsc : chaque mutation doit produire exactement un échec (test 3, test 2, test 1 respectivement) et la copie non mutée doit rester 3/3 verte."
+    },
+    {
+      "id": "BE-CYCLE32961708279-F2",
+      "severity": "info",
+      "path": "functions/test/observedCallerWiring.test.ts",
+      "mustFix": false,
+      "problem": "L'épinglage du câblage est textuel (regex sur les sources). Il détecte tout remplacement ou retrait de la forme épinglée et tout littéral d'identité inline, mais ne détecterait pas une réimplémentation inline sémantiquement équivalente de l'observation (qui n'est pas une régression aux constantes) et peut produire un faux positif sûr sur un futur littéral légitime dans invites.ts/tasks.ts.",
+      "evidence": "WIRING_PATTERN = /caller:\\s*observedCaller\\(request\\)/gu avec compte exact (2 dans invites.ts, 1 dans tasks.ts) et IDENTITY_LITERAL_PATTERN interdisant (authenticated|appCheckAttested|emailVerified): true dans ces fichiers. Mutations M1/M2b/M3 détectées ; l'en-tête du test documente qu'un renommage légitime exige une mise à jour consciente de l'épinglage.",
+      "requiredFix": "Aucune action requise pour ce cycle. Lors d'une future passe avec émulateur Firestore, l'épinglage comportemental au niveau handler remplacera ou complétera l'épinglage source.",
+      "verification": "Aucune. Si un renommage légitime du paramètre request ou de l'extracteur est proposé plus tard, vérifier que la mise à jour du test d'épinglage est explicite dans le diff correspondant et accompagnée d'une preuve de mutation."
+    },
+    {
+      "id": "BE-CYCLE32961708279-F3",
+      "severity": "info",
+      "path": "functions/src/invites.ts",
+      "mustFix": false,
+      "problem": "Les handlers appelables (createInvite, redeemInvite, completeTask) ne s'exécutent pas bout en bout dans les tests : l'épinglage du câblage reste source-level et les refus négatifs exercent le chemin production moins la couche onCall.",
+      "evidence": "Commentaire du candidat (test/observedCallerWiring.test.ts) : « Les handlers appelables exigent l'émulateur Firestore pour s'exécuter bout en bout (incrément reporté, constat F2-concurrence-sans-emulateur) ». Risque résiduel déjà connu, non introduit par ce candidat ; requireCaller reste appelé en tête des trois handlers et enforceAppCheck: true est conservé.",
+      "requiredFix": "Aucune correction avant intégration. À couvrir lors de l'incrément émulateur déjà tracé (concurrence/idempotence sur Firestore émulé), qui devra inclure l'exécution réelle des handlers.",
+      "verification": "Aucune pour ce cycle. Vérifier à l'incrément émulateur que les handlers s'exécutent avec Firestore émulé et que les refus négatifs cross-foyer/cross-user sont rejoués au niveau handler."
+    }
+  ],
+  "checks": []
+}

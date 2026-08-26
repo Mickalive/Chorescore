@@ -156,11 +156,17 @@ export default function HistoryScreen() {
         value={periodFilter}
         onChange={changePeriod}
       />
+      {/* DRC-05 (MOB-C4-F1) : le filtre membre a un nombre et un libellé
+          variables ; en mode repli les segments passent à la ligne au lieu de
+          se compresser sur petit écran ou en grandes tailles de texte. La
+          réinitialisation après bascule de foyer (F3-R2) reste en place
+          ci-dessus : aucune sélection orpheline. */}
       <SegmentedControl
         accessibilityLabel="Membre du foyer affiché"
         options={memberOptions}
         value={memberFilter ?? 'all'}
         onChange={changeMember}
+        wrap
       />
 
       <View style={[styles.metricRow, styles.metricRowSpacing]}>
@@ -419,10 +425,10 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   reportFile: {
-    // Contraste AA : textMuted sur background ≈ 3,76:1 (< 4,5:1) ;
-    // textSecondary atteint ≈ 4,55:1 (constat F6 de l'audit mobile
-    // 32919230502). Le traitement global de textMuted reste programmé
-    // pour la passe DRC-05.
+    // Hiérarchie volontaire : textSecondary (≈ 4,55:1 sur background,
+    // constat F6 de l'audit mobile 32919230502) plutôt que textMuted, dont le
+    // jeton central a été assombri à la passe DRC-05 pour atteindre ≥ 4,5:1
+    // sur tous ses fonds réels (tests/theme-contrast.test.ts).
     color: COLORS.textSecondary,
     fontSize: 12,
   },

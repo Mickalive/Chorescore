@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "cycle": "32961708279",
+  "decision": "continue",
+  "reason": "Les deux paires du manifeste d'intégration sont valides et appliquées exactement par le shell de confiance sur la base 33cd4ac (mobile réparé e18bf1d + audit round 2 accept 0 mustFix ; backend 90ef1a6 + audit round 1 accept 0 mustFix, aucun repair demandé). Aucun mustFix non résolu dans le code intégré. Deux critères restent incomplets avec une tâche locale bornée exécutable : DRC-05 (nouveau constat bloquant vérifié textSecondary/surfaceAlt 4,36:1 < 4,5 AA) et DRC-07 (volet documentation, docs/security figé au cycle 32684730787). stalledCycles = 0 : deux diffs produit acceptés intégrés.",
+  "activeCriteria": ["DRC-05", "DRC-07"],
+  "progressEvidence": [
+    "Paire mobile retenue : candidat réparé e18bf1dabd08372203b152dc55a4098567e68261 + /tmp/chorescore_audit_mobile_final/reports/audits/CYCLE_32961708279_MOBILE_FINAL.json (schemaVersion 1, cycle/role/round appariés, decision accept, 4 constats tous mustFix=false) ; delta 7 fichiers (+357/-26) retrouvé à l'identique dans l'arbre de travail de lab/chorescore ; candidat original et audit initial supersédés, jamais intégrés.",
+    "Paire backend retenue : candidat 90ef1a6500577ebff253ae0920945e56e8bdef3d + /tmp/chorescore_audit_backend/reports/audits/CYCLE_32961708279_BACKEND.json (round 1, decision accept, 3 constats tous mustFix=false) ; 7 fichiers functions/ retrouvés dans l'arbre ; repaired/final audit absents conformes à l'absence de repair.",
+    "Non intégrés et consignés : paires de récupération 32956994425 mobile/backend (accept round 1 non sélectionnées — versions concurrentes supersédées) ; preuve legacy prose-only rejetée (règle 6).",
+    "MOB-C4-F1 et MOB-C4-F2 résolus par le candidat intégré (wrap SegmentedControl + contrat segmentedLayout testé ; frontières année/borne now ±1 s à ancre indépendante) ; mustFix tour 1 contraste résolu (5 paires textMuted ≥ 4,98:1 recalculées, mutations A/B) ; 15/15 ciblés et 162/162 suite complète sur copies jetables.",
+    "BE-C4-F1 et BE-C4-F2 résolus par le candidat intégré (épinglage observedCaller(request), mutations M1/M2b/M3 reproduites par l'auditeur ; completeTask à identité observée, refus négatifs cross-foyer/cross-user, mutation M4b) ; tsc OK, 68/68 fichiers touchés, 106/106 copie jetable.",
+    "Nouveau constat MOB-CYCLE32961708279-SEG établi sur l'arbre intégré par lecture ciblée + calcul WCAG du directeur (méthode calquée sur l'audit round 2, mesures reproduites) : textSecondary #457B9D sur surfaceAlt #F8F9FA = 4,3564:1 et sur #F7FCFB = 4,4329:1, sous le seuil AA — DRC-05 ne peut pas être déclaré complet ce cycle.",
+    "stalledCycles = 0 : deux diffs produit acceptés intégrés + progression DRC-07 pending → in_progress."
+  ],
+  "next": {
+    "mobile": "DRC-05, mission unique bornée (~4 fichiers) : ramener chaque paire réelle de textSecondary à ≥ 4,5:1 AA (surfaceAlt #F8F9FA 4,36:1, currentCard #F7FCFB 4,43:1, marge confortable demandée), inventaire secondaire complet dans tests/theme-contrast.test.ts, mesure WCAG tracée, preuve de mutation ; wrap/F3-R2 et paires déjà conformes intacts. Pas de slices.",
+    "backend": "DRC-07, mission unique bornée (~2 fichiers) : actualiser docs/security/README.md (observedCaller + câblage épinglé + completeTask à identité observée + limites F2/F3), contrôles remesurés soi-même et datés, contrôles bloqués honnêtes. Aucun changement de code. Pas de slices.",
+    "audit": "Mobile : inventaire textSecondaire exhaustif revérifié indépendamment (fonds hors jetons inclus), recalcul WCAG propre, preuve de mutation ciblée, non-régression textMuted/wrap/frontières. Backend/docs : divergence doc/code, chiffres mesurés vs copiés, périmètre strict docs/security/**, instructions racine vérifiées en lecture seule, PR brouillon unique, portes npm audit vertes. Hostilité générale sur les deux candidats."
+  },
+  "humanActions": []
+}

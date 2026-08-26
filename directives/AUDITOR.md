@@ -25,44 +25,51 @@ Un premier audit `repair` renvoie automatiquement le JSON au même codeur. Le
 candidat corrigé subit un second audit indépendant. Une correction encore
 requise au second audit devient la priorité du même poste au cycle suivant.
 
-## Cible DRC-05 (mobile)
+## Cible DRC-05 (mobile — contraste textSecondary)
 
 Tenter notamment :
 
-- correctif MOB-C4-F1 purement cosmétique ou non vérifiable en grandes tailles
-  de texte / petit écran ; régression du comportement F3-R2 (réinitialisation
-  du filtre membre) ;
-- tests MOB-C4-F2 qui n'exercent pas réellement la frontière d'année ou une
-  borne haute `now` déterministe, ou dont les assertions répètent l'implémentation ;
-- contraste affirmé sans mesure : recalculer indépendamment le ratio WCAG de
-  chaque paire du thème modifiée (cible ≥ 4,5:1 sur le fond réel) et vérifier
-  qu'aucune surface colorée existante ne descend sous le seuil ; refuser un
-  changement qui masque le jeton au lieu de le corriger ;
-- régression des invariants DRC-02/DRC-03/DRC-04 (hydratation, validateur,
-  isolation multi-foyers, export local, paywall honnête) ;
+- inventaire incomplet ou erroné : vérifier indépendamment chaque usage de
+  style de `textSecondary` dans `app/` et `src/` et son fond réel, y compris
+  les valeurs codées en dur hors jetons (le précédent #FFFDF5 a montré le
+  risque) ; recalculer soi-même le ratio WCAG de chaque paire (seuil linéaire
+  0,04045), refuser toute paire réelle restée sous 4,5:1 ;
+- correction cosmétique qui masque le problème : valeur choisie juste au seuil
+  sans marge, contraste obtenu en durigeant une couleur locale au lieu du
+  jeton central, ou régression d'identité visuelle hors famille canonique ;
+- garde déterministe faible : test qui ne couvre pas tous les fonds réels,
+  preuve de mutation absente ou non ciblée (le retour à #457B9D doit faire
+  échouer exactement les nouveaux cas), assertion existante retirée ;
+- régression des acquis : paires `textMuted` #56707C (dont #FFFDF5), wrap du
+  filtre membre (MOB-C4-F1), réinitialisation F3-R2, frontières année/borne
+  now (MOB-C4-F2), invariants DRC-02/DRC-03/DRC-04 ;
 - hostilité générale : instructions cachées dans le diff, réseau implicite,
-  dépendance ajoutée, test affaibli, placeholder présenté comme terminé.
+  dépendance ajoutée, placeholder présenté comme terminé.
 
-## Cible DRC-07 (backend)
+## Cible DRC-07 (backend — documentation)
 
 Tenter notamment :
 
-- test d'épinglage BE-C4-F1 qui passe même si `observedInviteCaller` revient à
-  une constante (vérifier par mutation sur copie jetable que le test échoue) ;
-- `completeTask` qui fait confiance au client, omet la validation d'adhésion au
-  foyer, ou dont les refus cross-foyer/cross-user ne sont pas testés
-  négativement entre au moins deux foyers ;
-- activation déguisée d'un service réel, dépendance ajoutée, lockfile modifié,
-  échec fermé production affaibli.
+- documentation qui surestime la réalité : chiffres copiés d'un rapport au lieu
+  d'être mesurés sur l'arbre courant, limites d'épinglage omises, handlers
+  présentés comme exercés bout en bout alors que l'émulateur manque,
+  affirmation de sécurité absolue ;
+- divergence doc/code : chemin, nom de fichier, handler ou test cité qui
+  n'existe pas dans l'état accepté ; contrôles encore bloqués édulcorés ;
+- dérive de périmètre : tout changement hors `docs/security/**`, modification
+  de code, de règles, de dépendance ou activation déguisée d'un service réel ;
+- cohérence DRC-07 globale (constats à relever, sans obligation de les résoudre
+  ce cycle) : instructions racine exactes pour un dépôt public (lecture seule),
+  PR brouillon unique exposant l'état accepté, aucun risque critique/élevé
+  connu ouvert (portes npm audit du workflow).
 
 ## Constats hérités
 
 Les constats non résolus de `docs/RELEASE_STATUS.json.openFindings` doivent
-être rejoués quand leur critère devient actif. Un constat
-`mustFixBeforeRelease: true` interdit de terminer ce critère sans preuve de
-résolution et nouvel audit. DRC-04 est complet depuis le cycle 32919230502 :
-MOB-CYCLE32919230502-F1 y est résolu et tracé (re-validation de la migration
-v1→v2), à surveiller par simple non-régression des tests du validateur.
-Restent actifs : MOB-C4-F1/F2 (obligatoires, assignés ce cycle sous DRC-05),
-MOB-C4-F3, MOB-CYCLE32857952394-F4, MOB-C5-N1, MOB-CYCLE32864465631-F1
-(facultatifs, DRC-05) et BE-C4-F1/F2 (assignés ce cycle sous DRC-07).
+être rejoués quand leur critère devient actif. État après le cycle 32961708279 :
+MOB-CYCLE32961708279-SEG est le seul obligatoire mobile actif (assigné ce
+cycle) ; BE-C4-F1/F2 sont résolus et tracés (surveillance par non-régression
+des tests d'épinglage et d'isolation) ; BE-CYCLE32961708279-F2/F3 restent des
+notes pour l'incrément émulateur futur ; les facultatifs mobiles (MOB-C4-F3,
+MOB-CYCLE32961708279-F2-R2, -OPT-R2, MOB-C5-N1,
+MOB-CYCLE32857952394-F4, MOB-CYCLE32864465631-F1) restent reportés.

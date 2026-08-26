@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "cycle": "32956994425",
+  "role": "mobile",
+  "round": 1,
+  "decision": "accept",
+  "summary": "Candidat 1afcf2c vs état accepté 33cd4ac (parent direct) : diff réel de 7 fichiers (+348/-22) strictement dans app/, src/, tests/. Les trois items obligatoires DRC-05 sont réels et prouvés. MOB-C4-F1 : contrat de repli pur (wrap, flexBasis auto, shrink 0, cible 44 pt) consommé par SegmentedControl, options membre déplacées dans le domaine testé avec isolation multi-foyers épinglée ; reset F3-R2 intact ; autres usages non endommagés. MOB-C4-F2 : frontière année (semaine du lundi 28/12/2026) et borne haute now inclusive épinglées pour semaine et mois, attendus calculés à la main. Contraste : textMuted #577380 re-mesuré indépendamment à 4,78-5,04:1 sur les cinq fonds réels, inventaire des 14 usages complet, garde anti-retour effective. Mutations M1-M4 sur copies jetables : chaque garde est exercée. Tests ciblés 15/15 verts. Aucune hostilité, dépendance ni réseau. Décision : accept.",
+  "findings": [
+    {
+      "id": "MOB-CYCLE32956994425-F1",
+      "severity": "info",
+      "path": "src/components/segmentedLayout.ts, src/components/SegmentedControl.tsx, app/(tabs)/history.tsx",
+      "mustFix": false,
+      "problem": "La preuve MOB-C4-F1 est de niveau contrat déterministe : le module pur SEGMENT_LAYOUT est testé et le composant le consomme réellement, mais le rendu React Native final (repli effectif en grandes tailles de texte système et sur petit écran) n'est pas exécutable sous Node et le dépôt n'a pas de harnais UI, conformément à la stratégie existante.",
+      "evidence": "Revue du diff : styles.container/option étendent SEGMENT_LAYOUT (flexWrap wrap, flexBasis auto, flexShrink 0, flexGrow 1, maxWidth '100%', minHeight 44) ; textAlign center posé pour le repli multiligne. Mutation M4 sur copie jetable (wrap → nowrap) fait échouer exactement le test de contrat. Les trois autres usages du composant (profil 4 options, classement 2, période 3) restent mono-ligne. Le reset du filtre membre au changement de foyer (F3-R2, cycle 32919230502) est conservé à l'identique dans history.tsx.",
+      "requiredFix": "Aucune correction codeur exigée avant intégration. Pour la complétion DRC-05 : le directeur consolide les contrôles manuels déjà prévus dans docs/NEXT_CYCLE.md (grandes tailles de texte sur appareil réel, petit écran) en citant ce contrat comme preuve déterministe associée.",
+      "verification": "npx tsc -p tsconfig.test.json OK ; node --test accessibility+history = 15/15 ; mutation M4 : node --test sur copie /tmp/opencode/mut_layout → exactement le test de contrat échoue (4 pass / 1 fail)."
+    },
+    {
+      "id": "MOB-CYCLE32956994425-F2",
+      "severity": "info",
+      "path": "src/components/theme.ts, tests/accessibility.test.ts",
+      "mustFix": false,
+      "problem": "Des paires préexistantes restent sous le seuil AA 4,5:1 et sortent du jeton assigné : textSecondary #457B9D sur surfaceAlt #F8F9FA ≈ 4,36:1 (libellés non sélectionnés du SegmentedControl, donc y compris le filtre membre objet du correctif), textSecondary sur secondary #F1FAEE ≈ 4,30:1, success #2A9D8F sur secondary ≈ 3,11:1. Elles sont inchangées par ce candidat et honnêtement consignées en commentaire du test plutôt que masquées.",
+      "evidence": "Recalcul WCAG indépendant de l'auditeur : 4,36:1, 4,30:1 et 3,11:1 — valeurs identiques à celles documentées par le codeur dans tests/accessibility.test.ts. Aucune régression introduite : seul textMuted change (#6D8793 → #577380), mesuré 4,78-5,04:1 sur ses cinq fonds réels ; inventaire des 14 sites d'usage vérifié complet contre les cinq fonds déclarés ; paires déjà auditées re-mesurées conformes (textSecondary/background 4,55:1, textPrimary/surfaceAlt 9,56:1, erreur 5,55:1). Mutation M3 : restauration du jeton legacy sur copie jetable → échec ciblé du test AA (4 pass / 1 fail).",
+      "requiredFix": "Aucun pour ce cycle : le critère assigné couvre le jeton textMuted uniquement et interdit toute régression nouvelle (aucune constatée). À programmer à la prochaine passe DRC-05 : traiter textSecondary sur surfaceAlt/secondary et success sur secondary, ou fonder ces libellés sur des surfaces conformes.",
+      "verification": "Script WCAG indépendant de l'auditeur (/tmp/opencode/wcag_check/independent.mjs) rejouable ; test « le jeton textMuted atteint au moins 4,5:1 sur chacun de ses fonds réels » vert sur le candidat, rouge après mutation M3."
+    },
+    {
+      "id": "MOB-CYCLE32956994425-F3",
+      "severity": "info",
+      "path": "app/(tabs)/history.tsx",
+      "mustFix": false,
+      "problem": "Les améliorations facultatives bornées de la mission ne sont pas prises : MOB-C5-N1 (suppression de l'écriture redondante suivant une hydratation sans mutation), MOB-CYCLE32857952394-F4 (garde temporelle d'hydratation) et mémoisation du libellé de période ; MOB-C4-F3 (rafraîchissement semaine/mois en session longue) reste ouvert. Aucune de ces absences n'est requise par le critère.",
+      "evidence": "Diff limité aux 7 fichiers productifs décrits ; periodBounds reste mémoisé sur [periodFilter] avec new Date() capturé au rendu (comportement identique à l'état accepté, coût négligeable) ; aucune régression associée détectée et les facultatifs restent tracés dans docs/RELEASE_STATUS.json.openFindings.",
+      "requiredFix": "Aucun. Ces pistes restent disponibles pour une prochaine passe DRC-05 sans bloquer l'intégration ni la complétion du critère.",
+      "verification": "Lecture intégrale du diff 33cd4ac..1afcf2c et de history.tsx ; tests ciblés 15/15 verts sur le candidat."
+    }
+  ],
+  "checks": []
+}

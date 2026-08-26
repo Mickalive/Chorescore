@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildHistorySynthesis, filterHistoryEntries } from '../src/domain/history.js';
+import { buildHistorySynthesis, describePeriodBounds, filterHistoryEntries } from '../src/domain/history.js';
+import { getPeriodStart } from '../src/domain/periods.js';
 import { getVisibleHistory } from '../src/domain/leaderboard.js';
 import { calculateScore } from '../src/domain/scoring.js';
 import { createDemoSnapshot } from '../src/data/demoData.js';
@@ -122,6 +123,64 @@ test('le changement d’année et la borne haute « maintenant » restent exacts
     'nouvel_an_exact',
     'exactement_now',
   ]);
+});
+
+// DRC-05 (MOB-C4-F2) : la borne annoncée à l'écran (« Méthode : … (Semaine/
+// Mois du …, de 00:00 à maintenant) ») doit rester exactement la borne
+// appliquée au filtrage, y compris au passage d'année et à la borne haute
+// `now`. Oracle indépendant : la date attendue est reconstruite depuis
+// getPeriodStart (la même fonction que le filtrage), pas copiée en dur.
+const MOIS_FR = [
+  'janvier',
+  'février',
+  'mars',
+  'avril',
+  'mai',
+  'juin',
+  'juillet',
+  'août',
+  'septembre',
+  'octobre',
+  'novembre',
+  'décembre',
+] as const;
+
+function expectedBoundsLabel(period: 'week' | 'month', start: Date): string {
+  const label = period === 'week' ? 'Semaine' : 'Mois';
+  const day = start.getDate();
+  const dayLabel = day === 1 ? '1er' : String(day);
+  const month = MOIS_FR[start.getMonth()] ?? '';
+  return `${label} du ${dayLabel} ${month} ${start.getFullYear()}, de 00:00 à maintenant (horloge de l’appareil)`;
+}
+
+test('passage d’année et borne haute now : bornes annoncées identiques aux bornes filtrées', () => {
+  // Vendredi 1er janvier 2027 12:00 : le mois démarre exactement à now-12h
+  // (1er janvier 00:00) et la semaine chevauche encore décembre 2026.
+  const YEAR_NOW = new Date(2027, 0, 1, 12, 0, 0);
+
+  for (const period of ['week', 'month'] as const) {
+    const start = getPeriodStart(period, YEAR_NOW);
+
+    // 1. Le libellé affiché nomme précisément le début calculé.
+    assert.equal(describePeriodBounds(period, YEAR_NOW), expectedBoundsLabel(period, start));
+
+    // 2. Le filtrage applique exactement l'intervalle annoncé [début ; now] :
+    //    une saisie exactement au début passe, une seconde avant sort ;
+    //    une saisie exactement à now passe, une seconde après sort.
+    const atStart = entry('borne_debut', 'a', start, 10);
+    const beforeStart = entry('avant_borne', 'a', new Date(start.getTime() - 1000), 10);
+    const atNow = entry('borne_now', 'a', YEAR_NOW, 10);
+    const afterNow = entry('apres_now', 'a', new Date(YEAR_NOW.getTime() + 1000), 10);
+    const kept = filterHistoryEntries([atStart, beforeStart, atNow, afterNow], period, null, YEAR_NOW);
+    assert.deepEqual(kept.map((item) => item.id), ['borne_debut', 'borne_now']);
+  }
+
+  // La semaine annoncée au 1er janvier 2027 couvre bien la fin décembre :
+  // le libellé doit porter l'année précédente, sans décalage de semaine ISO.
+  assert.match(
+    describePeriodBounds('week', YEAR_NOW) ?? '',
+    /Semaine du 28 décembre 2026, de 00:00 à maintenant/,
+  );
 });
 
 test('le filtre par membre ne garde que ses entrées, « null » garde tout le foyer', () => {

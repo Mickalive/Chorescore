@@ -1,51 +1,46 @@
 # Tâche active — Ingénieur produit mobile
 
-Assignment-Id: DRC-05  
-Autorité de poste : `governance/roles/MOBILE_PRODUCT_ENGINEER.md`  
+Assignment-Id: DRC-05
+Autorité de poste : `governance/roles/MOBILE_PRODUCT_ENGINEER.md`
 Sélecteur machine : `directives/TASKS.json`
 
 ## Résultat attendu
 
-L'état accepté du cycle 32919230502 (DRC-04 complet : filtres/synthèses,
-multi-foyers locaux, export local, paywall honnête) gagne les preuves
-déterministes de parcours et l'accessibilité exigées par DRC-05. Les trois
-travaux ci-dessous forment une mission unique bornée ; aucun nouveau parcours
-produit n'est créé.
+Dernier constat bloquant de DRC-05 sur l'état accepté du cycle 32961708279 :
+le jeton `textSecondary` (#457B9D) passe sous le seuil AA 4,5:1 sur deux fonds
+réels de l'arbre intégré — `surfaceAlt` #F8F9FA (4,36:1 : libellés non
+sélectionnés du `SegmentedControl`, donc le filtre membre de l'historique et
+les périodes historique/classement/profil) et la carte courante du classement
+#F7FCFB (4,43:1) ; #FFFDF5 (carte Pro du paywall) est à 4,51:1, sans marge.
+Aucun nouveau parcours produit n'est créé.
 
 ## Travail borné
 
-1. **MOB-C4-F1 (obligatoire)** — filtre membre de l'historique utilisable sur
-   petit écran et grandes tailles de texte : repli, défilement ou sélection
-   dédiée ; aucune sélection orpheline après bascule de foyer (comportement
-   F3-R2 déjà intégré à préserver).
-2. **MOB-C4-F2 (obligatoire)** — tests de frontière d'année et de borne haute
-   `now` pour les filtres semaine/mois : les bornes annoncées restent
-   exactement les bornes filtrées au passage d'année et en fin de période.
-3. **Contraste textMuted global** — ajuster le jeton central du thème pour
-   atteindre ≥ 4,5:1 sur chaque fond réellement employé (le cas ReportModal
-   F6-R2 est déjà conforme via textSecondary) ; tracer la mesure WCAG de chaque
-   paire conservée, ajouter un test déterministe des paires du thème, vérifier
-   qu'aucune surface colorée existante ne régresse.
-
-Améliorations facultatives acceptées dans la même mission si elles restent
-bornées : MOB-C5-N1 (zéro écriture redondante après hydratation sans mutation),
-MOB-CYCLE32857952394-F4 (garde temporelle sur la porte d'hydratation),
-mémoisation du libellé de période. Ne pas introduire de harnais UI :
-MOB-CYCLE32864465631-F1 reste reporté.
+1. **Inventaire** — lister chaque usage de style de `textSecondary` dans
+   `app/` et `src/` avec son fond réel (jetons du thème et valeurs codées en
+   dur), comme l'auditeur l'a fait pour `textMuted` au cycle 32961708279.
+2. **Correction centrale** — ajuster le jeton dans `src/components/theme.ts`
+   (même démarche que la passe `textMuted` : rester dans la famille de bleu
+   sobre canonique) ou employer explicitement un jeton conforme là où c'est
+   réellement nécessaire ; viser une marge confortable au-dessus de 4,5:1,
+   pas un passage juste au seuil.
+3. **Garde déterministe** — étendre `tests/theme-contrast.test.ts` avec
+   l'inventaire secondaire complet (tous les fonds réels, y compris codés en
+   dur) ; fournir la mesure WCAG de chaque paire et une preuve de mutation
+   (retour à #457B9D → exactement les nouveaux cas échouent).
 
 ## Hors périmètre
 
-Pas de Firebase, Auth, Stripe, analytics, réseau, nouvelle dépendance,
-modification de workflow, refonte visuelle ni nouvelle fonctionnalité produit.
-Ne pas traiter DRC-07 (documentation/PR côté shell et humain) ni DRC-06.
-Les constats info du candidat de récupération non intégré 32915047376
-(mémoisation `describePeriodBounds`, forme de `CreateHouseholdResult`) sont des
-pistes à revérifier sur le code intégré, pas des défauts établis.
+Ne pas toucher aux paires déjà conformes (`textMuted` #56707C sur ses cinq
+fonds ; `textSecondary` sur background/surface), au comportement wrap du filtre
+membre (MOB-C4-F1) ni à la réinitialisation F3-R2. Pas de refonte visuelle, pas
+de nouvelle fonctionnalité, pas de Firebase/Stripe/analytics/réseau, pas de
+dépendance, pas de fichier hors `app/`, `src/`, `tests/`. Ne pas traiter DRC-06.
+Les facultatifs restent reportés (MOB-C4-F3, MOB-CYCLE32961708279-F2-R2,
+-OPT-R2, MOB-C5-N1, garde d'hydratation, harnais UI).
 
 ## Preuves attendues
 
-`npm run check` vert (tests existants + nouveaux tests MOB-C4-F2 et paires de
-contraste), export Android démo réussi hors ligne, mesure WCAG tracée pour
-chaque paire retenue, liste exacte des contrôles manuels restants (à fournir
-dans le rapport du codeur ; le directeur les consolide dans
-`docs/NEXT_CYCLE.md`), limites résiduelles explicites.
+`npm run check` vert, export Android démo réussi hors ligne, tableau de mesure
+WCAG par paire conservée, preuve de mutation tracée, liste exacte des fichiers
+modifiés (≤ ~4) et limites résiduelles explicites.

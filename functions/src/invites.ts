@@ -11,8 +11,8 @@ import {
   inviteDigest,
   InviteCapacity,
   InviteRejectionDecision,
-  observedInviteCaller,
 } from "./invitations";
+import { observedCaller } from "./observedCaller";
 import { resolveHouseholdPlanInTransaction } from "./plans";
 import {
   enforceRateLimit,
@@ -195,11 +195,13 @@ export const createInvite = onCall(
           now.toMillis(),
         );
 
-        // Décision d'autorisation en logique pure : identité observée,
-        // adhésion, rôle, existence du foyer, capacité du plan, expiration
-        // depuis le temps serveur.
+        // Décision d'autorisation en logique pure : identité observée sur la
+        // requête brute via observedCaller(request) — câblage épinglé par
+        // test/observedCallerWiring.test.ts, un retour aux constantes y est
+        // détecté —, adhésion, rôle, existence du foyer, capacité du plan,
+        // expiration depuis le temps serveur.
         const decision = decideInviteCreation({
-          caller: observedInviteCaller(request),
+          caller: observedCaller(request),
           membership: {
             exists: true,
             status: "active",
@@ -292,13 +294,14 @@ export const redeemInvite = onCall(
         );
         const memberStatus = memberSnapshot.data()?.status;
 
-        // Première phase de la décision en logique pure : identité observée,
-        // forme du jeton, invitation stockée, foyer désigné par le document,
-        // rejeu de double acceptation, expiration serveur. La capacité n'est
-        // chargée qu'après ces portes, préservant l'ordre historique des
-        // lectures et des refus.
+        // Première phase de la décision en logique pure : identité observée
+        // sur la requête brute (même épinglage que createInvite), forme du
+        // jeton, invitation stockée, foyer désigné par le document, rejeu de
+        // double acceptation, expiration serveur. La capacité n'est chargée
+        // qu'après ces portes, préservant l'ordre historique des lectures et
+        // des refus.
         const preDecision = decideInviteRedemption({
-          caller: observedInviteCaller(request),
+          caller: observedCaller(request),
           invite: {
             exists: inviteSnapshot.exists,
             householdId: targetHouseholdId,

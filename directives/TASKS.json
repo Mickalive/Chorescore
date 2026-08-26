@@ -1,30 +1,35 @@
 {
   "schemaVersion": 1,
   "milestone": "demo-rc",
-  "updatedBy": "director-32864465631",
+  "updatedBy": "director-32919230502",
   "activeCriteria": [
-    "DRC-04"
+    "DRC-05",
+    "DRC-07"
   ],
   "assignments": {
     "mobile": {
       "enabled": true,
-      "criterionId": "DRC-04",
-      "objective": "Rendre réelles et honnêtes en démo les fonctions premium : filtres et synthèses semaine/mois de l'historique, foyers locaux multiples isolés dans le document persisté, export local produisant un résultat réellement consultable ; aucun bouton ne simule un succès ou un achat et le paywall contextuel ne bloque jamais une fonction annoncée gratuite et n'en simule jamais le contournement.",
+      "criterionId": "DRC-05",
+      "objective": "Passe qualité de parcours et accessibilité sur l'état accepté DRC-04 : rendre le filtre membre de l'historique utilisable sur petit écran et grandes tailles de texte (MOB-C4-F1, obligatoire avant livraison), ajouter les tests de frontière année et borne haute now pour les filtres d'historique (MOB-C4-F2, obligatoire avant livraison), et traiter systématiquement le contraste de textMuted via le jeton central du thème afin d'atteindre au moins 4,5:1 mesuré sur ses fonds réels. Mission unique bornée (~8 fichiers attendus) : pas de slices.",
       "acceptance": [
-        "les filtres semaine/mois produisent des synthèses réelles calculées depuis les entrées du foyer actif, avec méthode de calcul visible et bornes de période déterministes",
-        "créer et basculer entre plusieurs foyers locaux est réel : tâches, classement, historique et entrées sont isolés par foyer dans le document persisté versionné",
-        "l'export local produit un contenu réellement consultable (partage ou fichier local), sans réseau, sans compte et sans prétention de synchronisation",
-        "en scénario gratuit le poids effectif reste 1 ; la pondération personnalisée démo n'affecte que les nouvelles entrées via weightSnapshot, jamais les scores historiques",
-        "aucun bouton ne simule un achat ou un succès ; le paywall apparaît calmement au moment pertinent et ne bloque jamais une fonction annoncée gratuite",
-        "états vides, erreurs, confirmations et annonces accessibles traités pour chaque nouvelle surface (grandes tailles de texte incluses)",
-        "tests succès, refus, états vides pour filtres, multi-foyers et export ; npm run check vert ; export Android démo OK sans réseau ; validateur de persistance étendu aux nouveaux champs si le schéma évolue"
+        "MOB-C4-F1 résolu avec preuve : le filtre membre reste utilisable en petit écran et grandes tailles de texte (repli, défilement ou sélection dédiée), sans chevauchement ni cible injoignable",
+        "MOB-C4-F2 résolu avec preuve : tests de frontière d'année et de borne haute now pour les filtres semaine/mois d'historique, bornes calculées identiques aux bornes filtrées",
+        "contraste : le jeton textMuted est ajusté centralement dans le thème pour atteindre >= 4,5:1 sur chaque fond où il est réellement employé ; mesure WCAG tracée dans le rapport du codeur ; test déterministe des paires du thème ajouté ; aucune régression introduite sur les surfaces colorées existantes",
+        "non-régression : les tests existants (domaine, persistance, data-control, premium-local, store-interactions, annonces accessibles) restent verts ; états vides, erreurs et confirmations des surfaces touchées conservés",
+        "améliorations facultatives bienvenues mais strictement bornées : MOB-C5-N1 (zéro écriture redondante après hydratation sans mutation), MOB-CYCLE32857952394-F4 (garde temporelle d'hydratation), mémoisation du libellé de période de l'historique ; ne pas introduire de harnais UI (MOB-CYCLE32864465631-F1 reste reporté)",
+        "npm run check vert ; export Android démo OK hors ligne ; aucune dépendance, aucun réseau, aucun fichier hors app/, src/, tests/ ; environ 12 fichiers modifiés au maximum"
       ]
     },
     "backend": {
-      "enabled": false,
-      "criterionId": "DRC-04",
-      "objective": "STOP — aucun travail backend nécessaire pour cette tranche mobile locale. Les constats BE-C4-F1/F2 restent programmés sous DRC-07.",
-      "acceptance": []
+      "enabled": true,
+      "criterionId": "DRC-07",
+      "objective": "Volet code de DRC-07 sur l'état accepté : épingler par test le câblage observedInviteCaller(request) afin qu'un retour aux constantes soit détecté (BE-C4-F1, obligatoire avant livraison) et appliquer l'identité observée à completeTask avec refus négatifs testés (BE-C4-F2). Aucun service réel, aucune dépendance. Mission unique bornée (~5 fichiers attendus) : pas de slices.",
+      "acceptance": [
+        "un test dédié échoue si observedInviteCaller revient à une constante ou cesse de lire request (preuve de mutation fournie par le codeur)",
+        "completeTask valide l'appelant via l'identité observée côté serveur : refus cross-foyer et cross-user couverts par tests négatifs entre au moins deux foyers",
+        "aucun Firebase/Stripe/analytics réel activé, aucune nouvelle dépendance, aucun lockfile modifié, échec fermé production préservé",
+        "npm --prefix functions run check vert et npm --prefix functions audit --omit=dev --audit-level=high exit 0 ; périmètre strictement functions/ et ses tests ; environ 12 fichiers modifiés au maximum"
+      ]
     }
   }
 }

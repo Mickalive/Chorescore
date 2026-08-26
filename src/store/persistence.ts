@@ -11,21 +11,24 @@ import type {
 } from '../domain/types';
 
 /**
- * Couche de persistance de la démo (DRC-02).
+ * Couche de persistance de la démo (DRC-02, étendue en DRC-04).
  *
  * - frontière de stockage clé/valeur injectée : aucune importation React Native
  *   ici, l'adaptateur AsyncStorage vit dans `src/services/storage.ts` ;
- * - enveloppe versionnée unique (`schemaVersion`) avec sérialisation stable et
+ * - enveloppe versionnée (`schemaVersion`) avec sérialisation stable et
  *   déterministe (clés triées) ;
+ * - schéma v2 : plusieurs foyers locaux isolés dans le même document
+ *   (`households` + `currentHouseholdId`) ; la lecture migre explicitement les
+ *   documents v1 (foyer unique) vers v2 sans perte, et toute charge illisible
+ *   part en quarantaine avant suppression — jamais de perte silencieuse ;
  * - lecture à quatre issues explicites : premier lancement, restauration,
- *   récupération après donnée illisible (quarantaine de la charge brute, jamais
- *   de perte silencieuse), indisponibilité du stockage ;
+ *   récupération après donnée illisible, indisponibilité du stockage ;
  * - aucune requête réseau, aucune donnée réelle.
  */
 
 export const STORAGE_KEY = 'chorescore.demo.state.v1';
 export const QUARANTINE_KEY = 'chorescore.demo.state.quarantine';
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 /** Garde-fou anti-dérive : une démo complète tient largement sous cette taille. */
 export const MAX_SERIALIZED_BYTES = 512 * 1024;
 
@@ -35,8 +38,23 @@ export type KeyValueStorage = {
   removeItem(key: string): Promise<void>;
 };
 
-/** Tranche durable de l'état : tout le reste (paywall, avis, compteurs) est éphémère. */
+/**
+ * Tranche durable de l'état : tout le reste (paywall, avis, compteurs) est
+ * éphémère. Depuis le schéma v2, le foyer actif n'est pas stocké : il se déduit
+ * de `households` et de `currentHouseholdId` à la lecture.
+ */
 export type DurableState = Pick<
+  AppSnapshot,
+  'users' | 'memberships' | 'tasks' | 'entries' | 'currentUserId'
+> & {
+  households: Household[];
+  currentHouseholdId: string;
+  onboardingComplete: boolean;
+  consent: ConsentState;
+};
+
+/** Forme historique v1 : un seul foyer, avant les foyers locaux multiples. */
+export type LegacyDurableStateV1 = Pick<
   AppSnapshot,
   'users' | 'household' | 'memberships' | 'tasks' | 'entries' | 'currentUserId'
 > & {
@@ -44,8 +62,8 @@ export type DurableState = Pick<
   consent: ConsentState;
 };
 
-export type EnvelopeV1 = {
-  schemaVersion: 1;
+export type EnvelopeV2 = {
+  schemaVersion: 2;
   savedAt: string;
   state: DurableState;
 };
@@ -53,13 +71,13 @@ export type EnvelopeV1 = {
 export type RecoveryReason = 'invalid-json' | 'invalid-shape' | 'unknown-version' | 'oversized';
 
 export type ParsedEnvelope =
-  | { outcome: 'valid'; envelope: EnvelopeV1 }
+  | { outcome: 'valid'; envelope: EnvelopeV2; migratedFrom?: 1 }
   | { outcome: 'invalid'; reason: Extract<RecoveryReason, 'invalid-json' | 'invalid-shape'> }
   | { outcome: 'unknown-version'; schemaVersion: number };
 
 export type LoadOutcome =
   | { status: 'first-launch' }
-  | { status: 'restored'; state: DurableState; savedAt: string }
+  | { status: 'restored'; state: DurableState; savedAt: string; migratedFrom?: 1 }
   | { status: 'recovered'; reason: RecoveryReason; quarantined: boolean }
   | { status: 'unavailable'; cause: unknown };
 
@@ -106,12 +124,26 @@ export function utf8ByteLength(text: string): number {
 /* Enveloppe versionnée                                                */
 /* ------------------------------------------------------------------ */
 
-export function buildEnvelope(state: DurableState, savedAt: string): EnvelopeV1 {
+export function buildEnvelope(state: DurableState, savedAt: string): EnvelopeV2 {
   return { schemaVersion: SCHEMA_VERSION, savedAt, state };
 }
 
 export function serializeEnvelope(state: DurableState, savedAt: string): string {
   return serializeStable(buildEnvelope(state, savedAt));
+}
+
+/**
+ * Migration explicite v1 -> v2 : le foyer unique devient une collection d'un
+ * élément et le foyer actif est identifié par son identifiant. Aucune donnée
+ * métier n'est modifiée.
+ */
+export function migrateV1ToV2(legacy: LegacyDurableStateV1): DurableState {
+  const { household, ...rest } = legacy;
+  return {
+    ...rest,
+    households: [household],
+    currentHouseholdId: household.id,
+  };
 }
 
 export function parseEnvelope(raw: string): ParsedEnvelope {
@@ -132,18 +164,38 @@ export function parseEnvelope(raw: string): ParsedEnvelope {
   if (version > SCHEMA_VERSION) {
     return { outcome: 'unknown-version', schemaVersion: version };
   }
-  if (version < SCHEMA_VERSION) {
+  if (version === 1) {
+    // Seule version historique : migration sûre vers v2 après contrôle de la
+    // forme d'origine. Une forme v1 invalide suit le parcours de quarantaine.
+    if (!isLegacyDurableStateV1(record.state)) {
+      return { outcome: 'invalid', reason: 'invalid-shape' };
+    }
+    const migrated = migrateV1ToV2(record.state);
+    // Le validateur v2 est strictement plus exigeant que le v1 (adhésions
+    // rattachées à un foyer et un utilisateur connus, personne active membre
+    // du foyer actif, entrées cohérentes avec le foyer de leur tâche). Rejouer
+    // la validation complète sur l'état migré garantit qu'un document v1
+    // référentiellement incohérent ne soit jamais chargé puis re-persisté en
+    // enveloppe v2 — ce qui le condamnerait à la quarantaine à la relance
+    // suivante. Il est refusé ici, dès la première lecture.
+    if (!isDurableState(migrated)) {
+      return { outcome: 'invalid', reason: 'invalid-shape' };
+    }
+    const envelope = buildEnvelope(migrated, record.savedAt as string);
+    return { outcome: 'valid', envelope, migratedFrom: 1 };
+  }
+  if (version < 1) {
     // Aucune version historique n'existe sous 1 : charge non authentique.
     return { outcome: 'invalid', reason: 'invalid-shape' };
   }
   if (!isDurableState(record.state)) {
     return { outcome: 'invalid', reason: 'invalid-shape' };
   }
-  return { outcome: 'valid', envelope: record as unknown as EnvelopeV1 };
+  return { outcome: 'valid', envelope: record as unknown as EnvelopeV2 };
 }
 
 /* ------------------------------------------------------------------ */
-/* Validation structurelle contre le schéma v1                         */
+/* Validation structurelle contre le schéma courant                    */
 /* ------------------------------------------------------------------ */
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -259,7 +311,11 @@ function isConsent(value: unknown): value is ConsentState {
   );
 }
 
-export function isDurableState(value: unknown): value is DurableState {
+/**
+ * Forme historique v1, contrôlée avec les règles d'origine (foyer unique) afin
+ * que tout document autrefois valide reste lisible par la migration.
+ */
+export function isLegacyDurableStateV1(value: unknown): value is LegacyDurableStateV1 {
   if (!isRecord(value)) return false;
   if (!Array.isArray(value.users) || !value.users.every(isUser)) return false;
   if (!isHousehold(value.household)) return false;
@@ -269,13 +325,10 @@ export function isDurableState(value: unknown): value is DurableState {
   if (!isNonEmptyString(value.currentUserId)) return false;
   if (typeof value.onboardingComplete !== 'boolean') return false;
   if (!isConsent(value.consent)) return false;
-  // Invariants référentiels (DRC-03, constats MOB-CYCLE32857952394-F1/F2) :
+  // Invariants référentiels d'origine (constats MOB-CYCLE32857952394-F1/F2) :
   // identifiants uniques par collection et entrées rattachées à des tâches et
-  // des utilisateurs existants du même document. Une charge qui viole ces
-  // invariants est refusée comme forme invalide : elle part en quarantaine
-  // avec le même parcours visible qu'une corruption, jamais de perte
-  // silencieuse. Les adhésions n'ont pas d'identifiant propre : leur clé
-  // naturelle est la paire (foyer, utilisateur).
+  // des utilisateurs existants du même document. Les adhésions n'ont pas
+  // d'identifiant propre : leur clé naturelle est la paire (foyer, utilisateur).
   const userIds = new Set<string>();
   for (const user of value.users) {
     if (userIds.has(user.id)) {
@@ -305,6 +358,98 @@ export function isDurableState(value: unknown): value is DurableState {
     }
     entryIds.add(entry.id);
     if (!taskIds.has(entry.taskId) || !userIds.has(entry.userId)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Validateur du schéma v2 (foyers locaux multiples, DRC-04). Outre les formes
+ * par collection, il impose l'intégrité référentielle entre foyers :
+ * - identifiants de foyers uniques et foyer actif existant ;
+ * - adhésions, tâches et entrées rattachées à un foyer connu ;
+ * - chaque entrée pointe une tâche du même foyer et un membre (adhésion
+ *   réelle) de son propre foyer ;
+ * - l'utilisateur actif existe et appartient au foyer actif.
+ * Une charge qui viole ces invariants est refusée comme forme invalide : elle
+ * part en quarantaine avec le parcours visible habituel, jamais de perte
+ * silencieuse.
+ */
+export function isDurableState(value: unknown): value is DurableState {
+  if (!isRecord(value)) return false;
+  if (!Array.isArray(value.users) || !value.users.every(isUser)) return false;
+  if (!Array.isArray(value.households) || value.households.length === 0 || !value.households.every(isHousehold)) {
+    return false;
+  }
+  if (!Array.isArray(value.memberships) || !value.memberships.every(isMembership)) return false;
+  if (!Array.isArray(value.tasks) || !value.tasks.every(isTaskDefinition)) return false;
+  if (!Array.isArray(value.entries) || !value.entries.every(isTaskEntry)) return false;
+  if (!isNonEmptyString(value.currentHouseholdId)) return false;
+  if (!isNonEmptyString(value.currentUserId)) return false;
+  if (typeof value.onboardingComplete !== 'boolean') return false;
+  if (!isConsent(value.consent)) return false;
+
+  const householdIds = new Set<string>();
+  for (const household of value.households) {
+    if (householdIds.has(household.id)) {
+      return false;
+    }
+    householdIds.add(household.id);
+  }
+  if (!householdIds.has(value.currentHouseholdId)) {
+    return false;
+  }
+
+  const userIds = new Set<string>();
+  for (const user of value.users) {
+    if (userIds.has(user.id)) {
+      return false;
+    }
+    userIds.add(user.id);
+  }
+  if (!userIds.has(value.currentUserId)) {
+    return false;
+  }
+
+  const membershipKeys = new Set<string>();
+  const membershipByPair = new Set<string>();
+  for (const membership of value.memberships) {
+    if (!householdIds.has(membership.householdId) || !userIds.has(membership.userId)) {
+      return false;
+    }
+    const key = `${membership.householdId}\u0000${membership.userId}`;
+    if (membershipKeys.has(key)) {
+      return false;
+    }
+    membershipKeys.add(key);
+    membershipByPair.add(key);
+  }
+  if (!membershipByPair.has(`${value.currentHouseholdId}\u0000${value.currentUserId}`)) {
+    return false;
+  }
+
+  const taskById = new Map<string, TaskDefinition>();
+  for (const task of value.tasks) {
+    if (taskById.has(task.id) || !householdIds.has(task.householdId)) {
+      return false;
+    }
+    taskById.set(task.id, task);
+  }
+
+  const entryIds = new Set<string>();
+  for (const entry of value.entries) {
+    if (entryIds.has(entry.id)) {
+      return false;
+    }
+    entryIds.add(entry.id);
+    const task = taskById.get(entry.taskId);
+    if (
+      task === undefined ||
+      task.householdId !== entry.householdId ||
+      !userIds.has(entry.userId) ||
+      !membershipByPair.has(`${entry.householdId}\u0000${entry.userId}`)
+    ) {
       return false;
     }
   }
@@ -346,8 +491,17 @@ export async function loadDurableState(storage: KeyValueStorage): Promise<LoadOu
   }
   const parsed = parseEnvelope(raw);
   switch (parsed.outcome) {
-    case 'valid':
-      return { status: 'restored', state: parsed.envelope.state, savedAt: parsed.envelope.savedAt };
+    case 'valid': {
+      const restored: LoadOutcome = {
+        status: 'restored',
+        state: parsed.envelope.state,
+        savedAt: parsed.envelope.savedAt,
+      };
+      if (parsed.migratedFrom === 1) {
+        restored.migratedFrom = 1;
+      }
+      return restored;
+    }
     case 'unknown-version':
       return quarantine(storage, raw, 'unknown-version');
     case 'invalid':

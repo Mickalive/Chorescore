@@ -2,13 +2,15 @@ import { getEffectiveWeight, getEntitlements } from '../domain/entitlements';
 import type {
   AppSnapshot,
   ConsentState,
+  Household,
+  Membership,
   PlanScenario,
   PremiumFeature,
   TaskCategory,
   TaskDefinition,
   TaskEntry,
 } from '../domain/types';
-import { validateManualMinutes, validateTaskInput } from '../domain/validation';
+import { normalizeTaskName, validateManualMinutes, validateTaskInput } from '../domain/validation';
 
 export type HydrationPhase =
   | { phase: 'loading' }
@@ -16,6 +18,15 @@ export type HydrationPhase =
   | { phase: 'error'; message: string };
 
 export type AppState = AppSnapshot & {
+  /**
+   * DRC-04 : collection complète des foyers locaux du document persisté.
+   * `household` (hérité d'AppSnapshot) reste le foyer actif matérialisé ; il
+   * doit toujours être l'élément de `households` désigné par
+   * `currentHouseholdId` — invariant maintenu par les seules actions qui
+   * touchent au roster et vérifié par les tests.
+   */
+  households: Household[];
+  currentHouseholdId: string;
   hydration: HydrationPhase;
   onboardingComplete: boolean;
   consent: ConsentState;
@@ -28,6 +39,7 @@ export type Action =
   | {
       type: 'HYDRATION_READY';
       snapshot: AppSnapshot;
+      roster: { households: Household[]; currentHouseholdId: string };
       durable: { onboardingComplete: boolean; consent: ConsentState };
       notice: string | null;
     }
@@ -45,6 +57,8 @@ export type Action =
   | { type: 'EDIT_ENTRY'; entry: TaskEntry }
   | { type: 'DELETE_ENTRY'; entryId: string }
   | { type: 'CANCEL_TIMER'; entryId: string }
+  | { type: 'CREATE_HOUSEHOLD'; household: Household; joinedAt: string }
+  | { type: 'SWITCH_HOUSEHOLD'; householdId: string }
   | { type: 'SHOW_PAYWALL'; feature: PremiumFeature }
   | { type: 'HIDE_PAYWALL' }
   | { type: 'SET_NOTICE'; notice: string | null }
@@ -53,6 +67,33 @@ export type Action =
 export const TERMS_VERSION = 'demo-v1';
 
 const EPOCH_ISO = '1970-01-01T00:00:00.000Z';
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Plafond de foyers locaux conservés dans le document persisté : la démo reste
+ * un outil d'exploration, pas un gestionnaire illimité, et la taille du
+ * document reste sous le garde-fou de persistance.
+ */
+export const MAX_LOCAL_HOUSEHOLDS = 4;
+
+/**
+ * Rétablit la cohérence entre le roster complet et le foyer actif matérialisé.
+ * Appelée par les seules actions qui modifient `households` ou
+ * `currentHouseholdId` ; toute autre action préserve les deux par spread.
+ */
+function withActiveHousehold(
+  state: AppState,
+  households: Household[],
+  currentHouseholdId: string,
+): AppState {
+  const household = households.find((candidate) => candidate.id === currentHouseholdId);
+  if (household === undefined) {
+    // Inconstructible via les planners : le foyer actif existe toujours dans
+    // le roster. Le repli conserve l'état entrant plutôt que d'inventer.
+    return state;
+  }
+  return { ...state, households, currentHouseholdId, household };
+}
 
 /**
  * État d'amorçage utilisé pendant l'hydratation : volontairement vide, il ne
@@ -71,6 +112,8 @@ export function createLoadingState(): AppState {
       trialEndsAt: EPOCH_ISO,
       maxMembers: null,
     },
+    households: [],
+    currentHouseholdId: '',
     memberships: [],
     tasks: [],
     entries: [],
@@ -92,6 +135,8 @@ export function createLoadingState(): AppState {
 export function createInitialState(snapshot: AppSnapshot): AppState {
   return {
     ...snapshot,
+    households: [snapshot.household],
+    currentHouseholdId: snapshot.household.id,
     hydration: { phase: 'ready' },
     onboardingComplete: false,
     consent: {
@@ -111,6 +156,8 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'HYDRATION_READY':
       return {
         ...action.snapshot,
+        households: action.roster.households,
+        currentHouseholdId: action.roster.currentHouseholdId,
         hydration: { phase: 'ready' },
         onboardingComplete: action.durable.onboardingComplete,
         consent: action.durable.consent,
@@ -130,12 +177,21 @@ export function reducer(state: AppState, action: Action): AppState {
         consent: { ...state.consent, analyticsOptIn: action.enabled },
         analyticsEventCount: action.eventCount,
       };
-    case 'SET_PLAN':
-      return {
-        ...state,
-        household: { ...state.household, plan: action.plan, maxMembers: action.maxMembers },
-        notice: `Scénario ${action.plan} activé pour tout le foyer.`,
-      };
+    case 'SET_PLAN': {
+      // DRC-04 : le scénario s'applique au foyer actif et à sa copie dans le
+      // roster persisté — les deux restent une seule et même vérité.
+      const households = state.households.map((candidate) =>
+        candidate.id === state.currentHouseholdId
+          ? { ...candidate, plan: action.plan, maxMembers: action.maxMembers }
+          : candidate,
+      );
+      const next = withActiveHousehold(
+        { ...state, household: { ...state.household, plan: action.plan, maxMembers: action.maxMembers } },
+        households,
+        state.currentHouseholdId,
+      );
+      return { ...next, notice: `Scénario ${action.plan} activé pour tout le foyer.` };
+    }
     case 'SET_USER':
       return { ...state, currentUserId: action.userId, notice: null };
     case 'ADD_TASK':
@@ -196,19 +252,73 @@ export function reducer(state: AppState, action: Action): AppState {
         entries: state.entries.filter((entry) => entry.id !== action.entryId),
         notice: 'Chrono annulé : aucune entrée créée.',
       };
+    case 'CREATE_HOUSEHOLD': {
+      // DRC-04 : création réelle d'un foyer local. Il démarre vide (aucune
+      // tâche, aucune entrée) : tâches, classement, historique et entrées sont
+      // isolés par foyer dans le document persisté. La personne courante en
+      // devient propriétaire ; les autres membres ne sont pas dupliqués.
+      const memberships: Membership[] = [
+        ...state.memberships,
+        {
+          householdId: action.household.id,
+          userId: state.currentUserId,
+          role: 'owner' as const,
+          joinedAt: action.joinedAt,
+        },
+      ];
+      const next = withActiveHousehold(
+        { ...state, memberships },
+        [...state.households, action.household],
+        action.household.id,
+      );
+      return {
+        ...next,
+        notice: `Foyer « ${action.household.name} » créé : ses données sont séparées des autres foyers.`,
+      };
+    }
+    case 'SWITCH_HOUSEHOLD': {
+      const target = state.households.find((candidate) => candidate.id === action.householdId);
+      if (target === undefined) {
+        return state;
+      }
+      const next = withActiveHousehold(state, state.households, target.id);
+      // DRC-04 : un chrono lancé dans un autre foyer reste actif mais
+      // invisible dans le foyer cible (la liste ne montre que ses tâches).
+      // La bascule l'annonce explicitement, foyer d'origine nommé, pour que
+      // l'arrêt reste découvrable sans deviner où il tourne.
+      const running = state.entries.find(
+        (entry) =>
+          entry.userId === state.currentUserId &&
+          entry.status === 'in_progress' &&
+          entry.householdId !== target.id,
+      );
+      if (running === undefined) {
+        return { ...next, notice: `Foyer actif : ${target.name}.` };
+      }
+      const originName =
+        state.households.find((candidate) => candidate.id === running.householdId)?.name ??
+        'l’autre foyer';
+      return {
+        ...next,
+        notice: `Foyer actif : ${target.name}. Un chrono lancé dans « ${originName} » continue de tourner : retourne dans ce foyer pour l’arrêter.`,
+      };
+    }
     case 'SHOW_PAYWALL':
       return { ...state, paywallFeature: action.feature };
     case 'HIDE_PAYWALL':
       return { ...state, paywallFeature: null };
     case 'SET_NOTICE':
       return { ...state, notice: action.notice };
-    case 'RESET_DEMO':
-      return {
-        ...state,
-        ...action.snapshot,
-        paywallFeature: null,
-        notice: 'Les données fictives ont été réinitialisées.',
-      };
+    case 'RESET_DEMO': {
+      // La réinitialisation restaure le semis à foyer unique : les foyers
+      // locaux ajoutés disparaissent avec le reste des données fictives.
+      const next = withActiveHousehold(
+        { ...state, ...action.snapshot },
+        [action.snapshot.household],
+        action.snapshot.household.id,
+      );
+      return { ...next, paywallFeature: null, notice: 'Les données fictives ont été réinitialisées.' };
+    }
   }
 }
 
@@ -252,6 +362,11 @@ export function planStartTimer(state: AppState, taskId: string): InteractionPlan
   if (task === undefined) {
     return { ok: false, error: 'Cette tâche n’existe plus.' };
   }
+  // DRC-04 : isolation par foyer — une tâche d'un autre foyer n'est jamais
+  // actionnable depuis le foyer actif.
+  if (task.householdId !== state.household.id) {
+    return { ok: false, error: 'Cette tâche appartient à un autre foyer.' };
+  }
   if (!task.active) {
     // DRC-03 : une tâche archivée n'est plus proposée aux nouveaux chronos.
     return { ok: false, error: 'Cette tâche est archivée : elle reste consultable dans l’historique.' };
@@ -277,6 +392,10 @@ export function planCompleteTimer(state: AppState, entryId: string): Interaction
   );
   if (entry === undefined || entry.status !== 'in_progress') {
     return { ok: false, error: 'Ce chrono n’est pas disponible.' };
+  }
+  // DRC-04 : une entrée d'un autre foyer n'est pas manipulable ici.
+  if (entry.householdId !== state.household.id) {
+    return { ok: false, error: 'Cette entrée appartient à un autre foyer.' };
   }
   return { ok: true, value: { entry } };
 }
@@ -306,6 +425,10 @@ export function planManualEntry(
   const task = state.tasks.find((candidate) => candidate.id === taskId);
   if (task === undefined) {
     return { ok: false, error: 'Cette tâche n’existe plus.' };
+  }
+  // DRC-04 : isolation par foyer (même garde que pour les chronos).
+  if (task.householdId !== state.household.id) {
+    return { ok: false, error: 'Cette tâche appartient à un autre foyer.' };
   }
   if (!task.active) {
     // DRC-03 : une tâche archivée n'accepte plus de nouvelle saisie.
@@ -348,6 +471,10 @@ export function planUpdateTask(
   if (task === undefined) {
     return { ok: false, error: 'Cette tâche n’existe plus.' };
   }
+  // DRC-04 : isolation par foyer.
+  if (task.householdId !== state.household.id) {
+    return { ok: false, error: 'Cette tâche appartient à un autre foyer.' };
+  }
   const error = validateTaskInput(input);
   if (error !== null) {
     return { ok: false, error };
@@ -368,6 +495,10 @@ export function planArchiveTask(state: AppState, taskId: string): InteractionPla
   const task = state.tasks.find((candidate) => candidate.id === taskId);
   if (task === undefined) {
     return { ok: false, error: 'Cette tâche n’existe plus.' };
+  }
+  // DRC-04 : isolation par foyer.
+  if (task.householdId !== state.household.id) {
+    return { ok: false, error: 'Cette tâche appartient à un autre foyer.' };
   }
   if (!task.active) {
     return { ok: false, error: 'Cette tâche est déjà archivée.' };
@@ -400,6 +531,10 @@ export function planEditEntryDuration(
   if (entry === undefined || entry.status !== 'completed') {
     return { ok: false, error: 'Cette entrée ne peut pas être corrigée.' };
   }
+  // DRC-04 : une entrée d'un autre foyer n'est pas corrigeable ici.
+  if (entry.householdId !== state.household.id) {
+    return { ok: false, error: 'Cette entrée appartient à un autre foyer.' };
+  }
   return { ok: true, value: { entry, durationMinutes } };
 }
 
@@ -410,6 +545,10 @@ export function planDeleteEntry(state: AppState, entryId: string): InteractionPl
   );
   if (entry === undefined || entry.status !== 'completed') {
     return { ok: false, error: 'Cette entrée ne peut pas être supprimée.' };
+  }
+  // DRC-04 : une entrée d'un autre foyer n'est pas supprimable ici.
+  if (entry.householdId !== state.household.id) {
+    return { ok: false, error: 'Cette entrée appartient à un autre foyer.' };
   }
   return { ok: true, value: entryId };
 }
@@ -426,6 +565,86 @@ export function planCancelTimer(state: AppState, entryId: string): InteractionPl
   if (entry === undefined || entry.status !== 'in_progress') {
     return { ok: false, error: 'Ce chrono n’est pas disponible.' };
   }
+  // DRC-04 : une entrée d'un autre foyer n'est pas annulable ici.
+  if (entry.householdId !== state.household.id) {
+    return { ok: false, error: 'Cette entrée appartient à un autre foyer.' };
+  }
   return { ok: true, value: entryId };
+}
+
+/* ------------------------------------------------------------------ */
+/* Foyers locaux multiples (DRC-04)                                    */
+/* ------------------------------------------------------------------ */
+
+let householdSequence = 0;
+
+/**
+ * Fabrique pure d'un foyer local de démonstration. Il hérite du scénario et du
+ * fuseau du foyer courant (continuité d'exploration) et démarre un essai neuf
+ * de 30 jours ; il ne contient aucune tâche ni entrée.
+ */
+export function createLocalHousehold(name: string, source: Household, now: Date): Household {
+  householdSequence += 1;
+  return {
+    id: `household_${now.getTime()}_${householdSequence}`,
+    name,
+    timezone: source.timezone,
+    plan: source.plan,
+    trialStartedAt: now.toISOString(),
+    trialEndsAt: new Date(now.getTime() + 30 * DAY_MS).toISOString(),
+    maxMembers: getEntitlements(source.plan).maxMembers,
+  };
+}
+
+/**
+ * Création d'un foyer local : réservée aux scénarios qui ouvrent la fonction,
+ * avec nom normalisé et plafond documenté. Le double contrôle du droit
+ * (ici et à l'écran) est volontaire : la porte logique ne repose pas
+ * uniquement sur l'interface.
+ */
+export function planCreateHousehold(state: AppState, rawName: string): InteractionPlan<{ name: string }> {
+  if (!getEntitlements(state.household.plan).canUseMultipleHouseholds) {
+    return { ok: false, error: 'Créer un autre foyer fait partie des offres complètes.' };
+  }
+  if (state.households.length >= MAX_LOCAL_HOUSEHOLDS) {
+    return {
+      ok: false,
+      error: `La démo conserve au plus ${MAX_LOCAL_HOUSEHOLDS} foyers sur cet appareil.`,
+    };
+  }
+  const name = normalizeTaskName(rawName);
+  if (name.length < 2) {
+    return { ok: false, error: 'Le nom du foyer doit contenir au moins 2 caractères.' };
+  }
+  if (name.length > 40) {
+    return { ok: false, error: 'Le nom du foyer ne peut pas dépasser 40 caractères.' };
+  }
+  return { ok: true, value: { name } };
+}
+
+/** Bascule réelle vers un foyer local existant du document persisté. */
+export function planSwitchHousehold(
+  state: AppState,
+  householdId: string,
+): InteractionPlan<Household> {
+  const target = state.households.find((candidate) => candidate.id === householdId);
+  if (target === undefined) {
+    return { ok: false, error: 'Ce foyer est introuvable sur cet appareil.' };
+  }
+  if (target.id === state.currentHouseholdId) {
+    return { ok: false, error: 'Tu es déjà dans ce foyer.' };
+  }
+  return { ok: true, value: target };
+}
+
+/**
+ * Tâches affichées par l'écran Tâches : actives ET rattachées au foyer actif.
+ * Sans ce filtre, les tâches d'un autre foyer local fuiteraient dans la liste
+ * dès qu'un second foyer existe.
+ */
+export function selectVisibleTasks(state: AppState): TaskDefinition[] {
+  return state.tasks.filter(
+    (task) => task.active && task.householdId === state.currentHouseholdId,
+  );
 }
 

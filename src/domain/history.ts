@@ -1,4 +1,4 @@
-import { isEntryInPeriod } from './periods';
+import { getPeriodStart, isEntryInPeriod } from './periods';
 import { getEntryValue } from './scoring';
 import type { Period, TaskDefinition, TaskEntry } from './types';
 
@@ -108,4 +108,41 @@ export function buildHistorySynthesis(
     entryCount: entries.length,
     byTask,
   };
+}
+
+const MONTHS_FR = [
+  'janvier',
+  'février',
+  'mars',
+  'avril',
+  'mai',
+  'juin',
+  'juillet',
+  'août',
+  'septembre',
+  'octobre',
+  'novembre',
+  'décembre',
+] as const;
+
+function formatDateFr(date: Date): string {
+  // Registre français : le premier du mois porte l'ordinal « er ».
+  const day = date.getDate();
+  return `${day === 1 ? '1er' : day} ${MONTHS_FR[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+/**
+ * Bornes réelles de la période affichée, calculées avec les mêmes fonctions
+ * que le filtrage (`getPeriodStart`) : la méthode de calcul annoncée à l'écran
+ * ne peut pas diverger des bornes appliquées aux entrées. Formatage manuel
+ * sans Intl pour rester identique sous Node comme sous Hermes. `all` n'a pas
+ * de borne de début : la fonction retourne null.
+ */
+export function describePeriodBounds(period: HistoryPeriodFilter, now: Date): string | null {
+  if (period === 'all') {
+    return null;
+  }
+  const start = getPeriodStart(period, now);
+  const label = period === 'week' ? 'Semaine' : 'Mois';
+  return `${label} du ${formatDateFr(start)}, de 00:00 à maintenant (horloge de l’appareil)`;
 }

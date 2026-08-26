@@ -1,4 +1,15 @@
-import { Alert, StyleSheet, Switch, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import {
+  AccessibilityInfo,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { AppButton } from '@/src/components/AppButton';
 import { Avatar } from '@/src/components/Avatar';
 import { Card } from '@/src/components/Card';
@@ -9,9 +20,13 @@ import { ScreenHeader } from '@/src/components/ScreenHeader';
 import { SectionTitle } from '@/src/components/SectionTitle';
 import { SegmentedControl } from '@/src/components/SegmentedControl';
 import { COLORS, RADIUS, SPACING } from '@/src/components/theme';
+import type { ErrorAnnouncement } from '@/src/domain/formFeedback';
+import { computeErrorAnnouncement } from '@/src/domain/formFeedback';
 import { getDaysRemaining } from '@/src/domain/periods';
 import { getEntitlements, getPlanLabel } from '@/src/domain/entitlements';
+import { normalizeTaskName } from '@/src/domain/validation';
 import type { PlanScenario } from '@/src/domain/types';
+import { MAX_LOCAL_HOUSEHOLDS } from '@/src/store/appReducer';
 import { useApp } from '@/src/store/AppProvider';
 
 const PLANS: PlanScenario[] = ['trial', 'free', 'standard', 'pro'];
@@ -22,26 +37,29 @@ export default function ProfileScreen() {
     setAnalyticsOptIn,
     setPlanScenario,
     setCurrentUser,
+    createHousehold,
+    switchHousehold,
     showPaywall,
     dismissNotice,
     resetDemo,
   } = useApp();
+  const [creationVisible, setCreationVisible] = useState(false);
   const entitlements = getEntitlements(state.household.plan);
   const daysRemaining = getDaysRemaining(state.household.trialEndsAt, new Date());
+  const atHouseholdCap = state.households.length >= MAX_LOCAL_HOUSEHOLDS;
 
   const changePlan = (value: string) => {
     if (PLANS.includes(value as PlanScenario)) setPlanScenario(value as PlanScenario);
   };
 
-  const previewAnotherHousehold = () => {
+  // DRC-04 : la création de foyer est réelle. En scénario gratuit, la porte
+  // reste le paywall contextuel — jamais un succès simulé.
+  const openHouseholdCreation = () => {
     if (!entitlements.canUseMultipleHouseholds) {
       showPaywall('multiple_households');
       return;
     }
-    Alert.alert(
-      'Aperçu multi-foyers',
-      'La fonction est incluse dans ce scénario. Elle reste simulée ici pour éviter tout compte ou synchronisation réseau.',
-    );
+    setCreationVisible(true);
   };
 
   return (
@@ -50,7 +68,7 @@ export default function ProfileScreen() {
       <ScreenHeader
         eyebrow={state.household.name}
         title="Profil et foyer"
-        subtitle="Teste les scénarios sans compte réel, sans paiement et sans persistance."
+        subtitle="Teste les scénarios sans compte réel ni paiement ; les données restent sur cet appareil."
       />
       <NoticeBanner message={state.notice} onDismiss={dismissNotice} />
 
@@ -76,6 +94,49 @@ export default function ProfileScreen() {
           );
         })}
       </View>
+
+      {/* DRC-04 : foyers locaux réels — chaque foyer garde ses tâches, son
+          classement et son historique, isolés dans le document persisté. */}
+      <SectionTitle
+        title="Foyers locaux"
+        detail={`${state.households.length} sur ${MAX_LOCAL_HOUSEHOLDS} possibles · données séparées par foyer`}
+      />
+      <View style={styles.memberSelector}>
+        {state.households.map((household) => {
+          const active = household.id === state.currentHouseholdId;
+          const memberCount = state.memberships.filter(
+            (membership) => membership.householdId === household.id,
+          ).length;
+          return (
+            <Card key={household.id} style={[styles.memberCard, active && styles.selectedMember]}>
+              <View style={styles.householdCopy}>
+                <Text style={styles.memberName}>{household.name}</Text>
+                <Text style={styles.householdMeta}>
+                  {getPlanLabel(household.plan)} · {memberCount} membre{memberCount > 1 ? 's' : ''}
+                </Text>
+              </View>
+              <AppButton
+                label={active ? 'Foyer actif' : 'Basculer'}
+                accessibilityLabel={
+                  active
+                    ? `${household.name} est le foyer actif`
+                    : `Basculer vers le foyer ${household.name}`
+                }
+                variant={active ? 'secondary' : 'ghost'}
+                disabled={active}
+                onPress={() => switchHousehold(household.id)}
+                style={styles.memberButton}
+              />
+            </Card>
+          );
+        })}
+      </View>
+      {atHouseholdCap ? (
+        <Text style={styles.capNote}>
+          La démo conserve au plus {MAX_LOCAL_HOUSEHOLDS} foyers sur cet appareil. Supprime des
+          données via la réinitialisation pour repartir de zéro.
+        </Text>
+      ) : null}
 
       <SectionTitle title="Scénario du foyer" detail="Le plan s’applique à tous les membres" />
       <SegmentedControl
@@ -143,10 +204,16 @@ export default function ProfileScreen() {
         <AppButton
           label="Ajouter un autre foyer"
           variant="secondary"
-          onPress={previewAnotherHousehold}
+          onPress={openHouseholdCreation}
         />
         <AppButton label="Réinitialiser les données fictives" variant="danger" onPress={resetDemo} />
       </View>
+
+      <HouseholdCreationModal
+        visible={creationVisible}
+        onClose={() => setCreationVisible(false)}
+        onSubmit={(name) => createHousehold(name)}
+      />
 
       <Card style={styles.securityCard}>
         <Text style={styles.securityTitle}>Architecture sûre par défaut</Text>
@@ -155,6 +222,111 @@ export default function ProfileScreen() {
         </Text>
       </Card>
     </Screen>
+  );
+}
+
+/**
+ * Création d'un foyer local (DRC-04) : le nom est validé localement avec les
+ * mêmes règles que le planner ; les erreurs sont annoncées aux lecteurs
+ * d'écran avec le même motif que les autres modales de l'application.
+ */
+function HouseholdCreationModal({
+  visible,
+  onClose,
+  onSubmit,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onSubmit: (name: string) => boolean;
+}) {
+  const [name, setName] = useState('');
+  const [errorAnnouncement, setErrorAnnouncement] = useState<ErrorAnnouncement | null>(null);
+  const nameInputRef = useRef<TextInput>(null);
+  const isOpenRef = useRef(false);
+  isOpenRef.current = visible;
+
+  useEffect(() => {
+    if (!visible) {
+      setName('');
+      setErrorAnnouncement(null);
+    }
+  }, [visible]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'ios' || errorAnnouncement === null) {
+      return;
+    }
+    AccessibilityInfo.announceForAccessibility(errorAnnouncement.message);
+  }, [errorAnnouncement]);
+
+  const validateName = (value: string): string | null => {
+    const normalized = normalizeTaskName(value);
+    if (normalized.length < 2) {
+      return 'Le nom du foyer doit contenir au moins 2 caractères.';
+    }
+    if (normalized.length > 40) {
+      return 'Le nom du foyer ne peut pas dépasser 40 caractères.';
+    }
+    return null;
+  };
+
+  const submit = () => {
+    const error = validateName(name);
+    if (error !== null) {
+      setErrorAnnouncement(computeErrorAnnouncement(errorAnnouncement, error));
+      return;
+    }
+    setErrorAnnouncement(null);
+    if (onSubmit(name)) {
+      onClose();
+    }
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      accessibilityViewIsModal
+      onShow={() => {
+        if (isOpenRef.current) {
+          nameInputRef.current?.focus();
+        }
+      }}
+    >
+      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={styles.dialog}>
+          <Text accessibilityRole="header" style={styles.dialogTitle}>
+            Nouveau foyer local
+          </Text>
+          <Text style={styles.dialogHelp}>
+            Il démarre vide : ses tâches, son classement et son historique seront séparés des autres
+            foyers, uniquement sur cet appareil.
+          </Text>
+          <Text style={styles.fieldLabel}>Nom du foyer</Text>
+          <TextInput
+            ref={nameInputRef}
+            accessibilityLabel="Nom du foyer"
+            value={name}
+            onChangeText={setName}
+            placeholder="Ex. Coloc du parc"
+            placeholderTextColor={COLORS.textDisabled}
+            maxLength={60}
+            style={styles.dialogInput}
+          />
+          {errorAnnouncement === null ? null : (
+            <View key={errorAnnouncement.token} accessibilityLiveRegion="assertive">
+              <Text style={styles.dialogError}>{errorAnnouncement.message}</Text>
+            </View>
+          )}
+          <View style={styles.dialogActions}>
+            <AppButton label="Annuler" variant="ghost" onPress={onClose} style={styles.dialogAction} />
+            <AppButton label="Créer le foyer" onPress={submit} style={styles.dialogAction} />
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
   );
 }
 
@@ -179,6 +351,78 @@ const styles = StyleSheet.create({
   },
   memberButton: {
     minWidth: 106,
+  },
+  householdCopy: {
+    flex: 1,
+  },
+  householdMeta: {
+    color: COLORS.textSecondary,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  capNote: {
+    color: COLORS.textPrimary,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+    backgroundColor: COLORS.surfaceAlt,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginTop: SPACING.sm,
+  },
+  overlay: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: SPACING.lg,
+    backgroundColor: 'rgba(38, 70, 83, 0.35)',
+  },
+  dialog: {
+    backgroundColor: COLORS.background,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.lg,
+  },
+  dialogTitle: {
+    color: COLORS.textPrimary,
+    fontSize: 24,
+    fontWeight: '800',
+  },
+  dialogHelp: {
+    color: COLORS.textSecondary,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: SPACING.xs,
+  },
+  fieldLabel: {
+    color: COLORS.textPrimary,
+    fontWeight: '700',
+    marginTop: SPACING.lg,
+    marginBottom: SPACING.sm,
+  },
+  dialogInput: {
+    minHeight: 52,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.surface,
+    color: COLORS.textPrimary,
+    paddingHorizontal: SPACING.md,
+    fontSize: 18,
+  },
+  dialogError: {
+    color: '#A9422F',
+    backgroundColor: '#FFF4F1',
+    borderRadius: RADIUS.sm,
+    padding: SPACING.sm,
+    marginTop: SPACING.sm,
+    fontWeight: '700',
+  },
+  dialogActions: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginTop: SPACING.lg,
+  },
+  dialogAction: {
+    flex: 1,
   },
   planSummary: {
     marginTop: SPACING.sm,

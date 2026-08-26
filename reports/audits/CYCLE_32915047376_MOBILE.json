@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "cycle": "32915047376",
+  "role": "mobile",
+  "round": 1,
+  "decision": "accept",
+  "summary": "Candidat aecbb48 (parent unique = etat accepte ff09f36), 12 fichiers +1603/-29 strictement dans app/, src/, tests/. DRC-04 satisfait par comportement reel : bornes de periode deterministes affichees, foyers locaux multiples isoles dans le document persiste avec validateur etendu (champ additif compatible documents anciens), export local reel prevualise et partageable sans reseau, paywall honnete, poids effectif 1 preserve. Typecheck OK ; tests ciblies 57/57 dont 23 nouveaux ; preuve de mutation sur l'isolation inter-foyers detectee par le test 46 puis restauration bit-a-bit. Aucune instruction cachee, aucun reseau, aucune dependance, aucun fichier immuable touche. Zero mustFix.",
+  "findings": [
+    {
+      "id": "MOB-CYCLE32915047376-N1",
+      "severity": "info",
+      "path": "app/(tabs)/history.tsx",
+      "mustFix": false,
+      "problem": "describePeriodBounds(periodFilter, new Date()) reconstruit deux formateurs Intl.DateTimeFormat a chaque rendu de l'ecran Historique.",
+      "evidence": "Ligne periodBoundsLabel dans HistoryScreen : appel non memoise au corps du composant, alors que periodFilter seul determine le libelle entre deux changements de filtre.",
+      "requiredFix": "Aucune action requise. Optionnel : useMemo sur [periodFilter] si une passe de performance DRC-05 le justifie.",
+      "verification": "node --test .test-build/tests/premium.test.js .test-build/tests/periods.test.js reste vert avec ou sans memoisation ; impact actuel negligeable mesure a la lecture du code."
+    },
+    {
+      "id": "MOB-CYCLE32915047376-N2",
+      "severity": "info",
+      "path": "src/store/AppProvider.tsx",
+      "mustFix": false,
+      "problem": "CreateHouseholdResult renvoie error: '' sur le chemin paywall, forme d'API interne legerelement ambigue.",
+      "evidence": "createHousehold retourne { ok: false, error: '', paywall: true } ; submitCreate dans app/(tabs)/profile.tsx ignore bien error quand paywall est vrai et ferme la modale pour laisser le paywall global prendre le relais.",
+      "requiredFix": "Aucune action requise. Optionnel : discriminer via un variant dedie plutot qu'une chaine vide.",
+      "verification": "Relecture des deux sites d'appel ; typecheck OK ; aucun chemin ou l'erreur vide serait affichee."
+    }
+  ],
+  "checks": []
+}

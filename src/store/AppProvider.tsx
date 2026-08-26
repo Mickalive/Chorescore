@@ -14,15 +14,18 @@ import { asyncStorageAdapter } from '../services/storage';
 import {
   createInitialState,
   createLoadingState,
+  createLocalHousehold,
   planAddTask,
   planArchiveTask,
   planCancelTimer,
   planCompleteTimer,
+  planCreateHousehold,
   planDeleteEntry,
   planEditEntryDuration,
   planManualEntry,
   planSetUser,
   planStartTimer,
+  planSwitchHousehold,
   planUpdateTask,
   reducer,
   TERMS_VERSION,
@@ -52,6 +55,8 @@ type AppContextValue = {
   addManualEntry: (taskId: string, durationMinutes: number) => boolean;
   editEntryDuration: (entryId: string, durationMinutes: number) => boolean;
   deleteEntry: (entryId: string) => void;
+  createHousehold: (name: string) => boolean;
+  switchHousehold: (householdId: string) => void;
   showPaywall: (feature: PremiumFeature) => void;
   hidePaywall: () => void;
   dismissNotice: () => void;
@@ -79,11 +84,12 @@ function freshConsent(): ConsentState {
 function toDurableState(state: AppState): DurableState {
   return {
     users: state.users,
-    household: state.household,
+    households: state.households,
     memberships: state.memberships,
     tasks: state.tasks,
     entries: state.entries,
     currentUserId: state.currentUserId,
+    currentHouseholdId: state.currentHouseholdId,
     onboardingComplete: state.onboardingComplete,
     consent: state.consent,
   };
@@ -134,18 +140,30 @@ export function AppProvider({
         outcome.status === 'recovered'
           ? describeRecovery(outcome.reason, outcome.quarantined)
           : null;
+      const snapshot = appDataService.getInitialSnapshot(now);
       dispatch({
         type: 'HYDRATION_READY',
-        snapshot: appDataService.getInitialSnapshot(now),
+        snapshot,
+        roster: { households: [snapshot.household], currentHouseholdId: snapshot.household.id },
         durable: { onboardingComplete: false, consent: freshConsent() },
         notice,
       });
       return;
     }
     const restored = outcome.state;
+    // DRC-04 : le foyer actif se déduit du roster persisté. Le validateur
+    // garantit l'existence du foyer actif ; le repli ci-dessous n'est là que
+    // pour satisfaire le typage sans inventer de foyer.
+    const household =
+      restored.households.find((candidate) => candidate.id === restored.currentHouseholdId) ??
+      restored.households[0];
+    if (household === undefined) {
+      dispatch({ type: 'HYDRATION_FAILED', message: HYDRATION_ERROR_MESSAGE });
+      return;
+    }
     const base: AppSnapshot = {
       users: restored.users,
-      household: restored.household,
+      household,
       memberships: restored.memberships,
       tasks: restored.tasks,
       entries: restored.entries,
@@ -154,14 +172,21 @@ export function AppProvider({
     // Reprise déterministe des chronos interrompus, horloge de référence passée
     // explicitement (jamais de compteur sérialisé).
     const { snapshot, events } = applyRestartRules(base, now);
+    const notices = [
+      outcome.migratedFrom === 1
+        ? 'Format des données locales mis à niveau : tes foyers et historiques ont été conservés.'
+        : null,
+      describeRestartEvents(events),
+    ].filter((item): item is string => item !== null);
     dispatch({
       type: 'HYDRATION_READY',
       snapshot,
+      roster: { households: restored.households, currentHouseholdId: restored.currentHouseholdId },
       durable: {
         onboardingComplete: restored.onboardingComplete,
         consent: restored.consent,
       },
-      notice: describeRestartEvents(events),
+      notice: notices.length > 0 ? notices.join(' ') : null,
     });
   }, [storage]);
 
@@ -193,7 +218,8 @@ export function AppProvider({
     writeDurable,
     state.hydration.phase,
     state.users,
-    state.household,
+    state.households,
+    state.currentHouseholdId,
     state.memberships,
     state.tasks,
     state.entries,
@@ -398,6 +424,35 @@ export function AppProvider({
     [state],
   );
 
+  // DRC-04 : création réelle d'un foyer local — vide au départ, isolé dans le
+  // document persisté, avec adhésion propriétaire pour la personne courante.
+  const createHousehold = useCallback(
+    (rawName: string) => {
+      const plan = planCreateHousehold(state, rawName);
+      if (!plan.ok) {
+        dispatch({ type: 'SET_NOTICE', notice: plan.error });
+        return false;
+      }
+      const now = new Date();
+      const household = createLocalHousehold(plan.value.name, state.household, now);
+      dispatch({ type: 'CREATE_HOUSEHOLD', household, joinedAt: now.toISOString() });
+      return true;
+    },
+    [state],
+  );
+
+  const switchHousehold = useCallback(
+    (householdId: string) => {
+      const plan = planSwitchHousehold(state, householdId);
+      if (!plan.ok) {
+        dispatch({ type: 'SET_NOTICE', notice: plan.error });
+        return;
+      }
+      dispatch({ type: 'SWITCH_HOUSEHOLD', householdId: plan.value.id });
+    },
+    [state],
+  );
+
   const showPaywall = useCallback((feature: PremiumFeature) => {
     analyticsService.track({ name: 'feature_opened', occurredAt: new Date().toISOString() });
     dispatch({ type: 'SHOW_PAYWALL', feature });
@@ -423,6 +478,8 @@ export function AppProvider({
       addManualEntry,
       editEntryDuration,
       deleteEntry,
+      createHousehold,
+      switchHousehold,
       showPaywall,
       hidePaywall,
       dismissNotice,
@@ -444,6 +501,8 @@ export function AppProvider({
       addManualEntry,
       editEntryDuration,
       deleteEntry,
+      createHousehold,
+      switchHousehold,
       showPaywall,
       hidePaywall,
       dismissNotice,

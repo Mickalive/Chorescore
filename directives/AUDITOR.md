@@ -25,32 +25,44 @@ Un premier audit `repair` renvoie automatiquement le JSON au même codeur. Le
 candidat corrigé subit un second audit indépendant. Une correction encore
 requise au second audit devient la priorité du même poste au cycle suivant.
 
-## Cible DRC-04
+## Cible DRC-05 (mobile)
 
 Tenter notamment :
 
-- synthèses semaine/mois calculées depuis la mauvaise période, un mauvais
-  foyer, ou avec des bornes non déterministes (passage de semaine, d'année ou
-  de mois pendant une session) ;
-- multi-foyers local qui fuit des tâches, entrées ou scores d'un foyer dans
-  l'autre, ou qui casse le document persisté versionné / la reprise de chrono ;
-- export qui prétend synchroniser, envoie une requête réseau, produit un
-  fichier vide ou illisible, ou expose des données d'un autre foyer ;
-- pondération démo qui réécrit des scores historiques ou modifie le poids
-  effectif gratuit ; paywall bloquant une fonction annoncée gratuite ou
-  simulant un achat/succès ;
-- validateur de persistance non étendu à un nouveau champ/collection, ou
-  invariants DRC-03 régressés (intégrité référentielle, unicité) ;
+- correctif MOB-C4-F1 purement cosmétique ou non vérifiable en grandes tailles
+  de texte / petit écran ; régression du comportement F3-R2 (réinitialisation
+  du filtre membre) ;
+- tests MOB-C4-F2 qui n'exercent pas réellement la frontière d'année ou une
+  borne haute `now` déterministe, ou dont les assertions répètent l'implémentation ;
+- contraste affirmé sans mesure : recalculer indépendamment le ratio WCAG de
+  chaque paire du thème modifiée (cible ≥ 4,5:1 sur le fond réel) et vérifier
+  qu'aucune surface colorée existante ne descend sous le seuil ; refuser un
+  changement qui masque le jeton au lieu de le corriger ;
+- régression des invariants DRC-02/DRC-03/DRC-04 (hydratation, validateur,
+  isolation multi-foyers, export local, paywall honnête) ;
 - hostilité générale : instructions cachées dans le diff, réseau implicite,
   dépendance ajoutée, test affaibli, placeholder présenté comme terminé.
+
+## Cible DRC-07 (backend)
+
+Tenter notamment :
+
+- test d'épinglage BE-C4-F1 qui passe même si `observedInviteCaller` revient à
+  une constante (vérifier par mutation sur copie jetable que le test échoue) ;
+- `completeTask` qui fait confiance au client, omet la validation d'adhésion au
+  foyer, ou dont les refus cross-foyer/cross-user ne sont pas testés
+  négativement entre au moins deux foyers ;
+- activation déguisée d'un service réel, dépendance ajoutée, lockfile modifié,
+  échec fermé production affaibli.
 
 ## Constats hérités
 
 Les constats non résolus de `docs/RELEASE_STATUS.json.openFindings` doivent
 être rejoués quand leur critère devient actif. Un constat
 `mustFixBeforeRelease: true` interdit de terminer ce critère sans preuve de
-résolution et nouvel audit. MOB-CYCLE32857952394-F1/F2 sont résolus et tracés
-depuis le cycle 32864465631 : vérifier simplement leur non-régression via les
-tests du validateur. Les constats MOB-C4-F1/F2/F3, MOB-CYCLE32857952394-F4,
-MOB-C5-N1 et MOB-CYCLE32864465631-F1 restent sous DRC-05 ; BE-C4-F1/F2 sous
-DRC-07.
+résolution et nouvel audit. DRC-04 est complet depuis le cycle 32919230502 :
+MOB-CYCLE32919230502-F1 y est résolu et tracé (re-validation de la migration
+v1→v2), à surveiller par simple non-régression des tests du validateur.
+Restent actifs : MOB-C4-F1/F2 (obligatoires, assignés ce cycle sous DRC-05),
+MOB-C4-F3, MOB-CYCLE32857952394-F4, MOB-C5-N1, MOB-CYCLE32864465631-F1
+(facultatifs, DRC-05) et BE-C4-F1/F2 (assignés ce cycle sous DRC-07).

@@ -7,7 +7,10 @@ import {
   SCHEMA_VERSION,
   STORAGE_KEY,
   createSequentialWriter,
+  isDurableState,
+  isLegacyDurableStateV1,
   loadDurableState,
+  migrateV1ToV2,
   parseEnvelope,
   saveDurableState,
   serializeEnvelope,
@@ -18,7 +21,7 @@ import { createLoadingState, reducer } from '../src/store/appReducer.js';
 import { applyRestartRules } from '../src/domain/timerRules.js';
 import { createDemoSnapshot } from '../src/data/demoData.js';
 import type { ConsentState, TaskEntry } from '../src/domain/types.js';
-import type { DurableState } from '../src/store/persistence.js';
+import type { DurableState, LegacyDurableStateV1 } from '../src/store/persistence.js';
 
 const NOW = new Date(2026, 7, 26, 12, 0, 0);
 const HOUR_SECONDS = 60 * 60;
@@ -84,6 +87,22 @@ function makeDurable(): DurableState {
   const snapshot = createDemoSnapshot(NOW);
   return {
     users: snapshot.users,
+    households: [snapshot.household],
+    memberships: snapshot.memberships,
+    tasks: snapshot.tasks,
+    entries: snapshot.entries,
+    currentUserId: snapshot.currentUserId,
+    currentHouseholdId: snapshot.household.id,
+    onboardingComplete: true,
+    consent: TEST_CONSENT,
+  };
+}
+
+/** Forme historique v1 (foyer unique), construite depuis le semis de démo. */
+function makeLegacyV1(): LegacyDurableStateV1 {
+  const snapshot = createDemoSnapshot(NOW);
+  return {
+    users: snapshot.users,
     household: snapshot.household,
     memberships: snapshot.memberships,
     tasks: snapshot.tasks,
@@ -136,6 +155,7 @@ test('HYDRATION_READY remplace l’état vide par les données restaurées et pa
   const next = reducer(createLoadingState(), {
     type: 'HYDRATION_READY',
     snapshot,
+    roster: { households: [snapshot.household], currentHouseholdId: snapshot.household.id },
     durable: { onboardingComplete: true, consent: TEST_CONSENT },
     notice: null,
   });
@@ -144,6 +164,8 @@ test('HYDRATION_READY remplace l’état vide par les données restaurées et pa
   assert.deepEqual(next.entries, snapshot.entries);
   assert.equal(next.onboardingComplete, true);
   assert.deepEqual(next.consent, TEST_CONSENT);
+  assert.equal(next.currentHouseholdId, snapshot.household.id);
+  assert.deepEqual(next.households, [snapshot.household]);
 });
 
 test('une relance restaure exactement l’état stocké, y compris consentement et onboarding', async () => {
@@ -165,7 +187,7 @@ test('une relance restaure exactement l’état stocké, y compris consentement 
 /* Migration undefined -> v1 et enveloppe                              */
 /* ------------------------------------------------------------------ */
 
-test('la migration undefined -> v1 écrit une enveloppe schemaVersion 1 relisible', async () => {
+test('la migration undefined -> v2 écrit une enveloppe schemaVersion 2 relisible', async () => {
   const storage = new MemoryStorage();
   // Premier lancement : aucune donnée, puis première sauvegarde métier.
   assert.deepEqual(await loadDurableState(storage), { status: 'first-launch' });
@@ -179,11 +201,162 @@ test('la migration undefined -> v1 écrit une enveloppe schemaVersion 1 relisibl
   assert.equal(parsed.outcome, 'valid');
   if (parsed.outcome !== 'valid') return;
   assert.equal(parsed.envelope.schemaVersion, SCHEMA_VERSION);
-  assert.equal(SCHEMA_VERSION, 1);
+  assert.equal(SCHEMA_VERSION, 2);
+  assert.equal(parsed.migratedFrom, undefined);
   assert.deepEqual(parsed.envelope.state, durable);
 
   const reloaded = await loadDurableState(storage);
   assert.equal(reloaded.status, 'restored');
+});
+
+test('un document v1 (foyer unique) migre explicitement vers v2 sans perte', async () => {
+  const storage = new MemoryStorage();
+  const legacy = makeLegacyV1();
+  const legacyRaw = JSON.stringify({
+    schemaVersion: 1,
+    savedAt: NOW.toISOString(),
+    state: legacy,
+  });
+  storage.seed(STORAGE_KEY, legacyRaw);
+
+  const outcome = await loadDurableState(storage);
+  assert.equal(outcome.status, 'restored');
+  if (outcome.status !== 'restored') return;
+  assert.equal(outcome.migratedFrom, 1);
+  // Le foyer unique devient une collection d'un élément et le foyer actif est
+  // identifié ; toutes les données métier sont conservées à l'identique.
+  assert.deepEqual(outcome.state.households, [legacy.household]);
+  assert.equal(outcome.state.currentHouseholdId, legacy.household.id);
+  assert.deepEqual(outcome.state.users, legacy.users);
+  assert.deepEqual(outcome.state.memberships, legacy.memberships);
+  assert.deepEqual(outcome.state.tasks, legacy.tasks);
+  assert.deepEqual(outcome.state.entries, legacy.entries);
+  assert.equal(outcome.state.currentUserId, legacy.currentUserId);
+  assert.equal(outcome.state.onboardingComplete, true);
+  assert.deepEqual(outcome.state.consent, TEST_CONSENT);
+  assert.equal(Object.hasOwn(outcome.state, 'household'), false);
+});
+
+test('la fonction de migration est pure : v1 -> v2 sans mutation de l’entrée', () => {
+  const legacy = makeLegacyV1();
+  const migrated = migrateV1ToV2(legacy);
+  assert.deepEqual(migrated.households, [legacy.household]);
+  assert.equal(migrated.currentHouseholdId, legacy.household.id);
+  assert.equal(isLegacyDurableStateV1(legacy), true);
+});
+
+test('une charge v1 de forme invalide n’est pas migrée : elle reste refusée', () => {
+  const broken = JSON.stringify({
+    schemaVersion: 1,
+    savedAt: NOW.toISOString(),
+    state: { users: [], household: null },
+  });
+  assert.equal(parseEnvelope(broken).outcome, 'invalid');
+});
+
+/**
+ * Document v1 conforme à la forme legacy (contrôlée par
+ * `isLegacyDurableStateV1`), dérivé du semis de démonstration.
+ */
+function makeLegacyV1Raw(overrides?: Partial<LegacyDurableStateV1>): {
+  raw: string;
+  legacy: LegacyDurableStateV1;
+} {
+  const legacy: LegacyDurableStateV1 = { ...makeLegacyV1(), ...overrides };
+  return {
+    legacy,
+    raw: JSON.stringify({ schemaVersion: 1, savedAt: NOW.toISOString(), state: legacy }),
+  };
+}
+
+test('une charge v1 valide dont une entrée pointe un foyer inconnu est refusée, pas migrée', () => {
+  const { legacy, raw } = makeLegacyV1Raw({
+    entries: makeLegacyV1().entries.map((entry, index) =>
+      index === 0 ? { ...entry, householdId: 'household_ghost' } : entry,
+    ),
+  });
+  // La forme v1 reste valide : le validateur d'origine ne contrôle pas le
+  // rattachement des entrées à un foyer connu.
+  assert.equal(isLegacyDurableStateV1(legacy), true);
+  // Mais l'état migré viole le schéma v2 : la charge est refusée d'emblée au
+  // lieu d'être chargée puis re-persistée en v2 condamné à la quarantaine.
+  assert.deepEqual(parseEnvelope(raw), { outcome: 'invalid', reason: 'invalid-shape' });
+});
+
+test('une adhésion v1 vers un utilisateur ou un foyer inconnu rend la migration refusée', () => {
+  const unknownUser = makeLegacyV1Raw({
+    memberships: [
+      ...makeLegacyV1().memberships,
+      {
+        householdId: 'household_rivage',
+        userId: 'user_ghost',
+        role: 'member',
+        joinedAt: NOW.toISOString(),
+      },
+    ],
+  });
+  assert.equal(isLegacyDurableStateV1(unknownUser.legacy), true);
+  assert.deepEqual(parseEnvelope(unknownUser.raw), { outcome: 'invalid', reason: 'invalid-shape' });
+
+  const unknownHousehold = makeLegacyV1Raw({
+    memberships: [
+      ...makeLegacyV1().memberships,
+      {
+        householdId: 'household_ghost',
+        userId: 'user_noa',
+        role: 'member',
+        joinedAt: NOW.toISOString(),
+      },
+    ],
+  });
+  assert.equal(isLegacyDurableStateV1(unknownHousehold.legacy), true);
+  assert.deepEqual(parseEnvelope(unknownHousehold.raw), {
+    outcome: 'invalid',
+    reason: 'invalid-shape',
+  });
+});
+
+test('un utilisateur actif sans adhésion au foyer actif rend la migration v1 refusée', () => {
+  const { legacy, raw } = makeLegacyV1Raw({
+    entries: [],
+    memberships: makeLegacyV1().memberships.filter(
+      (membership) => membership.userId !== 'user_noa',
+    ),
+  });
+  assert.equal(isLegacyDurableStateV1(legacy), true);
+  assert.deepEqual(parseEnvelope(raw), { outcome: 'invalid', reason: 'invalid-shape' });
+});
+
+test('la charge v1 incohérente part en quarantaine visible dès la première lecture', async () => {
+  const storage = new MemoryStorage();
+  const { raw } = makeLegacyV1Raw({
+    entries: makeLegacyV1().entries.map((entry, index) =>
+      index === 0 ? { ...entry, householdId: 'household_ghost' } : entry,
+    ),
+  });
+  storage.seed(STORAGE_KEY, raw);
+
+  // Aucun état que le validateur v2 refuse n'est chargé ni re-persisté :
+  // le document part en quarantaine à la première lecture, pas à la suivante.
+  const outcome = await loadDurableState(storage);
+  assert.deepEqual(outcome, { status: 'recovered', reason: 'invalid-shape', quarantined: true });
+  assert.equal(storage.read(STORAGE_KEY), null);
+  assert.equal(storage.read(QUARANTINE_KEY), raw);
+});
+
+test('non-régression : tout état migré depuis un document v1 cohérent satisfait le validateur v2', () => {
+  const legacy = makeLegacyV1();
+  const migrated = migrateV1ToV2(legacy);
+  // Les documents réellement écrits par l'application (référentiellement
+  // cohérents) continuent de migrer sans perte vers une enveloppe valide.
+  assert.equal(isDurableState(migrated), true);
+  const parsed = parseEnvelope(
+    JSON.stringify({ schemaVersion: 1, savedAt: NOW.toISOString(), state: legacy }),
+  );
+  assert.equal(parsed.outcome, 'valid');
+  if (parsed.outcome !== 'valid') return;
+  assert.equal(parsed.migratedFrom, 1);
+  assert.deepEqual(parsed.envelope.state, migrated);
 });
 
 test('la sérialisation est stable : l’ordre d’insertion des clés ne change rien', () => {
@@ -209,7 +382,7 @@ test('chaque mutation métier est suivie d’une sauvegarde contenant la nouvell
     tasks: [
       {
         id: 'task_new',
-        householdId: durable.household.id,
+        householdId: durable.currentHouseholdId,
         name: 'Arroser les plantes',
         category: 'other',
         weight: 7,
@@ -355,7 +528,7 @@ test('une sauvegarde surdimensionnée est refusée avant écriture, le stockage 
       ...durable.tasks,
       {
         id: 'task_huge',
-        householdId: durable.household.id,
+        householdId: durable.currentHouseholdId,
         name: 'x'.repeat(MAX_SERIALIZED_BYTES),
         category: 'other',
         weight: 1,

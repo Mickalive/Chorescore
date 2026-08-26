@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "cycle": "32919230502",
+  "role": "mobile",
+  "round": 1,
+  "decision": "repair",
+  "summary": "Candidat DRC-04 solide : multi-foyers isolés (schéma v2 + validateur étendu), export local réel et consultable, bornes de période cohérentes avec le filtrage, paywall honnête, 70/70 tests ciblés passants et preuve de mutation positive sur la garde cross-foyer. Un défaut bloque : la migration v1→v2 ne rejoue pas le validateur v2 sur l'état migré ; un document v1 valide mais référentiellement incohérent charge puis est re-persisté en v2, garantissant une quarantaine (perte) à la relance suivante — prouvé par exécution. Correction locale exigée dans src/store/persistence.ts avant intégration.",
+  "findings": [
+    {
+      "id": "MOB-CYCLE32919230502-F1",
+      "severity": "medium",
+      "path": "src/store/persistence.ts",
+      "mustFix": true,
+      "problem": "La branche version===1 de parseEnvelope valide la forme legacy (isLegacyDurableStateV1) puis retourne buildEnvelope(migrateV1ToV2(...)) comme 'valid' sans rejouer isDurableState sur l'état migré. Le validateur v2 est strictement plus exigeant que le v1 (adhésions rattachées à un foyer/utilisateur connus, appartenance de l'utilisateur actif au foyer actif, task.householdId connu, entry.householdId cohérent avec le foyer de la tâche pointée et l'adhésion correspondante). Un document v1 valide mais référentiellement incohérent est donc chargé, affiché, puis re-persisté en enveloppe v2 dès l'hydratation (l'effet writeDurable sauvegarde à chaque passage en phase ready) ; à la relance suivante ce document v2 échoue isDurableState et part en quarantaine avec semis neuf : perte de données différée, contradiction avec le contrat du module (« jamais de perte silencieuse », migration « sans perte »).",
+      "evidence": "Preuve par exécution sur le candidat compilé (script jetable /tmp/opencode/prove-migration-gap.mjs) : semis démo avec une entrée dont householdId='household_ghost' (inconnu) dans un document v1 par ailleurs conforme — parseEnvelope retourne {outcome:'valid', migratedFrom:1} et isDurableState(état migré) retourne false. Le test candidat « une charge v1 de forme invalide n'est pas migrée » ne couvre que la forme ({users:[], household:null}), pas l'incohérence référentielle v1-valide. Inaccessible par les flux normaux de l'app (documents écrits par l'app toujours cohérents), d'où medium et non high.",
+      "requiredFix": "Dans parseEnvelope, après migrateV1ToV2, rejouer isDurableState sur l'état migré et retourner {outcome:'invalid', reason:'invalid-shape'} en cas d'échec (parcours de quarantaine existant, message visible habituel). Ajouter les cas de test : document v1 valide avec une entrée de foyer inconnu, une adhésion vers un utilisateur ou foyer inconnu, et un utilisateur actif sans adhésion au foyer actif — chacun attendu 'invalid' ; plus un cas de non-régression affirmant que tout état issu de migrateV1ToV2 sur un document v1-valide satisfait isDurableState.",
+      "verification": "npx tsc -p tsconfig.test.json puis node --test .test-build/tests/persistence.test.js .test-build/tests/premium-local.test.js .test-build/tests/data-control.test.js : tous verts, y compris les nouveaux cas. Reproduire la preuve : construire un v1-valide avec entry.householdId='household_ghost' et vérifier que parseEnvelope(raw).outcome === 'invalid' (au lieu de 'valid'), donc chargement en quarantaine visible dès la première lecture, sans persistance d'un état que le validateur v2 refuse."
+    },
+    {
+      "id": "MOB-CYCLE32919230502-F2",
+      "severity": "low",
+      "path": "src/store/appReducer.ts",
+      "mustFix": false,
+      "problem": "Basculer de foyer alors qu'un chrono est actif laisse ce chrono invisible dans le foyer cible : la liste Tâches du nouveau foyer ne montre que ses tâches (selectVisibleTasks) et l'erreur du garde « un seul chrono » (« Termine le chrono actif avant d'en lancer un autre ») signale l'existence du chrono sans indiquer dans quel foyer il tourne. Le temps continue de courir à l'horloge murale jusqu'à un retour manuel au foyer d'origine.",
+      "evidence": "planSwitchHousehold ne vérifie aucune entrée in_progress ; planStartTimer/planCompleteTimer refusent correctement les opérations cross-foyer (testé, preuve de mutation positive). Le comportement reste cohérent avec la sémantique DRC-02 (reprise à la relance, plafond 24 h via applyRestartRules) et l'isolation par foyer est préservée ; aucune donnée n'est corrompue.",
+      "requiredFix": "Amélioration facultative : avertir à la bascule lorsqu'un chrono est actif (notice mentionnant le foyer d'origine) ou afficher un indicateur trans-foyer du chrono en cours, afin que l'arrêt reste découvrable sans deviner le foyer.",
+      "verification": "Scénario manuel ou test de planner : démarrer un chrono dans le foyer A, basculer vers B, observer la présence de l'avertissement/indicateur ; vérifier que completeTimer/cancelTimer depuis B restent refusés tant que l'entrée est d'un autre foyer."
+    },
+    {
+      "id": "MOB-CYCLE32919230502-F3",
+      "severity": "info",
+      "path": "app/(tabs)/history.tsx",
+      "mustFix": false,
+      "problem": "memberFilter n'est pas réinitialisé lors d'un changement de foyer actif (l'onglet Historique reste monté sous expo-router). Après bascule vers un foyer où cette personne n'existe pas, la sélection devient orpheline : aucun segment du SegmentedControl n'apparaît sélectionné et la liste affiche l'état vide « Aucune saisie pour ce filtre ».",
+      "evidence": "memberOptions est reconstruit depuis les adhésions du foyer actif ; filterHistoryEntries filtre par userId et renvoie une liste vide, l'état vide filtré existe déjà (visibleEntries.length===0 / filteredEntries.length===0). Aucun crash, aucune fuite de données d'un autre foyer.",
+      "requiredFix": "Facultatif : réinitialiser memberFilter à null lorsque state.currentHouseholdId change (useEffect dédié) pour que l'écran retrouve « Foyer » après chaque bascule.",
+      "verification": "Après correction : basculer de foyer avec un filtre membre actif et constater le retour automatique au segment « Foyer » avec l'historique complet du nouveau foyer."
+    },
+    {
+      "id": "MOB-CYCLE32919230502-F4",
+      "severity": "info",
+      "path": "src/domain/exportReport.ts",
+      "mustFix": false,
+      "problem": "Constante MONTHS_FR déclarée ligne 37 et jamais utilisée dans exportReport.ts : le formatage des dates passe exclusivement par describePeriodBounds/formatLocalTimestamp. Doublon mort de la copie utilisée dans history.ts.",
+      "evidence": "grep MONTHS_FR src/domain/exportReport.ts ne montre que la déclaration ; tsc ne l'échoue pas car noUnusedLocals n'est pas activé. Aucun effet d'exécution.",
+      "requiredFix": "Facultatif : supprimer la constante morte, ou factoriser MONTHS_FR/formatDateFr dans un module partagé si les deux fichiers doivent un jour la partager.",
+      "verification": "npm run typecheck vert après suppression ; grep ne trouve plus qu'une seule définition de MONTHS_FR dans src/."
+    },
+    {
+      "id": "MOB-CYCLE32919230502-F5",
+      "severity": "info",
+      "path": "src/domain/history.ts",
+      "mustFix": false,
+      "problem": "describePeriodBounds formate le premier jour du mois sans ordinal français (« Mois du 1 août 2026 » au lieu de « 1er août »), incohérence typographique mineure avec le registre français du reste de l'interface.",
+      "evidence": "Test candidat lui-même : monthBounds === 'Mois du 1 août 2026, de 00:00 à maintenant (horloge de l'appareil)'. Les bornes calculées (getPeriodStart) sont exactes et testées, y compris la frontière d'année ; seul le libellé est concerné.",
+      "requiredFix": "Facultatif : formatDateFr peut émettre « 1er » quand date.getDate()===1. Aucune incidence métier.",
+      "verification": "describePeriodBounds('month', new Date(2026,7,1)) retournerait « Mois du 1er août 2026… » ; mettre à jour l'assertion du test associé."
+    },
+    {
+      "id": "MOB-CYCLE32919230502-F6",
+      "severity": "info",
+      "path": "app/(tabs)/history.tsx",
+      "mustFix": false,
+      "problem": "La nouvelle ligne « Fichier local : rapport-chorescore-….txt » du ReportModal utilise COLORS.textMuted (#6D8793) à fontSize 12 sur fond #FEFEFE, soit un contraste mesuré ≈ 3,8:1, sous le seuil AA de 4,5:1 pour du texte normal.",
+      "evidence": "Calcul WCAG sur theme.ts : textMuted sur background ≈ 3,76:1. Le motif reproduit des usages préexistants acceptés (MetricCard, PaywallModal, EntryCorrectionModal, onboarding) ; les styles d'erreur nouveaux du candidat (#A9422F/#FFF4F1) sont conformes (~5,5:1). La passe accessibilité DRC-05 (MOB-C4-F1/F2 obligatoires) est le cadre prévu pour un traitement systématique.",
+      "requiredFix": "Facultatif ici : passer cette méta-ligne à COLORS.textSecondary (≈ 4,56:1) ou textPrimary ; traiter textMuted globalement lors de la passe DRC-05.",
+      "verification": "Mesure de contraste WCAG sur les paires retenues ≥ 4,5:1 ; vérification visuelle en grandes tailles de texte dans la modale de rapport."
+    }
+  ],
+  "checks": []
+}

@@ -2,12 +2,13 @@
   "schemaVersion": 1,
   "milestone": "demo-rc",
   "governanceVersion": "2026-08-25-v1",
-  "lastCycle": "32864465631",
+  "lastCycle": "32919230502",
   "activeCriteria": [
-    "DRC-04"
+    "DRC-05",
+    "DRC-07"
   ],
   "stalledCycles": 0,
-  "progressSummary": "Cycle 32864465631 : la paire mobile round 1 (candidat 1fce8b3, parent unique de l'etat accepte 71c0d5d ; audit reports/audits/CYCLE_32864465631_MOBILE.json decision accept, zero mustFix) est integree bit-a-bit dans lab/chorescore (12 fichiers, +1439/-16, strictement app/, src/, tests/). DRC-03 passe a complete avec ses deux preuves exigees (tests, audit). Etat integre verifie par le directeur : manifeste immuable OK, npm ci OK, typecheck OK, 121/121 tests application (102 -> 121, +19 tests data-control), export Android demo OK (~3,8 Mo), npm audit prod exit 0 racine et functions, Functions 98/98. Aucun candidat backend (HEAD = base, aucun audit) ; preuve legacy prose-only non integrable. MOB-CYCLE32857952394-F1/F2 resolus par le validateur renforce du candidat ; les trois nouveaux constats info sont repondus et traces.",
+  "progressSummary": "Cycle 32919230502 : la paire mobile reparee round 2 (candidat 327fba8, parent e1983a7, base 0463683 = HEAD accepte ; audit reports/audits/CYCLE_32919230502_MOBILE_FINAL.json decision accept, zero mustFix) est appliquee exactement par le shell de confiance dans lab/chorescore (11 fichiers, +1787/-68, strictement app/, src/, tests/ ; arbre staged verifie conforme au manifeste d'integration). Le mustFix F1 du tour 1 (migration v1->v2 sans re-validation isDurableState) est resolu et prouve (reproduction independante household_ghost -> invalid + preuve de mutation 4 echecs cibles) ; les cinq ameliorations facultatives F2-F6 sont appliquees et verifiees. DRC-04 passe a complete avec ses deux preuves exigees : tests cibles executes par l'auditeur round 2 sur le contenu integre (tsc OK, 76/76 persistence+premium-local+data-control, 18/18 store-interactions, preuves de mutation) et audit round 2 accept. Aucun candidat backend : rien integre cote backend, preuve legacy prose-only rejetee. Paire de recuperation 32915047376 (candidat aecbb48, accept round 1) non integree : version concurrente du meme critere DRC-04, supersede par le candidat repare conformement a la regle de supersession. Les checks deterministes larges et l'export Android demo tournent en parallele sur l'arbre audite gele ; en cas d'echec le workflow echoue fermé et renvoie la cause prouvee a un cycle ulterieur. Critères actifs suivants : DRC-05 (mobile) et DRC-07 volet code (backend BE-C4-F1/F2). stalledCycles = 0 (diff accepte integre + transition DRC-04).",
   "blocker": null,
   "criteria": [
     {
@@ -60,8 +61,19 @@
     },
     {
       "id": "DRC-04",
-      "status": "pending",
-      "evidence": []
+      "status": "complete",
+      "evidence": [
+        {
+          "kind": "tests",
+          "reference": "Vérifications ciblées exécutées par l'auditeur round 2 sur le candidat intégré 327fba8 (contenu identique à l'arbre staged de lab/chorescore) : npx tsc -p tsconfig.test.json OK ; node --test persistence+premium-local+data-control = 76/76 (bornes de période et filtrage, isolation multi-foyers dans le document v2, export local consultable, paywall honnête, weightSnapshot figé, migration v1→v2 re-validée) ; node --test store-interactions = 18/18 ; preuves de mutation positives (garde cross-foyer tour 1 ; garde isDurableState(migrated) tour 2 : exactement 4 échecs ciblés)",
+          "cycle": "32919230502"
+        },
+        {
+          "kind": "audit",
+          "reference": "reports/audits/CYCLE_32919230502_MOBILE_FINAL.json — round 2, decision accept, 0 mustFix, candidat réparé 327fba8 appliqué exactement par le shell de confiance sur la base 0463683 (diff 11 fichiers, +1787/-68, strictement app/, src/, tests/, manifeste immuable OK sur le candidat)",
+          "cycle": "32919230502"
+        }
+      ]
     },
     {
       "id": "DRC-05",
@@ -206,6 +218,28 @@
       "requiredFix": "Aucun. Le refus explicite hors borne (message + aperçu en attente) est préféré à un clamp silencieux ; alternative cosmétique possible : maxLength borné dynamiquement à 1440.",
       "origin": "audit round 1 accept du candidat intégré 1fce8b3",
       "response": "Réponse du directeur : le refus explicite est plus honnête qu'un clamp silencieux selon le canon produit ; couvert par les tests de refus 0 / 12,5 / 1441 et le test de borne haute préexistant. Aucune action."
+    },
+    {
+      "id": "MOB-CYCLE32919230502-F1",
+      "criterionId": "DRC-04",
+      "role": "mobile",
+      "severity": "medium",
+      "mustFixBeforeRelease": true,
+      "status": "resolved",
+      "requiredFix": "Dans parseEnvelope, après migrateV1ToV2, rejouer isDurableState sur l'état migré et retourner {outcome:'invalid', reason:'invalid-shape'} en cas d'échec ; ajouter les quatre cas de test exigés (entrée vers foyer inconnu, adhésion vers utilisateur ou foyer inconnu, utilisateur actif sans adhésion au foyer actif) et un cas de non-régression.",
+      "origin": "audit round 1 (decision repair) du candidat e1983a7, cycle 32919230502",
+      "resolution": "Résolu par le candidat réparé 327fba8 intégré : la branche version===1 rejoue isDurableState sur l'état migré et refuse en invalid-shape (quarantaine visible dès la première lecture, aucun re-persistance d'un état condamné). Les quatre cas exigés + un cinquième cas de quarantaine première lecture sont dans tests/persistence.test.ts. Reproduction indépendante (entry.householdId='household_ghost' → invalid au lieu de valid) et preuve de mutation (retrait de la garde → exactement 4 échecs) réalisées par l'auditeur round 2 sur copies jetables, candidat jamais édité."
+    },
+    {
+      "id": "MOB-CYCLE32919230502-OPT",
+      "criterionId": "DRC-04",
+      "role": "mobile",
+      "severity": "info",
+      "mustFixBeforeRelease": false,
+      "status": "resolved",
+      "requiredFix": "Cinq améliorations facultatives du tour 1 : F2 avertissement trans-foyer nommant le foyer d'origine à la bascule avec chrono actif ; F3 réinitialisation du filtre membre au changement de foyer actif ; F4 suppression de la constante morte MONTHS_FR de exportReport.ts ; F5 ordinal français « 1er » dans formatDateFr ; F6 contraste AA de la méta-ligne fichier du ReportModal.",
+      "origin": "audits round 1 (repair) et round 2 (accept) du cycle 32919230502",
+      "resolution": "Les cinq améliorations sont appliquées dans le candidat réparé 327fba8 intégré et vérifiées par l'audit round 2 (constats F2-R2 à F6-R2 ; mesure WCAG indépendante 4,55:1 pour textSecondary sur background, contre 3,76:1 pour l'ancienne paire). Le traitement systématique de textMuted reste programmé sous DRC-05."
     }
   ]
 }

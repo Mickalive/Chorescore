@@ -106,11 +106,12 @@ function makeDurable(): DurableState {
   const snapshot = createDemoSnapshot(NOW);
   return {
     users: snapshot.users,
-    household: snapshot.household,
+    households: [snapshot.household],
     memberships: snapshot.memberships,
     tasks: snapshot.tasks,
     entries: snapshot.entries,
     currentUserId: snapshot.currentUserId,
+    currentHouseholdId: snapshot.household.id,
     onboardingComplete: true,
     consent: {
       termsAccepted: true,
@@ -124,11 +125,12 @@ function makeDurable(): DurableState {
 function toDurable(state: AppState): DurableState {
   return {
     users: state.users,
-    household: state.household,
+    households: state.households,
     memberships: state.memberships,
     tasks: state.tasks,
     entries: state.entries,
     currentUserId: state.currentUserId,
+    currentHouseholdId: state.currentHouseholdId,
     onboardingComplete: state.onboardingComplete,
     consent: state.consent,
   };

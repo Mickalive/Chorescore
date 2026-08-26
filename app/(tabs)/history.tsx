@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, Modal, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { AppButton } from '@/src/components/AppButton';
 import { Avatar } from '@/src/components/Avatar';
 import { Card } from '@/src/components/Card';
@@ -14,8 +14,10 @@ import { SectionTitle } from '@/src/components/SectionTitle';
 import { SegmentedControl } from '@/src/components/SegmentedControl';
 import { COLORS, RADIUS, SPACING } from '@/src/components/theme';
 import { getEntitlements, getPlanLabel } from '@/src/domain/entitlements';
+import { buildHistoryReport, type HistoryReport } from '@/src/domain/exportReport';
 import {
   buildHistorySynthesis,
+  describePeriodBounds,
   filterHistoryEntries,
   type HistoryPeriodFilter,
 } from '@/src/domain/history';
@@ -28,7 +30,14 @@ export default function HistoryScreen() {
   const { state, showPaywall, dismissNotice, editEntryDuration, deleteEntry } = useApp();
   const [periodFilter, setPeriodFilter] = useState<HistoryPeriodFilter>('all');
   const [memberFilter, setMemberFilter] = useState<string | null>(null);
+  // DRC-04 : après une bascule de foyer, un filtre membre de l'ancien foyer
+  // n'a plus de sens (l'onglet reste monté sous expo-router) — retour au
+  // segment « Foyer » pour retrouver l'historique complet du nouveau foyer.
+  useEffect(() => {
+    setMemberFilter(null);
+  }, [state.currentHouseholdId]);
   const [correctionEntry, setCorrectionEntry] = useState<TaskEntry | null>(null);
+  const [report, setReport] = useState<HistoryReport | null>(null);
   const entitlements = getEntitlements(state.household.plan);
   const dailyPoints = useMemo(
     () =>
@@ -53,6 +62,10 @@ export default function HistoryScreen() {
   const synthesis = useMemo(
     () => buildHistorySynthesis(filteredEntries, state.tasks, entitlements.useWeights),
     [filteredEntries, state.tasks, entitlements.useWeights],
+  );
+  const periodBounds = useMemo(
+    () => describePeriodBounds(periodFilter, new Date()),
+    [periodFilter],
   );
   const memberIds = new Set(
     state.memberships
@@ -98,14 +111,28 @@ export default function HistoryScreen() {
     );
   };
 
-  const exportReport = () => {
+  // DRC-04 : l'export produit un rapport réellement consultable — texte
+  // intégral construit depuis la sélection courante du foyer actif, affiché à
+  // l'écran et partageable via le système. Aucun réseau, aucun compte, aucun
+  // succès simulé : en gratuit, la porte reste le paywall contextuel.
+  const openReport = () => {
     if (!entitlements.canExportPdf) {
       showPaywall('export_pdf');
       return;
     }
-    Alert.alert(
-      'Rapport simulé',
-      'Dans cette démo hors ligne, le rapport est prévisualisé à l’écran mais aucun fichier n’est créé ni envoyé.',
+    setReport(
+      buildHistoryReport({
+        householdName: state.household.name,
+        planLabel: getPlanLabel(state.household.plan),
+        period: periodFilter,
+        memberLabel:
+          memberFilter === null ? null : (userById.get(memberFilter)?.name ?? 'Membre'),
+        entries: filteredEntries,
+        tasks: state.tasks,
+        users: state.users,
+        useWeights: entitlements.useWeights,
+        generatedAt: new Date(),
+      }),
     );
   };
 
@@ -148,6 +175,14 @@ export default function HistoryScreen() {
         />
       </View>
 
+      {/* DRC-04 : méthode de calcul visible et bornées réelles — le texte est
+          produit par la même fonction que le filtrage, il ne peut pas
+          diverger des bornes appliquées aux entrées. */}
+      <Text style={styles.methodText}>
+        Méthode : somme des durées des entrées terminées de la sélection
+        {periodBounds === null ? ' de la fenêtre visible' : ` (${periodBounds})`} ; l’arrondi est
+        réservé à l’affichage.
+      </Text>
 
       {entitlements.useWeights ? null : (
         <Text style={styles.planNote}>
@@ -195,7 +230,7 @@ export default function HistoryScreen() {
 
       <View style={styles.historyHeader}>
         <SectionTitle title="Saisies récentes" detail={entriesDetail} />
-        <AppButton label="Rapport" variant="ghost" onPress={exportReport} style={styles.reportButton} />
+        <AppButton label="Rapport" variant="ghost" onPress={openReport} style={styles.reportButton} />
       </View>
 
       {visibleEntries.length === 0 ? (
@@ -273,7 +308,80 @@ export default function HistoryScreen() {
           correctionEntry === null ? false : editEntryDuration(correctionEntry.id, minutes)
         }
       />
+
+      <ReportModal report={report} onClose={() => setReport(null)} />
     </Screen>
+  );
+}
+
+/**
+ * Aperçu du rapport exportable (DRC-04) : le contenu généré est intégralement
+ * consultable à l'écran et partageable via la feuille système. Un refus du
+ * partage est annoncé honnêtement ; aucun succès n'est jamais simulé.
+ */
+function ReportModal({ report, onClose }: { report: HistoryReport | null; onClose: () => void }) {
+  const [shareFailed, setShareFailed] = useState(false);
+
+  useEffect(() => {
+    if (report === null) {
+      setShareFailed(false);
+    }
+  }, [report]);
+
+  const shareReport = async () => {
+    if (report === null) {
+      return;
+    }
+    setShareFailed(false);
+    try {
+      await Share.share({ message: report.text }, { dialogTitle: report.fileName });
+    } catch {
+      // Échec réel (partage indisponible ou annulé côté système) : annoncé
+      // comme tel, le rapport reste consultable ci-dessus.
+      setShareFailed(true);
+    }
+  };
+
+  return (
+    <Modal
+      visible={report !== null}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+      accessibilityViewIsModal
+    >
+      <View style={styles.reportOverlay}>
+        <View style={styles.reportSheet}>
+          <Text accessibilityRole="header" style={styles.reportTitle}>
+            Rapport d’historique
+          </Text>
+          <Text style={styles.reportFile}>Fichier local : {report?.fileName ?? ''}</Text>
+          <ScrollView style={styles.reportScroll} contentContainerStyle={styles.reportContent}>
+            <Text selectable style={styles.reportText}>
+              {report?.text ?? ''}
+            </Text>
+          </ScrollView>
+          {shareFailed ? (
+            <View accessibilityLiveRegion="polite">
+              <Text style={styles.shareError}>
+                Le partage système n’a pas abouti. Le rapport reste entièrement consultable ici.
+              </Text>
+            </View>
+          ) : null}
+          <View style={styles.reportActions}>
+            <AppButton label="Fermer" variant="ghost" onPress={onClose} style={styles.reportAction} />
+            <AppButton
+              label="Partager"
+              accessibilityHint="Ouvre la feuille de partage de l’appareil pour enregistrer ou envoyer ce rapport."
+              onPress={() => {
+                void shareReport();
+              }}
+              style={styles.reportAction}
+            />
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -285,6 +393,68 @@ const styles = StyleSheet.create({
   },
   metricRowSpacing: {
     marginTop: SPACING.md,
+  },
+  methodText: {
+    color: COLORS.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: SPACING.sm,
+  },
+  reportOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(38, 70, 83, 0.35)',
+  },
+  reportSheet: {
+    maxHeight: '90%',
+    backgroundColor: COLORS.background,
+    borderTopLeftRadius: RADIUS.lg,
+    borderTopRightRadius: RADIUS.lg,
+    padding: SPACING.lg,
+    gap: SPACING.sm,
+  },
+  reportTitle: {
+    color: COLORS.textPrimary,
+    fontSize: 24,
+    fontWeight: '800',
+  },
+  reportFile: {
+    // Contraste AA : textMuted sur background ≈ 3,76:1 (< 4,5:1) ;
+    // textSecondary atteint ≈ 4,55:1 (constat F6 de l'audit mobile
+    // 32919230502). Le traitement global de textMuted reste programmé
+    // pour la passe DRC-05.
+    color: COLORS.textSecondary,
+    fontSize: 12,
+  },
+  reportScroll: {
+    flexGrow: 0,
+    borderColor: COLORS.border,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.surfaceAlt,
+  },
+  reportContent: {
+    padding: SPACING.md,
+  },
+  reportText: {
+    color: COLORS.textPrimary,
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  shareError: {
+    color: '#A9422F',
+    backgroundColor: '#FFF4F1',
+    borderRadius: RADIUS.sm,
+    padding: SPACING.sm,
+    fontWeight: '700',
+    lineHeight: 19,
+  },
+  reportActions: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+  },
+  reportAction: {
+    flex: 1,
   },
   planNote: {
     color: COLORS.textPrimary,

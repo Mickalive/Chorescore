@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "cycle": "32919230502",
+  "role": "mobile",
+  "round": 2,
+  "decision": "accept",
+  "summary": "Candidat corrigé 327fba8 (origin/cycle/chorescore/32919230502/mobile-repaired) vs base acceptée 0463683 : diff réel de 11 fichiers, +1787/-68, strictement dans app/, src/, tests/ ; delta de correction de 7 fichiers, +186/-21, visant exactement les constats F1 à F6. L'unique mustFix du tour 1 est démontrablement résolu : parseEnvelope rejoue isDurableState sur l'état migré v1→v2 et refuse en invalid-shape, les quatre cas de test exigés existent et passent (76/76 sur les trois fichiers ciblés), la reproduction indépendante montre qu'un v1-valide avec entry.householdId inconnu est désormais refusé dès la première lecture au lieu d'être re-persisté en v2 condamné, et la preuve de mutation (garde retirée sur copie jetable) fait échouer exactement les quatre nouveaux tests. Les cinq constats facultatifs sont également traités (avertissement trans-foyer testé, filtre membre réinitialisé, constante morte supprimée, ordinal « 1er », contraste 4,55:1 mesuré). Aucune régression sémantique : chemi",
+  "findings": [
+    {
+      "id": "MOB-CYCLE32919230502-F1-R2",
+      "severity": "medium",
+      "path": "src/store/persistence.ts",
+      "mustFix": false,
+      "problem": "Résolution du constat MOB-CYCLE32919230502-F1 (tour 1, mustFix true) : la branche version===1 de parseEnvelope rejoue désormais le validateur v2 complet sur l'état migré et retourne {outcome:'invalid', reason:'invalid-shape'} en cas d'échec — un document v1 référentiellement incohérent part en quarantaine visible dès la première lecture au lieu d'être chargé puis re-persisté en enveloppe v2 condamnée à la quarantaine à la relance suivante.",
+      "evidence": "Garde implémentée à l'identique du requiredFix (if (!isDurableState(migrated)) return { outcome: 'invalid', reason: 'invalid-shape' }) avec commentaire motivant la re-validation. Les quatre cas de test exigés existent dans tests/persistence.test.ts : entrée vers foyer inconnu, adhésions vers utilisateur ou foyer inconnus, utilisateur actif sans adhésion au foyer actif (chacun invalid alors que isLegacyDurableStateV1 reste vrai), plus non-régression affirmant que tout état issu de migrateV1ToV2 sur un v1 cohérent satisfait isDurableState ; un cinquième test prouve la quarantaine dès la première lecture (loadDurableState → recovered/quarantined, clé principale vidée, charge brute sous QUARANTINE_KEY). Reproduction indépendante sur le build compilé (/tmp/opencode/reprove-f1-final.mjs) : entry.householdId='household_ghost' → parseEnvelope outcome 'invalid' (au lieu de 'valid' au tour 1), deux autres incohérences idem, v1 cohérent toujours valid/migratedFrom=1. Preuve de mutation sur copie jetable /tmp/opencode/mutation_f1 (supprimée ensuite, candidat jamais édité) : retrait de la seule garde → exactement les 4 nouveaux tests échouent (31 tests : 27 pass / 4 fail).",
+      "requiredFix": "Aucun — constat résolu.",
+      "verification": "npx tsc -p tsconfig.test.json OK puis node --test .test-build/tests/persistence.test.js .test-build/tests/premium-local.test.js .test-build/tests/data-control.test.js : 76/76 verts (70 du tour 1 + 6 nouveaux), y compris les nouveaux cas."
+    },
+    {
+      "id": "MOB-CYCLE32919230502-F2-R2",
+      "severity": "low",
+      "path": "src/store/appReducer.ts",
+      "mustFix": false,
+      "problem": "Résolution du constat facultatif F2 (tour 1) : basculer de foyer alors qu'un chrono tourne annonce désormais explicitement le chrono trans-foyer en nommant le foyer d'origine (« Un chrono lancé dans « … » continue de tourner : retourne dans ce foyer pour l'arrêter »), rendant l'arrêt découvrable sans deviner le foyer.",
+      "evidence": "SWITCH_HOUSEHOLD recherche l'entrée in_progress de la personne courante hors foyer cible — même condition que le garde « un seul chrono » de planStartTimer (une personne ne peut avoir qu'un seul chrono global, donc find est exhaustif) ; sans chrono, la notice reste exactement « Foyer actif : … ». Test dédié « basculer de foyer alors qu'un chrono tourne annonce le foyer où l'arrêter » : notice exacte vérifiée et planCompleteTimer/planCancelTimer depuis l'autre foyer toujours refusés (« Cette entrée appartient à un autre foyer. »).",
+      "requiredFix": "Aucun — amélioration facultative appliquée.",
+      "verification": "Test planner exécuté et vert dans la suite ciblée (76/76) ; les refus cross-foyer restent couverts par les tests d'isolation existants."
+    },
+    {
+      "id": "MOB-CYCLE32919230502-F3-R2",
+      "severity": "info",
+      "path": "app/(tabs)/history.tsx",
+      "mustFix": false,
+      "problem": "Résolution du constat facultatif F3 (tour 1) : memberFilter est réinitialisé à null lorsque state.currentHouseholdId change (useEffect dédié), supprimant la sélection orpheline après bascule de foyer.",
+      "evidence": "useEffect(() => { setMemberFilter(null); }, [state.currentHouseholdId]) ajouté à l'écran Historique (onglet restant monté sous expo-router) ; effet local à l'écran, sans incidence données ni annonces ; commentaire DRC-04 explicite.",
+      "requiredFix": "Aucun — amélioration facultative appliquée.",
+      "verification": "Revue du diff et typecheck vert ; le comportement de filtrage lui-même est couvert par les tests domaine existants (bornes = filtrage)."
+    },
+    {
+      "id": "MOB-CYCLE32919230502-F4-R2",
+      "severity": "info",
+      "path": "src/domain/exportReport.ts",
+      "mustFix": false,
+      "problem": "Résolution du constat facultatif F4 (tour 1) : la constante morte MONTHS_FR a été supprimée de exportReport.ts.",
+      "evidence": "grep -rn MONTHS_FR src/ ne montre plus que src/domain/history.ts (déclaration + usage dans formatDateFr) ; suppression pure de 15 lignes, aucun effet d'exécution attendu ni observé.",
+      "requiredFix": "Aucun — amélioration facultative appliquée.",
+      "verification": "npx tsc -p tsconfig.test.json vert après suppression ; grep confirmant une unique définition de MONTHS_FR dans src/."
+    },
+    {
+      "id": "MOB-CYCLE32919230502-F5-R2",
+      "severity": "info",
+      "path": "src/domain/history.ts",
+      "mustFix": false,
+      "problem": "Résolution du constat facultatif F5 (tour 1) : formatDateFr émet l'ordinal français « 1er » quand date.getDate()===1, corrigeant « Mois du 1 août 2026 » en « Mois du 1er août 2026 ».",
+      "evidence": "Implémentation `${day === 1 ? '1er' : day} …` ; les assertions du test « les bornes annoncées correspondent exactement aux bornes de filtrage » ont été mises à jour (« Mois du 1er août 2026… », « Mois du 1er janvier 2027 ») et passent ; les bornes calculées (getPeriodStart) sont inchangées.",
+      "requiredFix": "Aucun — amélioration facultative appliquée.",
+      "verification": "Assertions mises à jour vertes dans la suite ciblée (76/76) ; libellé uniquement, aucune incidence métier."
+    },
+    {
+      "id": "MOB-CYCLE32919230502-F6-R2",
+      "severity": "info",
+      "path": "app/(tabs)/history.tsx",
+      "mustFix": false,
+      "problem": "Résolution du constat facultatif F6 (tour 1) : la méta-ligne « Fichier local : rapport-chorescore-….txt » du ReportModal passe de COLORS.textMuted (≈ 3,76:1) à COLORS.textSecondary, atteignant le seuil AA pour ce texte.",
+      "evidence": "style reportFile : color COLORS.textSecondary avec commentaire de contraste ; calcul WCAG indépendant exécuté sur theme.ts : #457B9D sur #FEFEFE = 4,55:1 (≥ 4,5) contre 3,76:1 pour #6D8793 ; le traitement global de textMuted reste programmé pour la passe DRC-05 comme convenu au tour 1.",
+      "requiredFix": "Aucun — amélioration facultative appliquée ici ; la passe systématique textMuted demeure sous DRC-05.",
+      "verification": "Mesure WCAG indépendante : paire retenue 4,55:1 ≥ 4,5:1 ; ancienne paire recalculée à 3,76:1 conformément au constat d'origine."
+    }
+  ],
+  "checks": [
+    "Identité : git rev-parse du workspace candidat = 327fba8d7b64c01e67f673c4bceac829144c5d00 = origin/cycle/chorescore/32919230502/mobile-repaired ; parent du candidat = e1983a7 (candidat round 1), parent = 04636836523ba35d2b15cd9b369a9055a46aaecd = HEAD courant de lab/chorescore (checkout accepté intact) ; worktree candidat propre vis-à-vis de HEAD avant et après contrôles (node_modules non suivi seul).",
+    "Diff réel intégral revu : git diff 0463683..327fba8 (11 fichiers, +1787/-68) et delta de correction e1983a7..327fba8 (7 fichiers, +186/-21) ; périmètre strictement app/, src/, tests/ ; package.json, package-lock.json, functions/, governance/, directives/, .github/ absents du diff.",
+    "Hostilité : scan du diff complet (instructions injectées, eval, child_process, fetch/XHR/WebSocket, secrets/tokens, motifs ignore/skip) négatif ; unique correspondance = clé React accessibilityLiveRegion (benigne) ; aucune dépendance ajoutée, aucun réseau.",
+    "Affaiblissement de tests : lignes supprimées contenant assert/test limitées à l'ancien test « migration undefined -> v1 … schemaVersion 1 », remplacé par son équivalent v2 (SCHEMA_VERSION === 2) ; aucune autre assertion retirée.",
+    "Vérification demandée par le requiredFix de F1, exécutée intégralement sur le candidat : npx tsc -p tsconfig.test.json OK ; node --test .test-build/tests/persistence.test.js .test-build/tests/premium-local.test.js .test-build/tests/data-control.test.js → 76/76 pass, 0 fail (70 du tour 1 + 6 nouveaux).",
+    "Reproduction indépendante de la preuve F1 (script jetable /tmp/opencode/reprove-f1-final.mjs sur .test-build) : v1-valide avec entry.householdId='household_ghost' → parseEnvelope {outcome:'invalid', reason:'invalid-shape'} ; adhésion vers utilisateur inconnu et utilisateur actif sans adhésion → invalid également ; v1 cohérent → valid, migratedFrom=1 (REPRODUCTION_OK).",
+    "Preuve de mutation sur copie jetable /tmp/opencode/mutation_f1 (candidat jamais édité, copie supprimée après contrôle) : retrait de la garde isDurableState(migrated) puis recompilation → persistence.test.js : 31 tests, 27 pass, 4 fail — exactement les quatre nouveaux tests F1 ; la suite détecte bien une régression de la correction.",
+    "Non-régression ciblée supplémentaire : node --test .test-build/tests/store-interactions.test.js → 18/18 (couvre notamment RESET_DEMO sous la nouvelle sémantique de roster) ; revue sémantique du delta : chemin v1 cohérent inchangé, notice de bascule identique sans chrono trans-foyer, refus cross-foyer des six planners préservés.",
+    "Contraste WCAG (constat F6) : calcul indépendant depuis theme.ts — textSecondary #457B9D sur background #FEFEFE = 4,55:1 (≥ 4,5 AA) ; textMuted #6D8793 = 3,76:1 (conforme au constat d'origine).",
+    "Vérification F4 : grep -rn MONTHS_FR src/ → uniquement src/domain/history.ts (déclaration + usage) ; typecheck vert.",
+    "Manifeste immuable sur le candidat : sha256sum -c .github/immutable-files.sha256 → 0 fichier en échec.",
+    "Non exécuté, motivé : npm run check complet, export Expo Android et npm audit non relancés — duplication avec la porte de vérification déterministe finale du workflow de confiance ; aucun constat du présent audit ne les exigeait et les checks ciblés demandés ont été exécutés."
+  ]
+}

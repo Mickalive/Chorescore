@@ -15,8 +15,8 @@ import { COLORS, RADIUS, SPACING } from '@/src/components/theme';
 import { getEntitlements, getPlanLabel } from '@/src/domain/entitlements';
 import { buildLeaderboard } from '@/src/domain/leaderboard';
 import { formatMetric } from '@/src/domain/scoring';
-import { selectActiveTasks } from '@/src/domain/tasks';
 import type { TaskDefinition, TaskEntry } from '@/src/domain/types';
+import { selectVisibleTasks } from '@/src/store/appReducer';
 import { useApp } from '@/src/store/AppProvider';
 
 export default function TasksScreen() {
@@ -53,8 +53,12 @@ export default function TasksScreen() {
   const currentRow = weeklyRows.find((row) => row.user.id === state.currentUserId);
   const completedThisWeek = currentRow?.taskCount ?? 0;
   const currentMetric = currentRow?.value ?? 0;
-  const activeTasks = selectActiveTasks(state.tasks);
-  const archivedCount = state.tasks.length - activeTasks.length;
+  // DRC-04 : seules les tâches du foyer actif sont proposées — les foyers
+  // locaux sont isolés dans la liste comme dans le document persisté.
+  const activeTasks = selectVisibleTasks(state);
+  const archivedCount = state.tasks.filter(
+    (task) => task.householdId === state.household.id && !task.active,
+  ).length;
 
   // DRC-03 : l'archivage est réel mais jamais silencieux — confirmation
   // explicite avant de retirer la tâche des propositions.

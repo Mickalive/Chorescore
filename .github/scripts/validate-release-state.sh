@@ -70,7 +70,10 @@ jq -e --slurpfile definition "$definition" '
     (.severity == "critical" or .severity == "high" or .severity == "medium" or
       .severity == "low" or .severity == "info") and
     (.mustFixBeforeRelease | type == "boolean") and
-    (.status == "unresolved" or .status == "resolved") and
+    (.status == "unresolved" or .status == "resolved" or
+      .status == "deferred" or .status == "noted") and
+    ((.status == "unresolved" or .status == "resolved") or
+      .mustFixBeforeRelease == false) and
     (.requiredFix | type == "string" and length > 0 and length <= 2000)
   ) and
   . as $release |
@@ -106,7 +109,15 @@ jq -e --slurpfile before "$BEFORE_STATUS" '
       .role == $old.role and
       .mustFixBeforeRelease == $old.mustFixBeforeRelease and
       .requiredFix == $old.requiredFix and
-      ($old.status == "unresolved" or .status == "resolved")
+      (
+        if $old.status == "resolved" then .status == "resolved"
+        elif $old.status == "deferred" then (.status == "deferred" or .status == "resolved")
+        elif $old.status == "noted" then (.status == "noted" or .status == "resolved")
+        elif $old.status == "unresolved" then
+          (.status == "unresolved" or .status == "resolved" or
+            ($old.mustFixBeforeRelease == false and (.status == "deferred" or .status == "noted")))
+        else false end
+      )
     )
   )
 ' "$status" >/dev/null

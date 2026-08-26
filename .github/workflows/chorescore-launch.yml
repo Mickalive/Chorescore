@@ -125,9 +125,9 @@ jobs:
           release_status=$(gh api "repos/$GITHUB_REPOSITORY/contents/docs/RELEASE_STATUS.json?ref=lab%2Fchorescore" \
             --jq '.content' 2>/dev/null | tr -d '\n' | base64 --decode 2>/dev/null || printf '{}')
           evidence_runs=$(jq -c '[.criteria[]?.evidence[]?.cycle | select(test("^[1-9][0-9]*$")) | tonumber] | unique' <<<"$release_status")
-          recent_loops=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow chorescore-loop.yml --limit 3 \
+          recent_loops=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow chorescore-loop.yml --limit 1 \
             --json databaseId --jq '[.[].databaseId]')
-          recent_ci=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --limit 3 \
+          recent_ci=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --limit 1 \
             --json databaseId --jq '[.[].databaseId]')
           protected=$(jq -cn --argjson evidence "$evidence_runs" --argjson loops "$recent_loops" --argjson ci "$recent_ci" \
             '$evidence + $loops + $ci | unique')
@@ -163,7 +163,7 @@ jobs:
           else
             deleted_list=$(IFS=', '; echo "${deleted_ids[*]}")
           fi
-          body=$(printf '### Nettoyage GitHub Actions terminé\n\n- Runs obsolètes supprimés : **%s**\n- Identifiants : `%s`\n- Cycles porteurs de preuves et trois derniers runs de chaque pipeline : préservés\n- Dernier cycle autonome : `%s`\n\nBranches, commits, snapshots et rapports inchangés.' "$deleted_count" "$deleted_list" "$latest_loop")
+          body=$(printf '### Nettoyage GitHub Actions terminé\n\n- Runs obsolètes supprimés : **%s**\n- Identifiants : `%s`\n- Cycles porteurs de preuves, run autonome le plus récent et CI la plus récente : préservés\n- Dernier cycle autonome : `%s`\n\nBranches, commits, snapshots et rapports inchangés.' "$deleted_count" "$deleted_list" "$latest_loop")
           printf '%s\n' "$body" ||
             echo "::warning::Nettoyage terminé, mais commentaire de suivi impossible."
 

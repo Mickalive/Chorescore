@@ -1,6 +1,6 @@
 17e83e5b3c5ef35b3d05ed5146fd51fd3ccadbbd9325a1474247198d3cf9e6da  .github/scripts/ensure-continuous-loop.sh
 f0b5da9241c4c42620a58b23f662aef5be17445949e797941375ed13df9e862b  .github/scripts/integrate-audited-candidates.sh
-d8eda02427f7fa8f3b030b4bb3778c0450c963bfe4051a834ea1f624cbce797e  .github/scripts/normalize-audit-json.sh
+60dc3bb70926c279fcd671e3f9a6cb77ae011a5c7e645515bb50ff0eb1369b0d  .github/scripts/normalize-audit-json.sh
 10ba60483b165a2875e7d6db6defb940bce39f9be6bea0e20e58a658cc79c478  .github/scripts/run-opencode-with-retry.sh
 55269f8e7f13efaf14e630e6805a6539e6b04a47573842517b05a6e48186fa45  .github/scripts/smoke-android-apk.sh
 7c6dcea5df4d79f843f3afdad5fafdabaefe5aa8daaafbfcb34e0470539dbcfe  .github/scripts/trusted-product-tree.sh

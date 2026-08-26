@@ -12,6 +12,8 @@ on:
       - "ChoreScore Autonomous App Loop"
     types:
       - completed
+  schedule:
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -53,9 +55,16 @@ jobs:
             recovery=none
           else
             kind=launch
-            cycles=$(jq -er '.cycles // 0 | if type == "number" and floor == . and . >= 0 and . <= 10000 then . else error("invalid cycles") end' "$file")
+            requested_cycles=$(jq -er '.cycles // 0 | if type == "number" and floor == . and . >= 0 and . <= 10000 then . else error("invalid cycles") end' "$file")
+            # Human launch files may still contain the historical cycles field, but
+            # autonomous production is now intentionally unbounded. Only a fully
+            # attested final release is terminal.
+            cycles=0
             note=$(jq -er '.human_note // "" | if type == "string" and length <= 4000 then . else error("invalid human_note") end' "$file")
             recovery=$(jq -er '.recovery_cycle_key // "none" | if type == "string" and (. == "none" or test("^[1-9][0-9]*$")) then . else error("invalid recovery_cycle_key") end' "$file")
+            if [[ "$requested_cycles" != 0 ]]; then
+              echo "Ignoring finite cycles=$requested_cycles: ChoreScore now runs until final attested release."
+            fi
           fi
           echo "kind=$kind" >> "$GITHUB_OUTPUT"
           echo "cycles=$cycles" >> "$GITHUB_OUTPUT"
@@ -121,7 +130,7 @@ jobs:
           active=$(find_active)
           if [[ -z "$active" ]]; then
             gh workflow run chorescore-loop.yml --repo "$GITHUB_REPOSITORY" --ref main \
-              -f human_note="$NOTE" -f cycle_index=1 -f max_cycles="$CYCLES" \
+              -f human_note="$NOTE" -f cycle_index=1 -f max_cycles=0 \
               -f recovery_cycle_key="$RECOVERY"
             for attempt in {1..20}; do
               active=$(find_active)
@@ -206,7 +215,7 @@ jobs:
 
   watchdog:
     name: Keep unfinished autonomous loop alive
-    if: ${{ github.repository == 'Mickalive/Chorescore' && !github.event.repository.fork && (github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch') }}
+    if: ${{ github.repository == 'Mickalive/Chorescore' && !github.event.repository.fork && (github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -254,6 +263,32 @@ jobs:
             sleep 2
           done
           echo "::warning::A stale queued run is still visible after purge attempts; successor logic will retry on the next bridge event."
+
+      - name: Enforce a hard wall-clock ceiling on a wedged workflow
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Job-level timeouts already protect each lane. This second ceiling is a
+          # circuit breaker for rare GitHub runner/orchestration ghosts that never
+          # emit the expected completion event. It is deliberately above the sum
+          # of the legitimate lane timeouts, so healthy long runs are untouched.
+          hard_ceiling_seconds=$((13 * 60 * 60))
+          now=$(date -u +%s)
+          runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/chorescore-loop.yml/runs?per_page=30")
+          while IFS= read -r run; do
+            id=$(jq -r '.id' <<<"$run")
+            status=$(jq -r '.status' <<<"$run")
+            started=$(jq -r '.run_started_at // .created_at' <<<"$run")
+            started_epoch=$(date -u -d "$started" +%s)
+            age=$((now - started_epoch))
+            if (( age > hard_ceiling_seconds )); then
+              echo "Cancelling wedged autonomous run $id after ${age}s; watchdog will create a successor."
+              gh run cancel "$id" --repo "$GITHUB_REPOSITORY" || true
+            fi
+          done < <(jq -c '.workflow_runs[] | select(.status == "in_progress" or .status == "waiting" or .status == "pending")' <<<"$runs")
 
       - name: Guarantee a successor until the release is complete
         if: ${{ always() }}

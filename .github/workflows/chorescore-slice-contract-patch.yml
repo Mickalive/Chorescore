@@ -47,23 +47,19 @@ jobs:
               raise SystemExit('director slice instruction insertion point changed')
           text = text.replace(old, new, 1)
 
-          old = '''          exit "$director_status"
-
-      - name: Verify Director preserved the audited product tree
-'''
-          new = '''          exit "$director_status"
-
-      - name: Canonicalize Director task slicing contract
-        id: task_contract
-        if: always()
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 .github/scripts/normalize-task-slices.py directives/TASKS.json
-
-      - name: Verify Director preserved the audited product tree
-'''
+          old = '          exit "$director_status"\n\n      - name: Verify Director preserved the audited product tree\n'
+          new = (
+              '          exit "$director_status"\n\n'
+              '      - name: Canonicalize Director task slicing contract\n'
+              '        id: task_contract\n'
+              '        if: always()\n'
+              '        continue-on-error: true\n'
+              '        shell: bash\n'
+              '        run: |\n'
+              '          set -euo pipefail\n'
+              '          python3 .github/scripts/normalize-task-slices.py directives/TASKS.json\n\n'
+              '      - name: Verify Director preserved the audited product tree\n'
+          )
           if text.count(old) != 1:
               raise SystemExit('director contract normalization insertion point changed')
           text = text.replace(old, new, 1)

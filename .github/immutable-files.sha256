@@ -5,7 +5,7 @@ e32443c8933eedb7257a5e6eb20b30ae30099e3608ac0b8a33fe6d699aa6bd7b  .github/script
 55269f8e7f13efaf14e630e6805a6539e6b04a47573842517b05a6e48186fa45  .github/scripts/smoke-android-apk.sh
 7c6dcea5df4d79f843f3afdad5fafdabaefe5aa8daaafbfcb34e0470539dbcfe  .github/scripts/trusted-product-tree.sh
 c0af8da3490999e8c43cf1336b25f13c47524aa4d202566bf9aa6c64199abd19  .github/scripts/validate-audit-json.sh
-eacd1ccf650afb15c4bc2ccbad2c6ecb7756b857705d6d00b1a390071c2e87e8  .github/scripts/validate-release-state.sh
+3e32f451b96a6cbb80b549e3c485a326756d253944c0bff5863521caa90a8e96  .github/scripts/validate-release-state.sh
 672356a377b3d3bd1c7d8750aaefb67bf957d1e9659a88663473e3eef43bca86  .github/scripts/verify-final-release.sh
 0b821695627fbfcc52dd79fab05e22fcc5b2469984d25712a458fd28f52bf80f  .github/scripts/verify-immutable-governance.sh
 6dcc46bf2be14e3579de14e6de134823b7399165e137871dc5e3ae15e5bd5c80  .github/scripts/verify-product-coherence.sh

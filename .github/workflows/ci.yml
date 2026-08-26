@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - ".chorescore/cleanup/**"
   workflow_dispatch:
 
 permissions:
@@ -93,7 +95,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
-      IMMUTABLE_MANIFEST_SHA256: 1b1b56c701a7dfda5f2ece268636bf5aff0d13c93e35f8a4b6195f2e6ad09f5c
+      IMMUTABLE_MANIFEST_SHA256: 5e4bfe0fefa59b7ecba33d43dc8b30b9fa6abac651f4fe20760da33551d2cb2c
     steps:
       - name: Checkout immutable governance
         uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a

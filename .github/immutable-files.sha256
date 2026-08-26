@@ -1,4 +1,4 @@
-f31af6587e9b353f5447e15ce7fd6ce92c137b75d1e9a08ed8b95851a2969597  .github/scripts/ensure-continuous-loop.sh
+17e83e5b3c5ef35b3d05ed5146fd51fd3ccadbbd9325a1474247198d3cf9e6da  .github/scripts/ensure-continuous-loop.sh
 f0b5da9241c4c42620a58b23f662aef5be17445949e797941375ed13df9e862b  .github/scripts/integrate-audited-candidates.sh
 60dc3bb70926c279fcd671e3f9a6cb77ae011a5c7e645515bb50ff0eb1369b0d  .github/scripts/normalize-audit-json.sh
 10ba60483b165a2875e7d6db6defb940bce39f9be6bea0e20e58a658cc79c478  .github/scripts/run-opencode-with-retry.sh

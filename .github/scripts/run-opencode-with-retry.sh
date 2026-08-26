@@ -71,7 +71,7 @@ for ((attempt = 1; attempt <= max_attempts; attempt++)); do
   fi
 
   if ! grep -Eqi \
-    'network_error|network error|temporarily unavailable|endpoint is unavailable|service unavailable|upstream request failed|provider[^[:cntrl:]]*unavailable|connection (reset|closed)|ECONNRESET|ETIMEDOUT|timed out|timeout|rate[_ -]?limit|HTTP[^0-9]*(429|500|502|503|504)' \
+    'network_error|network error|unexpected server error|internal server error|temporarily unavailable|endpoint is unavailable|service unavailable|bad gateway|gateway timeout|too many requests|upstream request failed|provider[^[:cntrl:]]*unavailable|connection (reset|closed|refused)|ECONNRESET|ECONNREFUSED|ETIMEDOUT|timed out|timeout|rate[_ -]?limit|HTTP[^0-9]*(429|500|502|503|504)' \
     "$log_file"; then
     echo "CHORESCORE_OPENCODE_FAILURE_KIND=permanent label=${label} status=${command_status}" >&2
     echo "::error::OpenCode ${label} a échoué pour une cause non transitoire; aucun nouvel essai automatique." >&2
@@ -84,6 +84,6 @@ for ((attempt = 1; attempt <= max_attempts; attempt++)); do
     exit 75
   fi
 
-  echo "::warning::Panne fournisseur transitoire pour ${label}; nouvelle tentative dans ${retry_delay}s (5 min par défaut)." >&2
+  echo "::warning::Panne fournisseur transitoire pour ${label}; nouvelle tentative dans ${retry_delay}s." >&2
   sleep "$retry_delay"
 done

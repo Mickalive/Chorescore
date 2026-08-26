@@ -68,169 +68,128 @@ jobs:
             echo "CHORESCORE_NOTE"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Purge obsolete state and isolate undeletable ghosts
-        id: purge
+      - name: Read release state and safely clean obsolete history
+        id: state
         env:
           GH_TOKEN: ${{ github.token }}
           MODE: ${{ steps.request.outputs.mode }}
         shell: bash
         run: |
           set -euo pipefail
-          now=$(date -u +%s)
-          stale_cutoff=$((now - 600))
-          migrated=false
-
           release_status=$(gh api "repos/$GITHUB_REPOSITORY/contents/docs/RELEASE_STATUS.json?ref=lab%2Fchorescore" --jq '.content' | tr -d '\n' | base64 --decode)
           final=$(jq -r '(.pendingArtifact == null) and ((.activeCriteria // []) | length == 0) and ((.criteria // []) | length > 0) and all(.criteria[]; .status == "complete")' <<<"$release_status")
-          echo "final=$final" >> "$GITHUB_OUTPUT"
-
           current_group=$(awk '/^concurrency:/{inside=1;next} inside && /^  group: /{sub(/^  group: /,""); print; exit}' .github/workflows/chorescore-loop.yml)
           test -n "$current_group"
+          echo "final=$final" >> "$GITHUB_OUTPUT"
+          echo "current_group=$current_group" >> "$GITHUB_OUTPUT"
 
-          run_group() {
-            local sha="$1" encoded group
-            encoded=$(gh api "repos/$GITHUB_REPOSITORY/contents/.github/workflows/chorescore-loop.yml?ref=$sha" --jq '.content' 2>/dev/null || true)
-            [[ -n "$encoded" ]] || return 1
-            group=$(tr -d '\n' <<<"$encoded" | base64 --decode | awk '/^concurrency:/{inside=1;next} inside && /^  group: /{sub(/^  group: /,""); print; exit}')
-            printf '%s' "$group"
-          }
+          [[ "$MODE" == cleanup ]] || exit 0
+          echo "Running safe cleanup; accepted state and recent recovery snapshots were archived before cleanup."
 
           destroy_run() {
             local id="$1"
-            echo "Force-cancelling stuck workflow run $id"
             gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$id/force-cancel" >/dev/null 2>&1 || true
-            for attempt in {1..5}; do
-              status=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id" --jq '.status' 2>/dev/null || printf 'missing')
-              [[ "$status" == completed || "$status" == missing ]] && break
-              sleep 2
-            done
+            sleep 2
             gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/runs/$id" >/dev/null 2>&1 || true
-            for attempt in {1..5}; do
-              if ! gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id" >/dev/null 2>&1; then
-                echo "Workflow run $id removed."
-                return 0
-              fi
-              sleep 2
-            done
-            return 1
+            if gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id" >/dev/null 2>&1; then
+              echo "::warning::GitHub kept workflow run $id. It is harmless because autonomous loops now use a per-run concurrency group."
+            else
+              echo "Deleted workflow run $id"
+            fi
           }
 
-          runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/chorescore-loop.yml/runs?per_page=100")
-          blocking_ghost=false
+          now=$(date -u +%s)
+          stale_cutoff=$((now - 600))
+          loop_runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/chorescore-loop.yml/runs?per_page=100")
+          while IFS= read -r id; do
+            [[ -z "$id" ]] || destroy_run "$id"
+          done < <(jq -r --argjson cutoff "$stale_cutoff" '.workflow_runs[] | select(.status == "queued" and ((.created_at | fromdateiso8601) < $cutoff)) | .id' <<<"$loop_runs")
+
+          evidence_cycles=$(jq -r '.criteria[]?.evidence[]?.cycle // empty | select(test("^[1-9][0-9]*$"))' <<<"$release_status" | sort -u)
+          refs=$(gh api --paginate "repos/$GITHUB_REPOSITORY/git/matching-refs/heads/cycle/chorescore/")
+          while IFS= read -r ref; do
+            [[ -z "$ref" ]] && continue
+            cycle=$(sed -E 's#^refs/heads/cycle/chorescore/([0-9]+)/.*#\1#' <<<"$ref")
+            if grep -Fxq "$cycle" <<<"$evidence_cycles"; then
+              echo "Keeping evidence branch $ref"
+              continue
+            fi
+            short=${ref#refs/}
+            echo "Deleting obsolete branch $ref"
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/$short" >/dev/null 2>&1 || echo "::warning::Could not delete $ref"
+          done < <(jq -r '.[].ref' <<<"$refs")
+
+          all_runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?per_page=100")
+          latest_loop=$(jq -r '[.workflow_runs[] | select(.name == "ChoreScore Autonomous App Loop")][0].id // empty' <<<"$all_runs")
+          latest_ci=$(jq -r '[.workflow_runs[] | select(.name == "CI")][0].id // empty' <<<"$all_runs")
           while IFS= read -r run; do
             [[ -z "$run" ]] && continue
             id=$(jq -r '.id' <<<"$run")
-            sha=$(jq -r '.head_sha' <<<"$run")
-            created=$(jq -r '.created_at' <<<"$run")
-            historical_group=$(run_group "$sha" || true)
-
-            if [[ -n "$historical_group" && "$historical_group" != "$current_group" ]]; then
-              echo "Ignoring isolated legacy ghost $id from concurrency group $historical_group"
+            name=$(jq -r '.name' <<<"$run")
+            [[ "$id" == "$GITHUB_RUN_ID" || "$id" == "$latest_loop" || "$id" == "$latest_ci" ]] && continue
+            if grep -Fxq "$id" <<<"$evidence_cycles"; then
+              echo "Keeping evidence run $id ($name)"
               continue
             fi
+            echo "Deleting superseded completed run $id ($name)"
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/runs/$id" >/dev/null 2>&1 || echo "::warning::Could not delete run $id"
+          done < <(jq -c '.workflow_runs[] | select(.status == "completed")' <<<"$all_runs")
 
-            echo "Purging stale queued loop $id ($created) from current group $current_group"
-            if ! destroy_run "$id"; then
-              echo "::warning::GitHub refuses to delete stale run $id; rotating the loop concurrency epoch instead."
-              blocking_ghost=true
-            fi
-          done < <(jq -c --argjson cutoff "$stale_cutoff" '.workflow_runs[] | select(.status == "queued" and ((.created_at | fromdateiso8601) < $cutoff))' <<<"$runs")
-
-          if [[ "$blocking_ghost" == true ]]; then
-            new_group="chorescore-autonomous-app-loop-$GITHUB_RUN_ID"
-            python3 - "$current_group" "$new_group" <<'PY'
-          import pathlib, sys
-          path = pathlib.Path('.github/workflows/chorescore-loop.yml')
-          old, new = sys.argv[1], sys.argv[2]
-          text = path.read_text()
-          needle = f"  group: {old}\n"
-          if text.count(needle) != 1:
-              raise SystemExit(f"expected exactly one loop concurrency group {old!r}")
-          path.write_text(text.replace(needle, f"  group: {new}\n", 1))
-          PY
-            git config user.name chorescore-continuity-supervisor
-            git config user.email chorescore-continuity-supervisor@users.noreply.github.com
-            git add .github/workflows/chorescore-loop.yml
-            git commit -m "ci: rotate ChoreScore loop concurrency epoch past GitHub ghost"
-            auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
-            git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin HEAD:refs/heads/main
-            current_group="$new_group"
-            migrated=true
-            echo "Rotated autonomous loop concurrency to $current_group; undeletable legacy run is now non-blocking."
-          fi
-
-          if [[ "$MODE" == cleanup ]]; then
-            echo "Running full safe cleanup. Accepted/evidence state was archived before this request."
-            evidence_cycles=$(jq -r '.criteria[]?.evidence[]?.cycle // empty | select(test("^[1-9][0-9]*$"))' <<<"$release_status" | sort -u)
-
-            refs=$(gh api --paginate "repos/$GITHUB_REPOSITORY/git/matching-refs/heads/cycle/chorescore/")
-            while IFS= read -r ref; do
-              [[ -z "$ref" ]] && continue
-              cycle=$(sed -E 's#^refs/heads/cycle/chorescore/([0-9]+)/.*#\1#' <<<"$ref")
-              if grep -Fxq "$cycle" <<<"$evidence_cycles"; then
-                echo "Keeping evidence branch $ref"
-                continue
-              fi
-              short=${ref#refs/}
-              echo "Deleting obsolete branch $ref"
-              gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/$short" >/dev/null 2>&1 || echo "::warning::Could not delete $ref"
-            done < <(jq -r '.[].ref' <<<"$refs")
-
-            all_runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?per_page=100")
-            latest_loop=$(jq -r '[.workflow_runs[] | select(.name == "ChoreScore Autonomous App Loop")][0].id // empty' <<<"$all_runs")
-            latest_ci=$(jq -r '[.workflow_runs[] | select(.name == "CI")][0].id // empty' <<<"$all_runs")
-            while IFS= read -r run; do
-              [[ -z "$run" ]] && continue
-              id=$(jq -r '.id' <<<"$run")
-              name=$(jq -r '.name' <<<"$run")
-              [[ "$id" == "$GITHUB_RUN_ID" || "$id" == "$latest_loop" || "$id" == "$latest_ci" ]] && continue
-              if grep -Fxq "$id" <<<"$evidence_cycles"; then
-                echo "Keeping evidence run $id ($name)"
-                continue
-              fi
-              echo "Deleting superseded completed run $id ($name)"
-              gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/runs/$id" >/dev/null 2>&1 || echo "::warning::Could not delete run $id"
-            done < <(jq -c '.workflow_runs[] | select(.status == "completed")' <<<"$all_runs")
-          fi
-
-          echo "migrated=$migrated" >> "$GITHUB_OUTPUT"
-
-      - name: Ensure one real successor while release is unfinished
-        if: steps.purge.outputs.final != 'true'
+      - name: Ensure exactly one current-generation loop exists
+        if: steps.state.outputs.final != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           NOTE: ${{ steps.request.outputs.note }}
           REQUESTED_RECOVERY: ${{ steps.request.outputs.recovery }}
-          MIGRATED: ${{ steps.purge.outputs.migrated }}
+          CURRENT_GROUP: ${{ steps.state.outputs.current_group }}
         shell: bash
         run: |
           set -euo pipefail
+
+          run_group() {
+            local sha="$1" encoded decoded
+            encoded=$(gh api "repos/$GITHUB_REPOSITORY/contents/.github/workflows/chorescore-loop.yml?ref=$sha" --jq '.content' 2>/dev/null || true)
+            [[ -n "$encoded" ]] || return 1
+            decoded=$(printf '%s' "$encoded" | tr -d '\n' | base64 --decode 2>/dev/null || true)
+            awk '/^concurrency:/{inside=1;next} inside && /^  group: /{sub(/^  group: /,""); print; exit}' <<<"$decoded"
+          }
+
           now=$(date -u +%s)
-          recent_cutoff=$((now - 600))
+          startup_cutoff=$((now - 300))
           runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/chorescore-loop.yml/runs?per_page=30")
           active_id=""
 
-          if [[ "$MIGRATED" != true ]]; then
-            while IFS= read -r run; do
-              [[ -z "$run" ]] && continue
-              id=$(jq -r '.id' <<<"$run")
-              status=$(jq -r '.status' <<<"$run")
-              created=$(jq -r '.created_at' <<<"$run")
-              created_epoch=$(date -u -d "$created" +%s)
-              if [[ "$status" == queued ]]; then
-                if (( created_epoch >= recent_cutoff )); then active_id="$id"; break; fi
-                continue
+          while IFS= read -r run; do
+            [[ -z "$run" ]] && continue
+            id=$(jq -r '.id' <<<"$run")
+            sha=$(jq -r '.head_sha' <<<"$run")
+            status=$(jq -r '.status' <<<"$run")
+            created=$(jq -r '.created_at' <<<"$run")
+            created_epoch=$(date -u -d "$created" +%s)
+            historical_group=$(run_group "$sha" || true)
+
+            if [[ "$historical_group" != "$CURRENT_GROUP" ]]; then
+              echo "Ignoring legacy loop $id from group ${historical_group:-unknown}"
+              continue
+            fi
+
+            if [[ "$status" == queued ]]; then
+              active_id="$id"
+              break
+            fi
+
+            if [[ "$status" == in_progress || "$status" == waiting || "$status" == pending ]]; then
+              jobs=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?per_page=100")
+              live=$(jq '[.jobs[]? | select(.status != "completed")] | length' <<<"$jobs")
+              if (( live > 0 || created_epoch >= startup_cutoff )); then
+                active_id="$id"
+                break
               fi
-              if [[ "$status" == in_progress || "$status" == waiting || "$status" == pending ]]; then
-                jobs=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?per_page=100")
-                live=$(jq '[.jobs[]? | select(.status != "completed")] | length' <<<"$jobs")
-                if (( live > 0 )); then active_id="$id"; break; fi
-              fi
-            done < <(jq -c '.workflow_runs[] | select(.status != "completed")' <<<"$runs")
-          fi
+            fi
+          done < <(jq -c '.workflow_runs[] | select(.status != "completed")' <<<"$runs")
 
           if [[ -n "$active_id" ]]; then
-            echo "Healthy/recent loop already exists: $active_id"
+            echo "Current-generation loop already alive: $active_id"
             exit 0
           fi
 
@@ -245,12 +204,19 @@ jobs:
           fi
 
           before=$(date -u +%s)
-          echo "Dispatching fresh loop from recovery=$recovery"
-          gh workflow run chorescore-loop.yml --repo "$GITHUB_REPOSITORY" --ref main -f human_note="$NOTE" -f cycle_index=1 -f max_cycles=0 -f recovery_cycle_key="$recovery"
-          for attempt in {1..15}; do
+          echo "Dispatching current-generation loop from recovery=$recovery"
+          gh workflow run chorescore-loop.yml --repo "$GITHUB_REPOSITORY" --ref main \
+            -f human_note="$NOTE" -f cycle_index=1 -f max_cycles=0 -f recovery_cycle_key="$recovery"
+
+          for attempt in {1..20}; do
             sleep 2
-            fresh=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/chorescore-loop.yml/runs?per_page=10" | jq -r --argjson before "$before" '.workflow_runs[] | select((.created_at | fromdateiso8601) >= $before and .status != "completed") | .id' | head -1)
-            if [[ -n "$fresh" ]]; then echo "Fresh loop confirmed: $fresh"; exit 0; fi
+            fresh=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/chorescore-loop.yml/runs?per_page=10" |
+              jq -r --argjson before "$before" '.workflow_runs[] | select((.created_at | fromdateiso8601) >= $before and .status != "completed") | .id' | head -1)
+            if [[ -n "$fresh" ]]; then
+              echo "Fresh current-generation loop confirmed: $fresh"
+              exit 0
+            fi
           done
-          echo "::error::Dispatch returned but no fresh loop became observable."
+
+          echo "::error::Dispatch returned but no fresh autonomous loop became observable."
           exit 1

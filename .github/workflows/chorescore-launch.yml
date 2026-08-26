@@ -83,16 +83,34 @@ jobs:
           final=$(jq -r '(.pendingArtifact == null) and ((.activeCriteria // []) | length == 0) and ((.criteria // []) | length > 0) and all(.criteria[]; .status == "complete")' <<<"$release_status")
           echo "final=$final" >> "$GITHUB_OUTPUT"
 
-          runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/chorescore-loop.yml/runs?per_page=100")
+          destroy_run() {
+            local id="$1"
+            echo "Force-cancelling stuck workflow run $id"
+            gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$id/force-cancel" >/dev/null 2>&1 || true
+            for attempt in {1..10}; do
+              status=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id" --jq '.status' 2>/dev/null || printf 'missing')
+              [[ "$status" == completed || "$status" == missing ]] && break
+              sleep 2
+            done
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/runs/$id" >/dev/null 2>&1 || true
+            for attempt in {1..10}; do
+              if ! gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id" >/dev/null 2>&1; then
+                echo "Workflow run $id removed."
+                return 0
+              fi
+              sleep 2
+            done
+            echo "::error::Workflow run $id survived force-cancel + delete."
+            return 1
+          }
 
+          runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/chorescore-loop.yml/runs?per_page=100")
           while IFS= read -r run; do
             [[ -z "$run" ]] && continue
             id=$(jq -r '.id' <<<"$run")
             created=$(jq -r '.created_at' <<<"$run")
             echo "Purging stale queued loop $id ($created)"
-            gh run cancel "$id" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || true
-            sleep 2
-            gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/runs/$id" >/dev/null 2>&1 || true
+            destroy_run "$id"
           done < <(jq -c --argjson cutoff "$stale_cutoff" '.workflow_runs[] | select(.status == "queued" and ((.created_at | fromdateiso8601) < $cutoff))' <<<"$runs")
 
           runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/chorescore-loop.yml/runs?per_page=100")
@@ -106,11 +124,14 @@ jobs:
             live=$(jq '[.jobs[]? | select(.status != "completed")] | length' <<<"$jobs")
             if (( live == 0 )) && (( total > 0 || created_epoch < stale_cutoff )); then
               echo "Purging ghost-active loop $id (all jobs terminal/no jobs and stale)"
-              gh run cancel "$id" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || true
-              sleep 2
-              gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/runs/$id" >/dev/null 2>&1 || true
+              destroy_run "$id"
             fi
           done < <(jq -c '.workflow_runs[] | select(.status == "in_progress" or .status == "waiting" or .status == "pending")' <<<"$runs")
+
+          # Fail closed: an old queued loop must never survive and poison the concurrency group.
+          remaining_stale=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/chorescore-loop.yml/runs?per_page=100" |
+            jq --argjson cutoff "$stale_cutoff" '[.workflow_runs[] | select(.status == "queued" and ((.created_at | fromdateiso8601) < $cutoff))] | length')
+          (( remaining_stale == 0 )) || { echo "::error::$remaining_stale stale queued loop(s) remain"; exit 1; }
 
           if [[ "$MODE" == cleanup ]]; then
             echo "Running full safe cleanup. Accepted/evidence state was archived before this request."

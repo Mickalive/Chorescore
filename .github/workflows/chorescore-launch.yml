@@ -28,7 +28,7 @@ jobs:
   supervise:
     name: Keep exactly one useful ChoreScore loop alive
     if: ${{ github.repository == 'Mickalive/Chorescore' && !github.event.repository.fork }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     timeout-minutes: 15
     steps:
       - name: Checkout supervisor
@@ -85,8 +85,6 @@ jobs:
 
           runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/chorescore-loop.yml/runs?per_page=100")
 
-          # 1) Hard-delete old queued ghosts. Cancellation alone is not trusted: GitHub
-          # has already reported success while leaving a run queued indefinitely.
           while IFS= read -r run; do
             [[ -z "$run" ]] && continue
             id=$(jq -r '.id' <<<"$run")
@@ -97,7 +95,6 @@ jobs:
             gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/runs/$id" >/dev/null 2>&1 || true
           done < <(jq -c --argjson cutoff "$stale_cutoff" '.workflow_runs[] | select(.status == "queued" and ((.created_at | fromdateiso8601) < $cutoff))' <<<"$runs")
 
-          # 2) Purge orchestration ghosts whose run says active but whose jobs are all terminal.
           runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/chorescore-loop.yml/runs?per_page=100")
           while IFS= read -r run; do
             [[ -z "$run" ]] && continue
@@ -117,10 +114,8 @@ jobs:
 
           if [[ "$MODE" == cleanup ]]; then
             echo "Running full safe cleanup. Accepted/evidence state was archived before this request."
-
             evidence_cycles=$(jq -r '.criteria[]?.evidence[]?.cycle // empty | select(test("^[1-9][0-9]*$"))' <<<"$release_status" | sort -u)
 
-            # Delete cycle branches that are not referenced by accepted release evidence.
             refs=$(gh api --paginate "repos/$GITHUB_REPOSITORY/git/matching-refs/heads/cycle/chorescore/")
             while IFS= read -r ref; do
               [[ -z "$ref" ]] && continue
@@ -134,8 +129,6 @@ jobs:
               gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/$short" >/dev/null 2>&1 || echo "::warning::Could not delete $ref"
             done < <(jq -r '.[].ref' <<<"$refs")
 
-            # Delete completed Action runs except accepted evidence, the latest loop/CI,
-            # and this cleanup run. Runs are logs, not the source of accepted product state.
             all_runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?per_page=100")
             latest_loop=$(jq -r '[.workflow_runs[] | select(.name == "ChoreScore Autonomous App Loop")][0].id // empty' <<<"$all_runs")
             latest_ci=$(jq -r '[.workflow_runs[] | select(.name == "CI")][0].id // empty' <<<"$all_runs")
@@ -173,12 +166,10 @@ jobs:
             status=$(jq -r '.status' <<<"$run")
             created=$(jq -r '.created_at' <<<"$run")
             created_epoch=$(date -u -d "$created" +%s)
-
             if [[ "$status" == queued ]]; then
               if (( created_epoch >= recent_cutoff )); then active_id="$id"; break; fi
               continue
             fi
-
             if [[ "$status" == in_progress || "$status" == waiting || "$status" == pending ]]; then
               jobs=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?per_page=100")
               live=$(jq '[.jobs[]? | select(.status != "completed")] | length' <<<"$jobs")
@@ -203,18 +194,11 @@ jobs:
 
           before=$(date -u +%s)
           echo "Dispatching fresh loop from recovery=$recovery"
-          gh workflow run chorescore-loop.yml --repo "$GITHUB_REPOSITORY" --ref main \
-            -f human_note="$NOTE" -f cycle_index=1 -f max_cycles=0 -f recovery_cycle_key="$recovery"
-
+          gh workflow run chorescore-loop.yml --repo "$GITHUB_REPOSITORY" --ref main -f human_note="$NOTE" -f cycle_index=1 -f max_cycles=0 -f recovery_cycle_key="$recovery"
           for attempt in {1..15}; do
             sleep 2
-            fresh=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/chorescore-loop.yml/runs?per_page=10" |
-              jq -r --argjson before "$before" '.workflow_runs[] | select((.created_at | fromdateiso8601) >= $before and .status != "completed") | .id' | head -1)
-            if [[ -n "$fresh" ]]; then
-              echo "Fresh loop confirmed: $fresh"
-              exit 0
-            fi
+            fresh=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/chorescore-loop.yml/runs?per_page=10" | jq -r --argjson before "$before" '.workflow_runs[] | select((.created_at | fromdateiso8601) >= $before and .status != "completed") | .id' | head -1)
+            if [[ -n "$fresh" ]]; then echo "Fresh loop confirmed: $fresh"; exit 0; fi
           done
-
           echo "::error::Dispatch returned but no fresh loop became observable."
           exit 1

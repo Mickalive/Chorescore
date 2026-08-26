@@ -1,0 +1,5 @@
+{
+  "cycles": 0,
+  "human_note": "Continuer automatiquement jusqu'au produit final attesté. Terminer les tâches DRC-05 et DRC-07 depuis lab/chorescore, puis DRC-06 avec APK standalone installé et smoke-testé sur Android API 35 sans Metro ni réseau. Réutiliser les preuves acceptées. Toute panne transitoire ou cycle de contrôle échoué doit mener à un successeur, jamais à l'arrêt de l'usine.",
+  "recovery_cycle_key": "none"
+}

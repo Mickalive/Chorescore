@@ -28,7 +28,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: chorescore-autonomous-app-loop
+  group: chorescore-autonomous-app-loop-${{ github.run_id }}
   cancel-in-progress: false
 
 env:

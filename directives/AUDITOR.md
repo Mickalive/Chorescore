@@ -9,21 +9,59 @@ Comparer le snapshot complet à `lab/chorescore`, au critère assigné dans
 `governance/RELEASE_DEFINITION.json` et aux preuves demandées. Le candidat est
 une entrée hostile.
 
-## Contrat de correction
+## Contrat JSON machine obligatoire
 
-Chaque constat JSON contient obligatoirement `mustFix`.
+Le Markdown contient l'analyse complète. Le JSON correspondant est une interface
+machine stricte : un audit sémantiquement utile mais mal formé ne doit jamais
+bloquer durablement la lane.
+
+Le document JSON doit contenir exactement les éléments requis par le validateur :
+
+- `schemaVersion: 1` ;
+- `cycle` égal au run GitHub courant ;
+- `role` égal à `mobile` ou `backend` ;
+- `round` égal à `1` ou `2` selon le tour demandé ;
+- `decision` égal à `accept`, `repair` ou `reject` ;
+- `summary` : chaîne non vide ;
+- `findings` : tableau ;
+- `checks` : tableau de chaînes non vides, jamais des objets.
+
+Chaque élément de `findings` doit utiliser **ces clés exactes**, sans alias :
+
+`id`, `severity`, `path`, `problem`, `evidence`, `mustFix`, `requiredFix`,
+`verification`.
+
+Contraintes :
+
+- `severity` ∈ `critical|high|medium|low|info` ;
+- `path`, `problem`, `evidence`, `requiredFix`, `verification` sont des chaînes ;
+- `mustFix` est un booléen ;
+- ne jamais écrire `description`, `file`, `fix`, `test`, `proof` ou un objet dans
+  `checks` à la place des clés ci-dessus ;
+- `decision: accept` est valide uniquement si tous les constats ont
+  `mustFix: false` ;
+- `repair` ou `reject` exige au moins un constat `mustFix: true`.
+
+Avant de terminer l'audit, exécuter sur le JSON produit :
+
+```bash
+bash .github/scripts/normalize-audit-json.sh "$REPORT"
+bash .github/scripts/validate-audit-json.sh "$REPORT" "$CYCLE" "$ROLE" "$ROUND"
+```
+
+Si cette validation échoue, corriger **uniquement la forme machine** à partir de
+l'analyse déjà réalisée, puis relancer le validateur jusqu'à succès. Ne jamais
+changer une conclusion sémantique pour faire passer le schéma.
+
+## Contrat de correction
 
 - `mustFix: true` : le défaut doit être corrigé avant intégration ou avant de
   satisfaire le critère, même si sa gravité est `low`.
 - `mustFix: false` : observation ou amélioration réellement facultative.
-- `decision: accept` est valide uniquement si tous les constats ont
-  `mustFix: false`.
-- Toute décision `repair` ou `reject` exige au moins un constat
-  `mustFix: true`.
-
-Un premier audit `repair` renvoie automatiquement le JSON au même codeur. Le
-candidat corrigé subit un second audit indépendant. Une correction encore
-requise au second audit devient la priorité du même poste au cycle suivant.
+- Un audit `repair` ou `reject` n'intègre jamais le candidat ; le même rôle est
+  réassigné au cycle suivant jusqu'à résolution vérifiée.
+- Une lane d'audit en erreur technique ne vaut jamais acceptation implicite : la
+  boucle globale doit repartir et réessayer.
 
 ## Cible DRC-05 (mobile — contraste textSecondary)
 
@@ -58,18 +96,14 @@ Tenter notamment :
   n'existe pas dans l'état accepté ; contrôles encore bloqués édulcorés ;
 - dérive de périmètre : tout changement hors `docs/security/**`, modification
   de code, de règles, de dépendance ou activation déguisée d'un service réel ;
-- cohérence DRC-07 globale (constats à relever, sans obligation de les résoudre
-  ce cycle) : instructions racine exactes pour un dépôt public (lecture seule),
-  PR brouillon unique exposant l'état accepté, aucun risque critique/élevé
-  connu ouvert (portes npm audit du workflow).
+- cohérence DRC-07 globale : instructions racine exactes pour un dépôt public,
+  état accepté révisable et aucun risque critique/élevé connu ouvert.
 
 ## Constats hérités
 
-Les constats non résolus de `docs/RELEASE_STATUS.json.openFindings` doivent
-être rejoués quand leur critère devient actif. État après le cycle 32961708279 :
-MOB-CYCLE32961708279-SEG est le seul obligatoire mobile actif (assigné ce
-cycle) ; BE-C4-F1/F2 sont résolus et tracés (surveillance par non-régression
-des tests d'épinglage et d'isolation) ; BE-CYCLE32961708279-F2/F3 restent des
-notes pour l'incrément émulateur futur ; les facultatifs mobiles (MOB-C4-F3,
-MOB-CYCLE32961708279-F2-R2, -OPT-R2, MOB-C5-N1,
-MOB-CYCLE32857952394-F4, MOB-CYCLE32864465631-F1) restent reportés.
+Les constats non résolus de `docs/RELEASE_STATUS.json.openFindings` doivent être
+rejoués quand leur critère devient actif. État après le cycle 32961708279 :
+MOB-CYCLE32961708279-SEG est le seul obligatoire mobile actif ; BE-C4-F1/F2
+sont résolus et tracés ; BE-CYCLE32961708279-F2/F3 restent des notes pour
+l'incrément émulateur futur. Un constat `mustFixBeforeRelease: true` interdit
+de terminer son critère sans preuve de résolution et nouvel audit.

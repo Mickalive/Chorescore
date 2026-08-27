@@ -1,4 +1,0 @@
-{
-  "requestedAt": "2026-08-26T21:29:00Z",
-  "reason": "Verify final cleanup under per-run concurrency isolation, ignore legacy ghost generations, retain accepted/evidence state, and dispatch exactly one current-generation autonomous loop."
-}

@@ -1,5 +1,0 @@
-{
-  "cycles": 0,
-  "human_note": "Continuer automatiquement jusqu'au produit final attesté. Terminer DRC-05 et DRC-07 sur l'état accepté existant, puis DRC-06 avec APK standalone construit, installé sur Android API 35 et smoke-testé sans Metro ni réseau. Ne pas refaire le travail déjà accepté. Ne pas s'arrêter sur une panne transitoire d'agent ou un run queued obsolète.",
-  "recovery_cycle_key": "none"
-}

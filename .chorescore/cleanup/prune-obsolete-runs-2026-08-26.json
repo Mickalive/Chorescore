@@ -1,1 +1,0 @@
-{"requestedBy":"human","reason":"Final strict prune: preserve only evidence-bearing runs, the newest autonomous loop, the newest CI, and any run still active.","mode":"strict-useful-only","nonce":"2026-08-26-final-strict"}

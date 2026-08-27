@@ -1,4 +1,0 @@
-{
-  "requestedAt": "2026-08-26T21:17:00Z",
-  "reason": "Force-cancel the persistent queued ghost before deletion, finish safe obsolete branch/run cleanup, then launch exactly one fresh unfinished ChoreScore loop. Accepted state and recent recovery snapshots are already archived."
-}

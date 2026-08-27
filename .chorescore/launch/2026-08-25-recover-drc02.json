@@ -1,5 +1,0 @@
-{
-  "cycles": 0,
-  "human_note": "Recover and integrate the corrected, independently accepted DRC-02 mobile candidate from GitHub run 32786797876. Preserve its 102-test evidence, normalize only the audit machine contract, then continue every remaining demo-rc criterion until the final standalone APK is built and verified. Keep Firebase, Stripe, analytics, secrets, deployment and production data disabled.",
-  "recovery_cycle_key": "32786797876"
-}

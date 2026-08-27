@@ -1,4 +1,0 @@
-{
-  "requestedAt": "2026-08-24T21:14:00Z",
-  "reason": "Delete verification runs that were still active during the first cleanup; retain the autonomous cycle and current cleanup verification only."
-}

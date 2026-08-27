@@ -1,4 +1,0 @@
-{
-  "requestedAt": "2026-08-26T21:15:00Z",
-  "reason": "Retry safe cleanup using the dedicated Ubuntu 22.04 supervisor pool. Preserve accepted/evidence state and archive snapshots; purge stale workflow ghosts and obsolete cycle refs, then relaunch one unfinished autonomous loop."
-}

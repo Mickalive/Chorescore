@@ -30,7 +30,6 @@ done
 
 rm -f "$worktree/.github/workflows/chorescore-loop.yml" "$worktree/.github/workflows/chorescore-launch.yml" "$worktree/.github/workflows/ci.yml" "$worktree/.github/scripts/ensure-continuous-loop.sh" "$worktree/.github/scripts/verify-workflow-architecture.sh" "$worktree/.github/scripts/verify-immutable-governance.sh" "$worktree/.github/immutable-files.sha256"
 rm -rf "$worktree/.chorescore"
-
 workflow_count=$(find "$worktree/.github/workflows" -maxdepth 1 -type f -name '*.yml' | wc -l)
 [[ "$workflow_count" -eq 1 && -f "$worktree/.github/workflows/chorescore-factory.yml" ]] || { echo "::error::Expected exactly one workflow." >&2; exit 20; }
 
@@ -59,8 +58,6 @@ while IFS= read -r ref; do
   case "$ref" in refs/heads/cycle/chorescore/*|refs/heads/recovery/chorescore/*) git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin ":$ref" || true;; esac
 done < <(git ls-remote --heads origin | awk '{print $2}')
 
-# Delete all runs older than the current run. Re-read page 1 after every sweep so
-# pagination cannot skip entries as the collection shrinks.
 while :; do
   runs=$(gh api "repos/$repo/actions/runs?per_page=100&page=1")
   old_runs=$(jq --argjson current "$run_number" --arg current_id "$GITHUB_RUN_ID" '[.workflow_runs[]|select((.run_number<$current) and ((.id|tostring)!=$current_id))]' <<<"$runs")
@@ -71,19 +68,13 @@ while :; do
     if [[ "$status" != completed ]]; then
       gh api -X POST "repos/$repo/actions/runs/$run_id/force-cancel" >/dev/null 2>&1 || gh api -X POST "repos/$repo/actions/runs/$run_id/cancel" >/dev/null 2>&1 || true
     fi
-    if gh api -X DELETE "repos/$repo/actions/runs/$run_id" >/dev/null 2>&1; then
-      echo "Deleted obsolete workflow run $run_id (#$old_number, $status)."
-      deleted_any=true
-    else
-      echo "::warning::GitHub retained obsolete workflow run $run_id (#$old_number, $status)."
-    fi
+    if gh api -X DELETE "repos/$repo/actions/runs/$run_id" >/dev/null 2>&1; then echo "Deleted obsolete workflow run $run_id (#$old_number, $status)."; deleted_any=true; else echo "::warning::GitHub retained obsolete workflow run $run_id (#$old_number, $status)."; fi
   done < <(jq -r '.[]|[.id,.run_number,.status]|@tsv' <<<"$old_runs")
   [[ "$deleted_any" == true ]] || break
 done
 
 git worktree remove --force "$worktree"
 git worktree prune
-
 {
   echo "accepted_sha=$accepted_sha"
   echo "final=$final"
@@ -91,5 +82,4 @@ git worktree prune
   echo "mobile_enabled=$mobile_enabled"
   echo "backend_enabled=$backend_enabled"
 } >> "${GITHUB_OUTPUT:?}"
-
 echo "Clean factory state ready at $accepted_sha (cycle $cycle)."

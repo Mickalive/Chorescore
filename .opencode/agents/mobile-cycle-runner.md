@@ -1,7 +1,7 @@
 ---
 description: Exécute la tâche du poste mobile activé, sans modifier son poste ni l'orchestration.
 mode: primary
-model: opencode/x-preview-f-free
+model: opencode/deepseek-v4-flash-free
 temperature: 0.1
 permission:
   edit:

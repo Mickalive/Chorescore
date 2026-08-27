@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "cycle": "33080384862",
+  "role": "backend",
+  "round": 1,
+  "decision": "accept",
+  "summary": "Le candidat DRC-07 modifie uniquement docs/security/README.md (+119/-20, 1 fichier). Aucun code, aucune dépendance, aucun lockfile, aucun fichier hors docs/security/** n'est touché. La documentation décrit avec exactitude observedCaller (extracteur pur, comparaison stricte email_verified), le câblage des trois handlers (2 dans invites.ts, 1 dans tasks.ts), l'épinglage source et ses limites, les refus cross-foyer/cross-user, les chiffres de tests (106/106 vérifiés indépendamment) et les contrôles encore bloqués. Aucune affirmation de sécurité absolue. Toutes les références de fichiers existent. L'absence d'audit npm est honnêtement signalée. Décision : accept.",
+  "findings": [
+    {
+      "id": "BE-CYCLE33080384862-SCOPE",
+      "severity": "info",
+      "path": "docs/security/README.md",
+      "problem": "Aucun — périmètre vérifié : le candidat touche exclusivement docs/security/README.md (1 fichier, +119/-20). Aucune modification de code, de règles, de dépendance, de lockfile ou de fichier hors docs/security/**.",
+      "evidence": "git diff 28dade9851f732d4a6004761743d56be9de005d3 --name-only retourne uniquement docs/security/README.md. Diff app/ src/ tests/ = 0 ligne. Diff package.json package-lock.json functions/package.json functions/package-lock.json = 0 ligne. Diff .github/ = 0 ligne.",
+      "mustFix": false,
+      "requiredFix": "Aucune.",
+      "verification": "Exécuter `git diff <base> --name-only` et vérifier que seul docs/security/README.md apparaît."
+    },
+    {
+      "id": "BE-CYCLE33080384862-OBSERVED",
+      "severity": "info",
+      "path": "docs/security/README.md → functions/src/observedCaller.ts",
+      "problem": "Aucun — la description de observedCaller dans le document est fidèle au code source : extracteur pur sans dépendance SDK, compare email_verified strictement à true (sans coercion), retourne {authenticated, appCheckAttested, emailVerified, uid}.",
+      "evidence": "functions/src/observedCaller.ts exporte observedCaller(request) qui retourne {authenticated: request.auth !== undefined, appCheckAttested: request.app !== undefined, emailVerified: request.auth?.token?.email_verified === true, uid: request.auth?.uid}. Le doc asserte « sans dépendance SDK » — le module n'importe ni Firestore, ni Admin SDK, ni firebase-functions, confirmé par lecture du fichier.",
+      "mustFix": false,
+      "requiredFix": "Aucune.",
+      "verification": "Lire functions/src/observedCaller.ts et comparer les propriétés retournées avec la description du document."
+    },
+    {
+      "id": "BE-CYCLE33080384862-WIRING",
+      "severity": "info",
+      "path": "docs/security/README.md → functions/src/invites.ts, functions/src/tasks.ts",
+      "problem": "Aucun — le document affirme 2 occurrences de `caller: observedCaller(request)` dans invites.ts et 1 dans tasks.ts, correspondant à createInvite, redeemInvite et completeTask. Vérifié dans le code source.",
+      "evidence": "grep -n 'observedCaller' functions/src/invites.ts montre les lignes 199-204 (createInvite) et 304 (redeemInvite) = 2 call sites. grep -n 'observedCaller' functions/src/tasks.ts montre la ligne 308 (completeTask) = 1 call site. Les imports sont from './observedCaller' dans les deux fichiers.",
+      "mustFix": false,
+      "requiredFix": "Aucune.",
+      "verification": "Exécuter `grep -c 'caller: observedCaller(request)' functions/src/invites.ts` (attendu 2) et `grep -c 'caller: observedCaller(request)' functions/src/tasks.ts` (attendu 1)."
+    },
+    {
+      "id": "BE-CYCLE33080384862-WIRING-TEST",
+      "severity": "info",
+      "path": "docs/security/README.md → functions/test/observedCallerWiring.test.ts",
+      "problem": "Aucun — le document décrit fidèlement l'épinglage source : regex WIRING_PATTERN et IDENTITY_LITERAL_PATTERN, comptage des call sites, interdiction des littéraux d'identité constant.",
+      "evidence": "functions/test/observedCallerWiring.test.ts existe (107 lignes), contient les constantes WIRING_PATTERN et IDENTITY_LITERAL_PATTERN, teste 2 call sites dans invites.ts et 1 dans tasks.ts, vérifie l'import de l'extracteur. Le document cite la limite connue BE-CYCLE32961708279-F2 (épinglage textuel, pas comportemental).",
+      "mustFix": false,
+      "requiredFix": "Aucune.",
+      "verification": "Lire functions/test/observedCallerWiring.test.ts et vérifier que les assertions correspondent à la description du document."
+    },
+    {
+      "id": "BE-CYCLE33080384862-ISOLATION",
+      "severity": "info",
+      "path": "docs/security/README.md → functions/test/taskCompletion.test.ts",
+      "problem": "Aucun — les refus négatifs cross-foyer et cross-user décrits dans le document correspondent aux messages de test vérifiés dans taskCompletion.test.ts.",
+      "evidence": "grep 'Accès au foyer refusé.' functions/test/taskCompletion.test.ts trouve les lignes 119, 157, 233, 437. grep 'Cette tâche appartient à un autre membre.' trouve les lignes 244, 465. Les descriptions cross-foyer (user_1 foyer A vs B) et cross-user (user_2 non propriétaire) sont cohérentes avec les tests.",
+      "mustFix": false,
+      "requiredFix": "Aucune.",
+      "verification": "Lire les tests de refus dans functions/test/taskCompletion.test.ts et vérifier les messages d'erreur documentés."
+    },
+    {
+      "id": "BE-CYCLE33080384862-TESTS",
+      "severity": "info",
+      "path": "docs/security/README.md",
+      "problem": "Aucun — le document affirme 106/106 tests unitaires purs passants. Exécution indépendante confirmée : 106 pass, 0 fail, 0 skipped.",
+      "evidence": "npm --prefix functions run check affiche # tests 106, # pass 106, # fail 0. Le document liste correctement les catégories de tests couverts (Stripe, état illisible, identité, épinglage, invitations, isolation, domaine, validation).",
+      "mustFix": false,
+      "requiredFix": "Aucune.",
+      "verification": "Exécuter `npm --prefix functions run check` et vérifier le compte 106/106."
+    },
+    {
+      "id": "BE-CYCLE33080384862-AUDIT-HONEST",
+      "severity": "info",
+      "path": "docs/security/README.md",
+      "problem": "Aucun — le document déclare honnêtement que npm audit n'a pas été exécuté dans le bac à sable agent et renvoie l'auditeur indépendant. Les versions de dépendances citées (firebase-admin 14.3.0, firebase-functions 7.3.2, stripe 22.5.0) correspondent à functions/package.json.",
+      "evidence": "Le document indique « non exécuté dans ce bac à sable agent » pour npm audit, et « l'auditeur indépendant du cycle relancera l'audit ». L'exécution indépendante de npm audit --omit=dev --audit-level=high montre 7 vulnérabilités modérées préexistantes (firebase-admin → @google-cloud/storage → retry-request → teeny-request), aucune nouvelle.",
+      "mustFix": false,
+      "requiredFix": "Aucune.",
+      "verification": "Exécuter `npm --prefix functions audit --omit=dev --audit-level=high` et comparer avec l'état de référence."
+    },
+    {
+      "id": "BE-CYCLE33080384862-BLOCKED",
+      "severity": "info",
+      "path": "docs/security/README.md",
+      "problem": "Aucun — la liste des contrôles encore bloqués est complète et honnête : handlers non bout en bout sans émulateur, épinglage textuel non comportemental, règles Firestore non testées, webhook Stripe non bout en bout, concurrence/rétention/TTL non prouvés, revue humaine et test d'intrusion non réalisés, Firebase/Stripe/analytics/déploiement désactivés.",
+      "evidence": "La section « Contrôles encore bloqués » cite 8 points avec références aux constats BE-CYCLE32961708279-F2/F3. Aucun point n'est présenté comme résolu. Les trois flags d'activation (STRIPE_ENABLED, STRIPE_LIVE_MODE, ANALYTICS_AGGREGATION_ENABLED) sont cités à false par défaut.",
+      "mustFix": false,
+      "requiredFix": "Aucune.",
+      "verification": "Lire la section « Contrôles encore bloqués » et vérifier qu'aucun point n'est minimisé ou présenté comme résolu."
+    },
+    {
+      "id": "BE-CYCLE33080384862-NO-SECURITY-ABSOLUTE",
+      "severity": "info",
+      "path": "docs/security/README.md",
+      "problem": "Aucun — le document ne contient aucune affirmation de sécurité absolue. Il utilise des termes prudent (« testable hors émulateur », « preuves en logique pure », « limite connue »).",
+      "evidence": "Pas de mention de « secure », « invulnerable », « safe », « production-ready » ou « fully tested ». Le document décrit des preuves de logique pure tout en signalant explicitement les limites (épinglage textuel, handlers non bout en bout, émulateur manquant).",
+      "mustFix": false,
+      "requiredFix": "Aucune.",
+      "verification": "Chercher des termes d'absolu de sécurité dans le document ; en trouver aucun."
+    }
+  ],
+  "checks": [
+    "git diff 28dade9851f732d4a6004761743d56be9de005d3 --name-only : uniquement docs/security/README.md (1 fichier, 0 hors périmètre)",
+    "git diff 28dade9851f732d4a6004761743d56be9de005d3 -- app/ src/ tests/ : 0 ligne modifiée (aucun code produit)",
+    "git diff 28dade9851f732d4a6004761743d56be9de005d3 -- package.json package-lock.json functions/package.json functions/package-lock.json : 0 ligne (aucune dépendance/lockfile modifiée)",
+    "git diff 28dade9851f732d4a6004761743d56be9de005d3 -- .github/ : 0 ligne (aucun workflow modifié)",
+    "npm --prefix functions run check : tsc OK, 106/106 tests pass, 0 fail, 0 skipped",
+    "npm --prefix functions audit --omit=dev --audit-level=high : 7 vulnérabilités modérées préexistantes (firebase-admin → @google-cloud/storage → retry-request → teeny-request), aucune nouvelle",
+    "Vérification des fichiers référencés : functions/src/observedCaller.ts, functions/src/callerIdentity.ts, functions/src/invites.ts, functions/src/tasks.ts, functions/test/observedCallerWiring.test.ts, functions/test/taskCompletion.test.ts, functions/test/caller.test.ts — tous existent",
+    "Vérification du comptage documented : 2 call sites observedCaller dans invites.ts (createInvite + redeemInvite), 1 dans tasks.ts (completeTask) — confirmé par grep",
+    "Vérification du test de câblage : observedCallerWiring.test.ts contient WIRING_PATTERN et IDENTITY_LITERAL_PATTERN, testent 2+1 call sites, vérifient l'import",
+    "Vérification des messages d'erreur : cross-foyer 'Accès au foyer refusé.' et cross-user 'Cette tâche appartient à un autre membre.' présents dans taskCompletion.test.ts",
+    "Vérification des versions de dépendances : firebase-admin 14.3.0, firebase-functions 7.3.2, stripe 22.5.0 dans functions/package.json",
+    "Vérification de l'honnêteté : le document déclare npm audit non exécuté dans le bac à sable, renvoie l'auditeur — aucun chiffre deudit n'est affirme",
+    "Vérification des contrôles bloqués : 8 points listés explicitement, aucun présenté comme résolu, Firebase/Stripe/analytics/déploiement désactivés confirmés",
+    "Vérification anti-sécurité absolue : aucune mention de « secure », « invulnerable », « production-ready » dans le document"
+  ]
+}

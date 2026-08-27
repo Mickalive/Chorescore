@@ -25,7 +25,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: chorescore-product-factory-v3
+  group: chorescore-product-factory-v4
   cancel-in-progress: false
 
 env:

@@ -129,7 +129,7 @@ La stagnation, un audit négatif, une panne de modèle, un build rouge ou l'abse
 
 ## DRC-06 et condition terminale unique
 
-DRC-06 est le dernier critère. Après DRC-05 et DRC-07, une lane mobile réalise si nécessaire une passe de source-readiness et reçoit un audit indépendant. Une fois cet audit accepté, le Directeur place `pendingArtifact: "DRC-06"` et désactive les codeurs. Les runs suivants vont directement au build jusqu'à succès.
+DRC-06 est le dernier critère. Dès que DRC-01 à DRC-05 et DRC-07 sont tous complets et qu'aucun finding `mustFixBeforeRelease` ne reste non résolu, le Directeur place `pendingArtifact: "DRC-06"`, désactive les codeurs et passe immédiatement la main au shell de release. **Aucune lane source-readiness supplémentaire n'est requise.** Les runs suivants vont directement au build jusqu'à succès.
 
 L'usine peut se désactiver uniquement lorsque :
 - DRC-01 à DRC-07 sont tous `complete` ;

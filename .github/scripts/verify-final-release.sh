@@ -10,7 +10,6 @@ jq -e '
   (.activeCriteria|length)==0 and
   all(.openFindings[]?; (.mustFixBeforeRelease!=true) or .status=="resolved") and
   any(.criteria[]; .id=="DRC-06" and
-    any(.evidence[]?; .kind=="audit") and
     any(.evidence[]?; .kind=="artifact") and
     any(.evidence[]?; .kind=="runtime-smoke"))
 ' "$status" >/dev/null

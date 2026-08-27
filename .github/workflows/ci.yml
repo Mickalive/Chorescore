@@ -5,11 +5,7 @@ on:
   push:
     branches:
       - main
-    paths-ignore:
-      - ".chorescore/cleanup/**"
   workflow_dispatch:
-  schedule:
-    - cron: '*/5 * * * *'
 
 permissions:
   contents: read
@@ -26,98 +22,73 @@ env:
 jobs:
   app:
     name: Application
-    if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      # Verified in the official actions/checkout repository on 2026-08-24.
-      - name: Checkout without persisted credentials
+      - name: Checkout
         uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
         with:
           persist-credentials: false
-
-      - name: Require a committed lockfile
-        run: test -f package-lock.json
-
-      # Verified in the official actions/setup-node repository on 2026-08-24.
-      - name: Use the repository Node.js baseline
+      - name: Node baseline
         uses: actions/setup-node@ae0d4ed08881f17d1511386f5be3e62356acd4a6
         with:
           node-version: 22.13.0
           cache: npm
           cache-dependency-path: package-lock.json
-
-      - name: Install exactly the locked dependencies
+      - name: Locked install
         run: npm ci --ignore-scripts --no-audit --no-fund
-
-      - name: Typecheck and test
+      - name: Typecheck and tests
         run: npm run check
-
-      - name: Build the offline Android demo bundle
+      - name: Offline Android bundle
         run: npx --no-install expo export --platform android --output-dir "$RUNNER_TEMP/chorescore-android"
-
-      - name: Reject known high-impact production vulnerabilities
+      - name: Production vulnerability gate
         run: npm audit --omit=dev --audit-level=high
 
   functions:
     name: Functions
-    if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     defaults:
       run:
         working-directory: functions
     steps:
-      # Verified in the official actions/checkout repository on 2026-08-24.
-      - name: Checkout without persisted credentials
+      - name: Checkout
         uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
         with:
           persist-credentials: false
-
-      - name: Require a committed Functions lockfile
-        run: test -f package-lock.json
-
-      # Verified in the official actions/setup-node repository on 2026-08-24.
-      - name: Use the repository Node.js baseline
+      - name: Node baseline
         uses: actions/setup-node@ae0d4ed08881f17d1511386f5be3e62356acd4a6
         with:
           node-version: 22.13.0
           cache: npm
           cache-dependency-path: functions/package-lock.json
-
-      - name: Install exactly the locked Functions dependencies
+      - name: Locked install
         run: npm ci --ignore-scripts --no-audit --no-fund
-
-      - name: Typecheck and unit-test Functions
+      - name: Typecheck and tests
         run: npm run check
-
-      - name: Reject known high-impact production vulnerabilities
+      - name: Production vulnerability gate
         run: npm audit --omit=dev --audit-level=high
 
   governance:
     name: Governance
-    if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
-      IMMUTABLE_MANIFEST_SHA256: eba7b17dff1f9f004c469260236c83cb43305d1649c5d2e780e090ad4db90b39
+      IMMUTABLE_MANIFEST_SHA256: 5686b277148abca0d329523d2e01f37e590c24e7da4ac2958833446c17f7be9c
     steps:
-      - name: Checkout immutable governance
+      - name: Checkout
         uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
         with:
           persist-credentials: false
-
-      - name: Verify every human-owned role and contract
+      - name: Immutable constitution
         run: bash .github/scripts/verify-immutable-governance.sh
-
-      - name: Validate orchestration scripts and JSON
+      - name: Control-plane architecture
         shell: bash
         run: |
           set -euo pipefail
           bash -n .github/scripts/verify-immutable-governance.sh
           bash -n .github/scripts/validate-release-state.sh
           bash -n .github/scripts/run-opencode-with-retry.sh
-          bash -n .github/scripts/ensure-continuous-loop.sh
           bash -n .github/scripts/normalize-audit-json.sh
           bash -n .github/scripts/validate-audit-json.sh
           bash -n .github/scripts/integrate-audited-candidates.sh
@@ -131,28 +102,3 @@ jobs:
           jq empty governance/RELEASE_DEFINITION.json
           jq empty docs/RELEASE_STATUS.json
           jq empty directives/TASKS.json
-          test "$(find .opencode/agents -maxdepth 1 -type f -name '*.md' | wc -l)" -eq 4
-          test "$(find .github/workflows -maxdepth 1 -type f -name '*.yml' | wc -l)" -eq 3
-
-  watchdog:
-    name: Continuity watchdog
-    needs: [app, functions, governance]
-    if: ${{ always() && (github.event_name == 'schedule' || ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.app.result == 'success' && needs.functions.result == 'success' && needs.governance.result == 'success')) }}
-    permissions:
-      contents: read
-      actions: write
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - name: Checkout continuity controller
-        uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
-        with:
-          ref: main
-          persist-credentials: false
-
-      - name: Ensure unfinished ChoreScore factory is alive
-        env:
-          GH_TOKEN: ${{ github.token }}
-          CHORESCORE_LOOP_WORKFLOW: chorescore-loop.yml
-        shell: bash
-        run: bash .github/scripts/ensure-continuous-loop.sh

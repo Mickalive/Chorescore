@@ -4,22 +4,22 @@
 
 `demo-rc` — application Android locale, persistante, honnête et révisable.
 
-## État intégré au cycle 33086880966
+## État intégré au cycle 33111799778
 
-- **Delta backend intégré et accepté** : `docs/security/README.md` actualisé (+4/-2, 1 fichier) — numéro de cycle 33086880966, clarification que le décompte de tests a été rejoué intégralement. Audit `RUN_33086880966_BACKEND.json` : décision `accept`, 0 `mustFix`, toutes les affirmations vérifiées indépendamment.
-- **SHA courant** : `37b6d05` (inclus le delta backend).
-- **Mobile sans candidat** ce cycle (audit-unavailable). Le delta mobile du cycle 32961708279 (candidat réparé `e18bf1d`, 7 fichiers app/src/tests) reste l'état accepté.
-- **DRC-07 passe à `complete`** — volet code (cycle 32961708279) + volet documentation (cycle 33086880966) tous deux acceptés.
-- **Constat bloquant persistant** : `textSecondary` #457B9D sur `surfaceAlt` #F8F9FA = **4,36:1 < 4,5 AA** (libellés non sélectionnés du contrôle segmenté) et 4,43:1 sur la carte courante #F7FCFB. → DRC-05 reste `in_progress`.
+- **DRC-05 complete** : le constat bloquant MOB-CYCLE32961708279-SEG est résolu. Le jeton `textSecondary` a été ajusté de `#457B9D` à `#3C6E8E` dans `src/components/theme.ts` (même démarche que la passe `textMuted`). Mesures WCAG 2.x indépendantes : `#3C6E8E` ≥ 4,5:1 sur les 8 fonds réels (surfaceAlt 5,22:1, #F7FCFB 5,32:1, background 5,46:1, surface 5,51:1, #FFFDF5 5,41:1, secondary 5,15:1, #EDF8F6 5,08:1, #F6FCFA 5,30:1). Ancien `#457B9D` mesuré 4,3564:1/4,4329:1 reproduit le constat bloquant. Preuve de mutation sur copie jetable (test 4 échoue, tests 1-3/5 restent verts). 164/164 tests passent.
+- **Audit mobile verification-only** : RUN_33111799778_MOBILE.json, décision `accept`, 0 `mustFix`, delta zéro. L'arbre accepté satisfait déjà l'objectif DRC-05.
+- **SHA courant** : `37b6d05` (inchangé, delta zéro mobile).
+- **DRC-07 complete** (depuis cycle 33086880966).
+- **DRC-01 à DRC-04 complets** (depuis les cycles antérieurs).
 
-## Critères actifs
+## Critères restants
 
-- **DRC-05 — Qualité de parcours et accessibilité (dernier constat)** → mobile activé : contraste AA de `textSecondary` (jeton central ou jeton conforme, inventaire secondaire complet dans `tests/theme-contrast.test.ts`, mesure WCAG tracée, preuve de mutation). ~4 fichiers attendus.
+- **DRC-06 — Artefact Android installable** → DRC-05 et DRC-07 sont complets. La source-readiness est la dernière étape avant `pendingArtifact: "DRC-06"`. Tâche mobile bornée activée : vérifier que l'état accepté est apte au build APK release (pas de placeholder, pas de code dev-only, exports/config Android cohérents, démo hors ligne fonctionnelle). Audit indépendant requis.
 
 ## Ordre restant
 
-1. DRC-05 : correction SEG puis complétion (preuves tests + audit exigées) ;
-2. DRC-06 APK installable final : quand DRC-05 est complete, définir `pendingArtifact: "DRC-06"`, vider `activeCriteria`, désactiver les deux codeurs, décider `stop` — le shell de confiance fige un commit source, construit, atteste et publie l'APK.
+1. DRC-06 source-readiness : vérification mobile bornée → audit indépendant ;
+2. Quand l'audit source-readiness est accepté : définir `pendingArtifact: "DRC-06"`, vider `activeCriteria`, désactiver les deux codeurs, décider `stop` — le shell de confiance fige un commit source, construit, atteste et publie l'APK.
 
 Le directeur peut changer cet ordre seulement pour une régression prouvée, un constat de sécurité obligatoire ou une dépendance réelle entre critères.
 
@@ -31,11 +31,11 @@ Conformément au résultat DRC-05 (« les contrôles manuels restants sont expli
 - lecteur d'écran (TalkBack/VoiceOver) : parcours tâches → chronomètre → historique → export local ;
 - partage système du fichier d'export local depuis l'appareil.
 
-Ils seront repris tels quels dans l'état de livraison lors de la complétion DRC-05 ; ils ne bloquent pas la boucle autonome mais restent des limites consignées de la RC.
+Ils seront repris tels quels dans l'état de livraison lors de la complétion DRC-06 ; ils ne bloquent pas la boucle autonome mais restent des limites consignées de la RC.
 
 ## Constats conservés
 
 Tous les constats vivent dans `docs/RELEASE_STATUS.json.openFindings` :
-- MOB-CYCLE32961708279-SEG reste le seul obligatoire actif (DRC-05) ;
-- BE-CYCLE32961708279-F1/F2/F3 passent à `resolved` (documentation DRC-07 complète et auditable au cycle 33086880966) ;
+- MOB-CYCLE32961708279-SEG passe à `resolved` (cycle 33111799778 : textSecondary #3C6E8E ≥ 4,5:1) ;
+- tous les constats obligatoires mobiles (MOB-C4-F1, MOB-C4-F2, MOB-C4-F3) et backend (BE-C4-F1, BE-C4-F2, BE-CYCLE32961708279-F1/F2/F3) sont résolus ou documentés ;
 - les facultatifs restent listés sous leur critère. Ils ne sont pas perdus ; les obligatoires bloquent la complétion de leur critère.

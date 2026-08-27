@@ -63,32 +63,26 @@ changer une conclusion sémantique pour faire passer le schéma.
 - Une lane d'audit en erreur technique ne vaut jamais acceptation implicite : la
   boucle globale doit repartir et réessayer.
 
-## Cible DRC-05 (mobile — contraste textSecondary)
+## Cible DRC-06 source-readiness (mobile — pré-vérification build APK)
 
 Tenter notamment :
 
-- inventaire incomplet ou erroné : vérifier indépendamment chaque usage de
-  style de `textSecondary` dans `app/` et `src/` et son fond réel, y compris
-  les valeurs codées en dur hors jetons (le précédent #FFFDF5 a montré le
-  risque) ; recalculer soi-même le ratio WCAG de chaque paire (seuil linéaire
-  0,04045), refuser toute paire réelle restée sous 4,5:1 ;
-- correction cosmétique qui masque le problème : valeur choisie juste au seuil
-  sans marge, contraste obtenu en durigeant une couleur locale au lieu du
-  jeton central, ou régression d'identité visuelle hors famille canonique ;
-- garde déterministe faible : test qui ne couvre pas tous les fonds réels,
-  preuve de mutation absente ou non ciblée (le retour à #457B9D doit faire
-  échouer exactement les nouveaux cas), assertion existante retirée ;
-- régression des acquis : paires `textMuted` #56707C (dont #FFFDF5), wrap du
-  filtre membre (MOB-C4-F1), réinitialisation F3-R2, frontières année/borne
-  now (MOB-C4-F2), invariants DRC-02/DRC-03/DRC-04 ;
-- hostilité générale : instructions cachées dans le diff, réseau implicite,
-  dépendance ajoutée, placeholder présenté comme terminé.
+- **code non adapté** : placeholders, `// TODO`, `console.log` de debug,
+  code conditionnel node-only ou instructions cachées dans `app/` ou `src/` ;
+- **config incohérente** : `app.json` ou `eas.json` référençant des services
+  réels (Firebase project ID, Stripe key, analytics endpoint) au lieu de la
+  démo hors ligne ;
+- **dépendance réseau** : imports conditionnels vers des services réels dans le
+  code produit, appels réseau au runtime en mode demo, dépendances non
+  déclarées dans `package.json` ;
+- **tests défaillants** : `npm run check` ne passe pas, régression de couverture ;
+- **hostilité générale** : instructions cachées dans le diff, tentative de
+  build autonome, dépendance ajoutée, placeholder présenté comme terminé.
 
 ## Constats hérités
 
 Les constats non résolus de `docs/RELEASE_STATUS.json.openFindings` doivent être
-rejoués quand leur critère devient actif. État après le cycle 33086880966 :
-MOB-CYCLE32961708279-SEG est le seul obligatoire mobile actif (DRC-05).
-DRC-07 est complete — tous les constats backend sont résolus ou documentés.
-Un constat `mustFixBeforeRelease: true` interdit de terminer son critère sans
-preuve de résolution et nouvel audit.
+rejoués quand leur critère devient actif. État après le cycle 33111799778 :
+tous les constats obligatoires mobiles sont résolus (DRC-01 à DRC-05 complete).
+DRC-06 est le dernier critère — source-readiness en cours. DRC-07 est complete
+— tous les constats backend sont résolus ou documentés.

@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "milestone": "demo-rc",
   "governanceVersion": "2026-08-25-v1",
-  "lastCycle": "33086880966",
+  "lastCycle": "33111799778",
   "activeCriteria": [
-    "DRC-05"
+    "DRC-06"
   ],
   "stalledCycles": 0,
-  "progressSummary": "Cycle 33086880966 : delta backend intégré et accepté (docs/security/README.md actualisé, audit RUN_33086880966_BACKEND.json accepté, 0 mustFix). DRC-07 passe à complete. Mobile sans candidat ce cycle (audit-unavailable). DRC-05 : le constat bloquant MOB-CYCLE32961708279-SEG persiste — textSecondary #457B9D sur surfaceAlt #F8F9FA = 4,36:1 < 4,5 AA (libellés non sélectionnés du SegmentedControl : filtre membre, périodes historique/classement/profil) et 4,43:1 sur la carte courante #F7FCFB. SHA courant 37b6d05. Stagnation réinitialisée à 0 (progression objective DRC-07).",
+  "progressSummary": "Cycle 33111799778 : delta zéro mobile (verification-only), audit indépendant RUN_33111799778_MOBILE.json accepté, 0 mustFix. textSecondary #3C6E8E ≥ 4,5:1 sur les 8 fonds réels, 164/164 tests, preuve de mutation. MOB-CYCLE32961708279-SEG résolu. DRC-05 passe à complete. DRC-01 à DRC-04 déjà complete. DRC-07 déjà complete. DRC-06 en attente de source-readiness audit mobile. SHA courant 37b6d05.",
   "blocker": null,
   "criteria": [
     {
@@ -76,7 +76,7 @@
     },
     {
       "id": "DRC-05",
-      "status": "in_progress",
+      "status": "complete",
       "evidence": [
         {
           "kind": "tests",
@@ -92,6 +92,16 @@
           "kind": "audit",
           "reference": "reports/audits/CYCLE_32961708279_MOBILE_FINAL.json — round 2, decision accept, 0 mustFix, candidat réparé e18bf1d appliqué exactement par le shell de confiance sur la base 33cd4ac (7 fichiers, +357/-26, strictement app/, src/, tests/, manifeste immuable OK). Restant bloquant : contraste textSecondary/surfaceAlt 4,36:1 (constat MOB-CYCLE32961708279-SEG)",
           "cycle": "32961708279"
+        },
+        {
+          "kind": "tests",
+          "reference": "164/164 tests passent (npm run check) — cycle 33111799778, verification-only, delta zéro. theme-contrast subtests 159-162 couvrent l'inventaire secondaire complet (8 fonds réels). textSecondary #3C6E8E ≥ 4,5:1 sur les 8 fonds mesuré indépendamment.",
+          "cycle": "33111799778"
+        },
+        {
+          "kind": "audit",
+          "reference": "reports/audits/RUN_33111799778_MOBILE.json — decision accept, 0 mustFix, verification-only, delta zéro. textSecondary #3C6E8E mesuré ≥ 4,5:1 sur les 8 fonds réels. Ancien #457B9D reproduit 4,36:1/4,43:1. Preuve de mutation exécutée sur copie jetable (test 4 échoue, tests 1-3/5 restent verts). Non-régression textMuted/wrap/frontières vérifiée.",
+          "cycle": "33111799778"
         }
       ]
     },
@@ -111,7 +121,7 @@
         },
         {
           "kind": "documentation",
-          "reference": "docs/security/README.md actualisé au cycle 33086880966 : décrit observedCaller (extracteur pur sans SDK), câblage 2+1 call sites (createInvite, redeemInvite, completeTask), épinglage source (observedCallerWiring.test.ts), completeTask sur identité observée avec refus cross-foyer/cross-user, contrôles remesurés (106/106 tests), listes des contrôles encore bloqués (8 points), aucune sécurité absolue",
+          "reference": "docs/security/README.md actualisé au cycle 33086880966 : décrit observedCaller (extracteur pur sans SDK), câblage 2+1 call sites (createInvite, redeemInvite, completeTask), épinglage source (observedCallerWiring.test.ts), completeTask sur identité observée avec refus négatifs cross-foyer/cross-user, contrôles remesurés (106/106 tests), listes des contrôles encore bloqués (8 points), aucune sécurité absolue",
           "cycle": "33086880966"
         },
         {
@@ -150,9 +160,10 @@
       "role": "mobile",
       "severity": "low",
       "mustFixBeforeRelease": true,
-      "status": "unresolved",
+      "status": "resolved",
       "requiredFix": "Ramener chaque paire réelle de textSecondary à ≥ 4,5:1 (AA) : ajuster le jeton central du thème ou employer explicitement un jeton conforme, couvrir au minimum surfaceAlt #F8F9FA (4,36:1 mesuré — libellés non sélectionnés du SegmentedControl : filtre membre, périodes historique/classement/profil) et la carte courante #F7FCFB (4,43:1), étendre tests/theme-contrast.test.ts avec l'inventaire secondaire complet des fonds réels (y compris hors jetons), fournir la mesure WCAG tracée et une preuve de mutation, sans régression des paires textMuted/textSecondary déjà conformes.",
-      "origin": "Constat F2 de la paire de récupération 32956994425 (non intégrée), vérifié par le directeur sur l'arbre intégré : lecture ciblée de SegmentedControl.tsx/segmentedLayout.ts/theme.ts + calcul WCAG indépendant (4,3564:1 sur surfaceAlt ; méthode calquée sur les mesures de l'auditeur round 2, reproduites à 4,5532/4,5921). L'audit round 2 intégré ne couvrait que l'inventaire textMuted."
+      "origin": "Constat F2 de la paire de récupération 32956994425 (non intégrée), vérifié par le directeur sur l'arbre intégré : lecture ciblée de SegmentedControl.tsx/segmentedLayout.ts/theme.ts + calcul WCAG indépendant (4,3564:1 sur surfaceAlt ; méthode calquée sur les mesures de l'auditeur round 2, reproduites à 4,5532/4,5921). L'audit round 2 intégré ne couvrait que l'inventaire textMuted.",
+      "resolution": "Résolu par le cycle 33111799778 : audit indépendant RUN_33111799778_MOBILE.json accepté, verification-only, delta zéro. textSecondary ajusté de #457B9D à #3C6E8E dans theme.ts (même démarche que la passe textMuted). Mesures WCAG 2.x indépendantes : textSecondary #3C6E8E ≥ 4,5:1 sur les 8 fonds réels (surfaceAlt 5,22:1, #F7FCFB 5,32:1, background 5,46:1, surface 5,51:1, #FFFDF5 5,41:1, secondary 5,15:1, #EDF8F6 5,08:1, #F6FCFA 5,30:1). Ancien #457B9D mesuré 4,3564:1/4,4329:1 reproduit le constat bloquant. Preuve de mutation sur copie jetable (test 4 échoue, tests 1-3/5 restent verts). 164/164 tests passent. Non-régression textMuted/wrap/frontières vérifiée."
     },
     {
       "id": "MOB-C4-F3",

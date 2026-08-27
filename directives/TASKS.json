@@ -1,21 +1,22 @@
 {
   "schemaVersion": 1,
   "milestone": "demo-rc",
-  "updatedBy": "director-33086880966",
+  "updatedBy": "director-33111799778",
   "activeCriteria": [
-    "DRC-05"
+    "DRC-06"
   ],
   "assignments": {
     "mobile": {
       "enabled": true,
-      "criterionId": "DRC-05",
-      "objective": "Dernier constat bloquant de DRC-05 sur l'état accepté du cycle 32961708279 : ramener chaque paire réelle de textSecondary à ≥ 4,5:1 (AA). Mesures établies sur l'arbre intégré : #457B9D sur surfaceAlt #F8F9FA = 4,36:1 (libellés non sélectionnés du SegmentedControl : filtre membre de l'historique, périodes historique/classement/profil) et 4,43:1 sur la carte courante du classement #F7FCFB ; #FFFDF5 = 4,51:1 limite. Ajuster le jeton central dans src/components/theme.ts (même démarche que la passe textMuted) ou employer explicitement un jeton conforme, étendre tests/theme-contrast.test.ts avec l'inventaire secondaire complet des fonds réels (y compris fonds codés en dur hors jetons), fournir la mesure WCAG de chaque paire et une preuve de mutation. Mission unique très bornée (~2 à 4 fichiers attendus : theme.ts, tests/theme-contrast.test.ts, au besoin un ou deux composants) : pas de slices.",
+      "criterionId": "DRC-06",
+      "objective": "Tâche bornée DRC-06 source-readiness : vérifier que l'état accepté (SHA 37b6d05) est apte au build APK release. Vérifier l'absence de placeholder, de code dev-only ou de dépendance réseau dans le code produit ; confirmer que les exports/config Android (app.json, eas.json ou équivalent) sont cohérents avec la démo hors ligne ; s'assurer que la démo fonctionne sans Metro ni réseau au runtime ; documenter tout point bloquant résiduel. Ne construit pas l'APK — cette tâche est une pré-vérification auditable.",
       "acceptance": [
-        "inventaire exhaustif des usages de style de textSecondary dans app/ et src/ avec le fond réel de chaque usage (jetons et valeurs codées en dur), tracé dans le rapport du codeur",
-        "chaque paire réelle textSecondary/fond atteint ≥ 4,5:1 après correction ; mesure WCAG indépendante tracée pour chaque paire conservée ; aucune régression des paires déjà conformes (textMuted #56707C sur ses cinq fonds, textSecondary sur background/surface)",
-        "tests/theme-contrast.test.ts couvre l'inventaire secondaire complet ; preuve de mutation fournie : retour à #457B9D fait échouer exactement les nouveaux cas ; aucune assertion existante retirée ni affaiblie",
-        "comportement wrap du filtre membre (MOB-C4-F1) et réinitialisation F3-R2 intacts ; identité visuelle restée dans la famille de teintes canonique (bleu foncé sobre), pas de refonte",
-        "npm run check vert ; export Android démo OK hors ligne ; aucune dépendance, aucun réseau, aucun fichier hors app/, src/, tests/ ; environ 4 fichiers modifiés au maximum"
+        "revue de l'état accepté : aucun placeholder, '// TODO', 'console.log' de debug ou code conditionnel node-only dans app/ et src/",
+        "exports/config Android vérifiés : app.json, eas.json ou équivalent représentent correctement la démo hors ligne (EXPO_PUBLIC_DATA_MODE=demo)",
+        "démo hors ligne cohérente : aucun import conditionnel vers des services réels (Firebase, Stripe, analytics) dans le code produit ; aucun appel réseau au runtime en mode demo",
+        "tests existants passent : npm run check vert (164+ tests)",
+        "points bloquants résiduels documentés dans le rapport du codeur (le cas échéant)",
+        "auditeur indépendant valide la source-readiness avec décision accept, 0 mustFix"
       ]
     },
     "backend": {

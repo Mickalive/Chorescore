@@ -1,46 +1,51 @@
 # Tâche active — Ingénieur produit mobile
 
-Assignment-Id: DRC-05
+Assignment-Id: DRC-06
 Autorité de poste : `governance/roles/MOBILE_PRODUCT_ENGINEER.md`
 Sélecteur machine : `directives/TASKS.json`
 
+## Statut
+
+DRC-05 est `complete` (cycle 33111799778 : audit verification-only accepté,
+textSecondary #3C6E8E ≥ 4,5:1 sur les 8 fonds réels, 164/164 tests, mutation
+prouvée). DRC-06 est le dernier critère.
+
 ## Résultat attendu
 
-Dernier constat bloquant de DRC-05 sur l'état accepté du cycle 32961708279 :
-le jeton `textSecondary` (#457B9D) passe sous le seuil AA 4,5:1 sur deux fonds
-réels de l'arbre intégré — `surfaceAlt` #F8F9FA (4,36:1 : libellés non
-sélectionnés du `SegmentedControl`, donc le filtre membre de l'historique et
-les périodes historique/classement/profil) et la carte courante du classement
-#F7FCFB (4,43:1) ; #FFFDF5 (carte Pro du paywall) est à 4,51:1, sans marge.
-Aucun nouveau parcours produit n'est créé.
+Tâche bornée **DRC-06 source-readiness** : vérifier que l'état accepté
+(SHA 37b6d05) est apte au build APK release. Cette tâche est une
+pré-vérification auditable — elle ne construit pas l'APK.
 
 ## Travail borné
 
-1. **Inventaire** — lister chaque usage de style de `textSecondary` dans
-   `app/` et `src/` avec son fond réel (jetons du thème et valeurs codées en
-   dur), comme l'auditeur l'a fait pour `textMuted` au cycle 32961708279.
-2. **Correction centrale** — ajuster le jeton dans `src/components/theme.ts`
-   (même démarche que la passe `textMuted` : rester dans la famille de bleu
-   sobre canonique) ou employer explicitement un jeton conforme là où c'est
-   réellement nécessaire ; viser une marge confortable au-dessus de 4,5:1,
-   pas un passage juste au seuil.
-3. **Garde déterministe** — étendre `tests/theme-contrast.test.ts` avec
-   l'inventaire secondaire complet (tous les fonds réels, y compris codés en
-   dur) ; fournir la mesure WCAG de chaque paire et une preuve de mutation
-   (retour à #457B9D → exactement les nouveaux cas échouent).
+1. **Revue de code** — inspecter `app/` et `src/` pour tout placeholder,
+   `// TODO`, `console.log` de debug, code conditionnel node-only ou
+   instruction cachée. Tout point trouvé doit être documenté dans le rapport.
+
+2. **Exports/config Android** — vérifier `app.json`, `eas.json` ou
+   équivalent : cohérence avec la démo hors ligne (`EXPO_PUBLIC_DATA_MODE=demo`),
+   pas de référence à des services réels (Firebase project ID, Stripe key,
+   analytics endpoint).
+
+3. **Démo hors ligne** — s'assurer qu'aucun import conditionnel ne pointe vers
+   des services réels dans le code produit ; aucun appel réseau au runtime en
+   mode demo ; la démo fonctionne sans Metro.
+
+4. **Tests existants** — `npm run check` doit rester vert (164+ tests).
+
+5. **Documentation** — si un point bloquant résiduel est trouvé, le documenter
+   clairement dans le rapport du codeur avec sa sévérité et son impact sur le
+   build APK.
 
 ## Hors périmètre
 
-Ne pas toucher aux paires déjà conformes (`textMuted` #56707C sur ses cinq
-fonds ; `textSecondary` sur background/surface), au comportement wrap du filtre
-membre (MOB-C4-F1) ni à la réinitialisation F3-R2. Pas de refonte visuelle, pas
-de nouvelle fonctionnalité, pas de Firebase/Stripe/analytics/réseau, pas de
-dépendance, pas de fichier hors `app/`, `src/`, `tests/`. Ne pas traiter DRC-06.
-Les facultatifs restent reportés (MOB-C4-F3, MOB-CYCLE32961708279-F2-R2,
--OPT-R2, MOB-C5-N1, garde d'hydratation, harnais UI).
+Ne pas construire l'APK. Ne pas modifier de dépendance, lockfile, workflow,
+agent ou gouvernance. Ne pas activer de service réel. Ne pas toucher au code
+produit au-delà de la correction d'un point bloquant documenté (si nécessaire,
+uniquement avec audit préalable).
 
 ## Preuves attendues
 
-`npm run check` vert, export Android démo réussi hors ligne, tableau de mesure
-WCAG par paire conservée, preuve de mutation tracée, liste exacte des fichiers
-modifiés (≤ ~4) et limites résiduelles explicites.
+Rapport du codeur documentant la vérification de chaque point (code, config,
+hors ligne, tests) avec statut OK ou finding documenté. Puis audit
+indépendant avec décision `accept`, 0 `mustFix`.

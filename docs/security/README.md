@@ -147,10 +147,11 @@ empruntant le même chemin production (requête → `observedCaller` → décisi
 Ces refus sont prouvés en logique pure (décision isolée), pas par exécution
 bout en bout des handlers — voir contrôles encore bloqués.
 
-## Contrôles exécutés lors du cycle 33080384862
+## Contrôles exécutés lors du cycle 33086880966
 
 Mesurés par le codeur sur l'arbre courant au moment de la rédaction (aucun
-chiffre copié d'un rapport antérieur) :
+chiffre copié d'un rapport antérieur ; le décompte ci-dessous a été rejoué
+intégralement à ce cycle, pas recopié du cycle 33080384862) :
 
 - `npm --prefix functions run check` : typage strict (tsc) + **106/106 tests
   unitaires purs passants, 0 ignoré, 0 échoué** (ordre et application des

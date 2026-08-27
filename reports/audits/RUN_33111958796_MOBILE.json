@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "cycle": "33111958796",
+  "role": "mobile",
+  "round": 1,
+  "decision": "accept",
+  "summary": "Audit source-readiness DRC-06 sur l'état accepté (candidat verification-only, delta zéro vs arbre accepté d5205d8). Le code produit est apte au build APK release : aucun placeholder/TODO/console.log, aucune dépendance réseau vers des services réels (Firebase/Stripe/analytics jamais importés, stockage local AsyncStorage), config Android (app.json) cohérente avec la démo hors ligne (extra.dataMode=demo, aucun service réel), et la démo est câblée en dur en mode hors ligne (preuve de mutation : basculer sur ProductionAppService fait échouer le test d'activation démo). npm run check 164/164 vert, npm audit prod high = 0. Aucun constat mustFix. L'APK release effectif reste la dernière étape DRC-06 exécutée par la factory après cet audit.",
+  "findings": [
+    {
+      "id": "DRC06-SRC-1",
+      "severity": "info",
+      "path": "app/ src/",
+      "problem": "Absence de placeholder, code dev-only, TODO/FIXME ou console.log de debug dans le code produit.",
+      "evidence": "grep -rni 'console.log|debugger|TODO|FIXME|placeholder|XXX|HACK' sur app/ et src/ : seuls les props React TextInput placeholder (hint UI) dans profile.tsx:313, EntryCorrectionModal.tsx:113, TaskFormModal.tsx:141, ManualEntryModal.tsx:96 ; aucun TODO/FIXME/console.log/debugger.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise.",
+      "verification": "grep reproductible sur l'arbre candidat (SHA d5205d8) ; les correspondances 'placeholder' sont des props UI, pas des emplacements de code."
+    },
+    {
+      "id": "DRC06-SRC-2",
+      "severity": "info",
+      "path": "src/services/index.ts",
+      "problem": "Aucune dépendance réseau vers des services réels (Firebase/Stripe/analytics) dans le code produit ; la démo est câblée en dur et le stockage est local.",
+      "evidence": "src/services/index.ts instancie DemoAppService et DemoAnalyticsService. ProductionAppService/ProductionAnalyticsService ne sont importés que par tests/ (services.test.ts, data-control.test.ts) pour vérifier qu'ils lèvent ProductionModeDisabledError. Aucun import 'firebase' dans tout le dépôt hors node_modules. src/services/storage.ts utilise @react-native-async-storage/async-storage (local). grep fetch|XHR|WebSocket|axios|http(s)://|URL( sur app/ et src/ : aucun résultat.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise.",
+      "verification": "grep réseau + grep firebase reproductibles ; lecture de index.ts, productionService.ts, analyticsService.ts, storage.ts."
+    },
+    {
+      "id": "DRC06-SRC-3",
+      "severity": "info",
+      "path": "app.json",
+      "problem": "Config Android cohérente avec la démo hors ligne : aucun service réel référencé (pas de projectId Firebase, endpoint analytics ou clé Stripe).",
+      "evidence": "app.json : expo.extra.dataMode='demo', android.package='com.mickalive.chorescore', aucun projectId Firebase / endpoint analytics / clé Stripe. Aucun google-services.json, GoogleService-Info.plist, firebase.json ou stripe* dans le dépôt (find). Pas de eas.json, mais la tâche autorise 'app.json, eas.json ou équivalent' ; app.json suffit pour cette pré-vérification.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise pour la source-readiness. Le build APK release réel (eas build / expo export) est exécuté par la factory après cet audit, hors de cette pré-vérification.",
+      "verification": "lecture app.json + find des artefacts de services réels (aucun)."
+    },
+    {
+      "id": "DRC06-SRC-4",
+      "severity": "info",
+      "path": "src/services/index.ts",
+      "problem": "La démo fonctionne sans Metro ni réseau au runtime : le service actif est figé en mode démo, aucune sélection distante, aucun repli silencieux vers un backend réel.",
+      "evidence": "Mutation proof sur copie jetable (/tmp/mut, supprimée) : remplacement de 'new DemoAppService()' par 'new ProductionAppService()' dans src/services/index.ts, rebuild tsc -p tsconfig.test.json, exécution de tests/services.test.js → test 1 'l'adaptateur démo hors ligne est le service actif par défaut' échoue (exit 1), les 11 autres tests restent verts. Preuve que le câblage démo est porteur et que l'app dépend bien du service hors ligne, pas d'un backend réel.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise.",
+      "verification": "Mutation reproductible sur copie jetable ; l'assertion appDataService.mode==='demo' détecte la régression (services.test.js test 1)."
+    },
+    {
+      "id": "DRC06-SRC-5",
+      "severity": "info",
+      "path": "tests/",
+      "problem": "Les tests existants passent (critère d'acceptation npm run check vert, 164+ tests).",
+      "evidence": "npm run check sur le candidat : tsc --noEmit OK ; node --test .test-build/tests/*.test.js = 164 tests, 164 pass, 0 fail, 0 skipped.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise.",
+      "verification": "npm run check exécuté sur le candidat (SHA d5205d8), sortie 164/164."
+    },
+    {
+      "id": "DRC06-SRC-6",
+      "severity": "info",
+      "path": "package.json",
+      "problem": "Aucune vulnérabilité de dépendance de production de sévérité high ; firebase déclaré mais jamais importé (donc non bundlé dans l'app).",
+      "evidence": "npm audit --omit=dev --audit-level=high : 11 vulnérabilités 'moderate' uniquement dans l'outillage de build Expo (@expo/config, @expo/metro-config, etc.), aucune 'high' (exit 0). firebase@12.18.0 présent dans dependencies mais aucun import dans le code produit → non inclus dans le bundle de l'app.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction bloquante. Les vulnérabilités moderate sont hors runtime démo (build tooling) et hors périmètre de la source-readiness ; à suivre séparément si un build store réel est envisagé.",
+      "verification": "npm audit --omit=dev --audit-level=high exécuté, seuil high non franchi (exit 0)."
+    },
+    {
+      "id": "DRC06-SRC-7",
+      "severity": "info",
+      "path": "directives/TASKS.json",
+      "problem": "Écart de métadonnée : la directive cite l'état accepté SHA 37b6d05, mais l'arbre accepté réel (et le candidat) est d5205d8.",
+      "evidence": "git rev-parse HEAD du candidat = d5205d86820ea5a624266b62f89e5d3962fe0dc8 ; git rev-parse HEAD de /home/runner/work/_temp/accepted-mobile = identique ; diff -rq candidat vs accepted-mobile (hors .opencode/.test-build) = zéro delta produit. Le SHA 37b6d05 de la directive est obsolète.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction produit requise. Le directeur peut mettre à jour la référence SHA dans la directive au prochain cycle si besoin ; n'affecte pas la source-readiness.",
+      "verification": "git rev-parse + diff -rq candidat vs accepted-mobile."
+    }
+  ],
+  "checks": [
+    "Diff produit candidat vs arbre accepté (diff -rq, hors .opencode/.test-build) : zéro delta",
+    "grep placeholders/TODO/console.log/debugger sur app/ et src/ : aucun (seuls props UI placeholder)",
+    "grep réseau (fetch/XHR/WebSocket/axios/http(s)/URL) sur app/ et src/ : aucun résultat",
+    "grep import 'firebase' dans tout le dépôt hors node_modules : aucun",
+    "Lecture src/services/index.ts : DemoAppService/DemoAnalyticsService câblés en dur, pas de sélection distante",
+    "Lecture app.json : extra.dataMode=demo, aucun service réel référencé",
+    "find artefacts services réels (google-services.json, GoogleService-Info.plist, firebase.json, stripe*) : aucun",
+    "npm run check : typecheck OK, 164/164 tests pass",
+    "npm audit --omit=dev --audit-level=high : 0 high (11 moderate build tooling)",
+    "Mutation proof copie jetable : ProductionAppService à la place de DemoAppService → services.test.js test 1 échoue (exit 1), 11/12 restent verts"
+  ]
+}

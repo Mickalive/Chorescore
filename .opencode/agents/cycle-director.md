@@ -1,7 +1,7 @@
 ---
 description: Contrôle l'intégration de confiance, mesure le jalon et attribue le cycle suivant.
 mode: primary
-model: opencode/x-preview-f-free
+model: opencode/deepseek-v4-flash-free
 temperature: 0.05
 permission:
   edit:

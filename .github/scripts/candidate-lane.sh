@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# A zero-delta candidate is a verification request, not a factory failure.
 
 role="${1:?role required}"
 case "$role" in

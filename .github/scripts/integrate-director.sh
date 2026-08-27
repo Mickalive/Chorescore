@@ -126,7 +126,8 @@ if [[ "$pending" == true ]]; then
   jq -e '.assignments.mobile.enabled==false and .assignments.backend.enabled==false' directives/TASKS.json >/dev/null
   jq -e '.decision=="stop"' "$report" >/dev/null
 else
-  jq -e '(.activeCriteria|length)>=1 and (.assignments.mobile.enabled==true or .assignments.backend.enabled==true)' directives/TASKS.json >/dev/null
+  jq -e '(.activeCriteria|length)>=1' docs/RELEASE_STATUS.json >/dev/null
+  jq -e '(.assignments.mobile.enabled==true or .assignments.backend.enabled==true)' directives/TASKS.json >/dev/null
   jq -e '.decision=="continue"' "$report" >/dev/null
 fi
 

@@ -18,14 +18,14 @@ Lire : prompt maître, définition de release, fiche de poste Directeur, état d
 
 ## DRC-06
 
-DRC-06 vient après DRC-05 et DRC-07. D'abord, une tâche mobile bornée vérifie la source-readiness et passe par l'auditeur normal. Lorsque cet audit est accepté et tous les autres critères sont complets :
+DRC-06 vient après DRC-05 et DRC-07. Dès que DRC-01 à DRC-05 et DRC-07 sont tous `complete` et qu'aucun finding `mustFixBeforeRelease` ne reste non résolu :
 - `DRC-06.status = "in_progress"` ;
 - `pendingArtifact = "DRC-06"` ;
 - `activeCriteria = []` ;
 - Mobile et Backend sont désactivés ;
 - le rapport Directeur prend `decision = "stop"`.
 
-Ici `stop` signifie uniquement « passer au shell de release ». Le Directeur ne fabrique pas l'APK et ne marque jamais DRC-06 `complete`. Seul le shell le fait après build, installation et smoke Android API 35 sans Metro ni réseau.
+Ici `stop` signifie uniquement « passer immédiatement au shell de release ». Aucune lane source-readiness supplémentaire n'est requise. Le Directeur ne fabrique pas l'APK et ne marque jamais DRC-06 `complete`. Seul le shell le fait après build, installation et smoke Android API 35 sans Metro ni réseau.
 
 ## Fichiers modifiables
 

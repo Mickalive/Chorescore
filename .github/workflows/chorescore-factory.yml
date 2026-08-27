@@ -29,7 +29,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  OX_MODEL: opencode/x-preview-f-free
   OPENCODE_MAX_ATTEMPTS: "3"
   OPENCODE_RETRY_DELAY_SECONDS: "300"
   OPENCODE_ATTEMPT_TIMEOUT_SECONDS: "2400"
@@ -62,10 +61,91 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: bash .github/scripts/prepare-accepted.sh
 
+  model_probe:
+    name: Probe free model — ${{ matrix.model }}
+    needs: prepare
+    if: ${{ needs.prepare.result == 'success' && needs.prepare.outputs.final != 'true' && needs.prepare.outputs.pending_artifact != 'true' }}
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        model:
+          - deepseek-v4-flash-free
+          - north-mini-code-free
+          - laguna-s-2.1-free
+          - mimo-v2.5-free
+          - nemotron-3-ultra-free
+          - nemotron-3.5-lightning-free
+          - hy3-free
+          - big-pickle
+          - ling-3.0-flash-free
+          - ling-3.0-tiny-free
+          - muse-spark-1.2-contributor-free
+          - x-preview-f-free
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          ref: ${{ needs.prepare.outputs.accepted_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install reviewed OpenCode CLI
+        uses: ./.github/actions/setup-opencode
+      - name: Probe actual headless tool calling
+        env:
+          PROBE_MODEL: ${{ matrix.model }}
+        run: bash .github/scripts/probe-model.sh "$PROBE_MODEL"
+      - name: Upload probe evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: model-probe-${{ matrix.model }}
+          path: ${{ runner.temp }}/model-probe-${{ matrix.model }}/probe.json
+          if-no-files-found: error
+          retention-days: 7
+
+  select_models:
+    name: Select healthy free models by role
+    needs: [prepare, model_probe]
+    if: ${{ always() && needs.prepare.result == 'success' && needs.prepare.outputs.final != 'true' && needs.prepare.outputs.pending_artifact != 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      mobile_model: ${{ steps.select.outputs.mobile_model }}
+      backend_model: ${{ steps.select.outputs.backend_model }}
+      mobile_audit_model: ${{ steps.select.outputs.mobile_audit_model }}
+      backend_audit_model: ${{ steps.select.outputs.backend_audit_model }}
+      director_model: ${{ steps.select.outputs.director_model }}
+      healthy_count: ${{ steps.select.outputs.healthy_count }}
+    steps:
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          ref: ${{ needs.prepare.outputs.accepted_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Download all free-model probes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/model-probes
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" -p 'model-probe-*' -D /tmp/model-probes
+      - name: Select models
+        id: select
+        run: bash .github/scripts/select-models.sh /tmp/model-probes
+      - name: Upload model selection audit
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: model-selection
+          path: ${{ runner.temp }}/model-selection
+          if-no-files-found: error
+          retention-days: 14
+
   mobile_candidate:
     name: Mobile lane — engineer
-    needs: prepare
-    if: ${{ needs.prepare.result == 'success' && needs.prepare.outputs.final != 'true' && needs.prepare.outputs.pending_artifact != 'true' && needs.prepare.outputs.mobile_enabled == 'true' }}
+    needs: [prepare, select_models]
+    if: ${{ needs.prepare.result == 'success' && needs.select_models.result == 'success' && needs.prepare.outputs.mobile_enabled == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     steps:
@@ -81,9 +161,11 @@ jobs:
           cache-dependency-path: package-lock.json
       - name: Install locked mobile dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Install reviewed Ox/OpenCode CLI
+      - name: Install reviewed OpenCode CLI
         uses: ./.github/actions/setup-opencode
       - name: Produce bounded mobile candidate
+        env:
+          OX_MODEL: ${{ needs.select_models.outputs.mobile_model }}
         run: bash .github/scripts/candidate-lane.sh mobile
       - name: Upload ephemeral mobile candidate
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -95,8 +177,8 @@ jobs:
 
   backend_candidate:
     name: Backend lane — engineer
-    needs: prepare
-    if: ${{ needs.prepare.result == 'success' && needs.prepare.outputs.final != 'true' && needs.prepare.outputs.pending_artifact != 'true' && needs.prepare.outputs.backend_enabled == 'true' }}
+    needs: [prepare, select_models]
+    if: ${{ needs.prepare.result == 'success' && needs.select_models.result == 'success' && needs.prepare.outputs.backend_enabled == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     steps:
@@ -112,9 +194,11 @@ jobs:
           cache-dependency-path: functions/package-lock.json
       - name: Install locked backend dependencies
         run: npm --prefix functions ci --ignore-scripts --no-audit --no-fund
-      - name: Install reviewed Ox/OpenCode CLI
+      - name: Install reviewed OpenCode CLI
         uses: ./.github/actions/setup-opencode
       - name: Produce bounded backend candidate
+        env:
+          OX_MODEL: ${{ needs.select_models.outputs.backend_model }}
         run: bash .github/scripts/candidate-lane.sh backend
       - name: Upload ephemeral backend candidate
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -126,8 +210,8 @@ jobs:
 
   mobile_audit:
     name: Mobile lane — independent auditor
-    needs: [prepare, mobile_candidate]
-    if: ${{ always() && needs.prepare.result == 'success' && needs.mobile_candidate.result == 'success' }}
+    needs: [prepare, select_models, mobile_candidate]
+    if: ${{ always() && needs.prepare.result == 'success' && needs.select_models.result == 'success' && needs.mobile_candidate.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     steps:
@@ -147,11 +231,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" -n candidate-mobile -D /tmp/candidate-mobile
-      - name: Install reviewed Ox/OpenCode CLI
+      - name: Install reviewed OpenCode CLI
         uses: ./.github/actions/setup-opencode
       - name: Audit mobile candidate independently
         env:
           ACCEPTED_SHA: ${{ needs.prepare.outputs.accepted_sha }}
+          OX_MODEL: ${{ needs.select_models.outputs.mobile_audit_model }}
         run: bash .github/scripts/audit-lane.sh mobile /tmp/candidate-mobile
       - name: Upload mobile audit
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -163,8 +248,8 @@ jobs:
 
   backend_audit:
     name: Backend lane — independent auditor
-    needs: [prepare, backend_candidate]
-    if: ${{ always() && needs.prepare.result == 'success' && needs.backend_candidate.result == 'success' }}
+    needs: [prepare, select_models, backend_candidate]
+    if: ${{ always() && needs.prepare.result == 'success' && needs.select_models.result == 'success' && needs.backend_candidate.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     steps:
@@ -184,11 +269,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" -n candidate-backend -D /tmp/candidate-backend
-      - name: Install reviewed Ox/OpenCode CLI
+      - name: Install reviewed OpenCode CLI
         uses: ./.github/actions/setup-opencode
       - name: Audit backend candidate independently
         env:
           ACCEPTED_SHA: ${{ needs.prepare.outputs.accepted_sha }}
+          OX_MODEL: ${{ needs.select_models.outputs.backend_audit_model }}
         run: bash .github/scripts/audit-lane.sh backend /tmp/candidate-backend
       - name: Upload backend audit
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -200,8 +286,8 @@ jobs:
 
   director:
     name: Integrate audited lanes and direct next cycle
-    needs: [prepare, mobile_candidate, backend_candidate, mobile_audit, backend_audit]
-    if: ${{ always() && needs.prepare.result == 'success' && needs.prepare.outputs.final != 'true' && needs.prepare.outputs.pending_artifact != 'true' }}
+    needs: [prepare, select_models, mobile_candidate, backend_candidate, mobile_audit, backend_audit]
+    if: ${{ always() && needs.prepare.result == 'success' && needs.select_models.result == 'success' && needs.prepare.outputs.final != 'true' && needs.prepare.outputs.pending_artifact != 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 220
     outputs:
@@ -231,7 +317,6 @@ jobs:
           BACKEND_CANDIDATE_RESULT: ${{ needs.backend_candidate.result }}
           MOBILE_AUDIT_RESULT: ${{ needs.mobile_audit.result }}
           BACKEND_AUDIT_RESULT: ${{ needs.backend_audit.result }}
-        shell: bash
         run: |
           set -euo pipefail
           mkdir -p /tmp/factory
@@ -239,7 +324,7 @@ jobs:
           [[ "$BACKEND_CANDIDATE_RESULT" != success ]] || gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" -n candidate-backend -D /tmp/factory/candidate-backend
           [[ "$MOBILE_AUDIT_RESULT" != success ]] || gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" -n audit-mobile -D /tmp/factory/audit-mobile
           [[ "$BACKEND_AUDIT_RESULT" != success ]] || gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" -n audit-backend -D /tmp/factory/audit-backend
-      - name: Install reviewed Ox/OpenCode CLI
+      - name: Install reviewed OpenCode CLI
         uses: ./.github/actions/setup-opencode
       - name: Integrate only accepted audits, verify product, and run Director
         id: direct
@@ -250,6 +335,7 @@ jobs:
           BACKEND_CANDIDATE_RESULT: ${{ needs.backend_candidate.result }}
           MOBILE_AUDIT_RESULT: ${{ needs.mobile_audit.result }}
           BACKEND_AUDIT_RESULT: ${{ needs.backend_audit.result }}
+          OX_MODEL: ${{ needs.select_models.outputs.director_model }}
         run: bash .github/scripts/integrate-director.sh
 
   release:
@@ -265,7 +351,6 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Prove source is ready for DRC-06
-        shell: bash
         run: |
           set -euo pipefail
           jq -e '
@@ -291,7 +376,6 @@ jobs:
           npm --prefix functions audit --omit=dev --audit-level=high
       - name: Build release APK
         id: build
-        shell: bash
         run: |
           set -euo pipefail
           source_sha=$(git rev-parse HEAD)
@@ -306,7 +390,6 @@ jobs:
           echo "apk_sha256=$apk_sha" >> "$GITHUB_OUTPUT"
           echo "artifact_name=chorescore-demo-rc-$source_sha" >> "$GITHUB_OUTPUT"
       - name: Enable Android emulator acceleration
-        shell: bash
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules

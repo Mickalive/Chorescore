@@ -17,8 +17,6 @@ else
   git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin "$main_sha:refs/heads/lab/chorescore"
 fi
 
-# Sync the human-owned constitution/control files from main onto the cumulative
-# accepted lane. This never copies application/product state from main.
 worktree="${RUNNER_TEMP:?}/chorescore-accepted-prepare"
 rm -rf "$worktree"
 git worktree add --detach "$worktree" "$accepted_sha"
@@ -41,8 +39,6 @@ for path in "${human_paths[@]}"; do
   fi
 done
 
-# Remove obsolete control-plane files from the accepted lane if they survived
-# from historical states.
 rm -f \
   "$worktree/.github/workflows/chorescore-loop.yml" \
   "$worktree/.github/workflows/chorescore-launch.yml" \
@@ -53,7 +49,6 @@ rm -f \
   "$worktree/.github/immutable-files.sha256"
 rm -rf "$worktree/.chorescore"
 
-# The accepted lane must expose exactly one workflow.
 workflow_count=$(find "$worktree/.github/workflows" -maxdepth 1 -type f -name '*.yml' | wc -l)
 if [[ "$workflow_count" -ne 1 ]] || [[ ! -f "$worktree/.github/workflows/chorescore-factory.yml" ]]; then
   echo "::error::Accepted lane does not contain exactly the single ChoreScore factory workflow." >&2
@@ -69,7 +64,6 @@ if ! git -C "$worktree" diff --cached --quiet; then
 fi
 accepted_sha=$(git -C "$worktree" rev-parse HEAD)
 
-# Release state remains the sole authority for whether product work is complete.
 status_file="$worktree/docs/RELEASE_STATUS.json"
 tasks_file="$worktree/directives/TASKS.json"
 test -s "$status_file"
@@ -92,8 +86,6 @@ pending_artifact=$(jq -r '.pendingArtifact=="DRC-06"' "$status_file")
 mobile_enabled=$(jq -r '.assignments.mobile.enabled' "$tasks_file")
 backend_enabled=$(jq -r '.assignments.backend.enabled' "$tasks_file")
 
-# Legacy refs are not part of the architecture anymore. Remove every old
-# cycle/recovery ref. Archive snapshots are deliberately not touched here.
 while IFS= read -r ref; do
   [[ -z "$ref" ]] && continue
   case "$ref" in
@@ -103,9 +95,6 @@ while IFS= read -r ref; do
   esac
 done < <(git ls-remote --heads origin | awk '{print $2}')
 
-# Purge every workflow run older than this run. Always re-read page 1 after
-# deletion so shrinking pagination cannot make us skip records. Never touch this
-# run or a later run number; a queued successor is therefore safe.
 while :; do
   runs=$(gh api "repos/$repo/actions/runs?per_page=100&page=1")
   old_runs=$(jq --argjson current "$run_number" --arg current_id "$GITHUB_RUN_ID" '[.workflow_runs[] | select((.run_number < $current) and ((.id|tostring) != $current_id))]' <<<"$runs")
@@ -130,8 +119,6 @@ while :; do
   [[ "$deleted_any" == true ]] || break
 done
 
-# Garbage-collect detached worktree metadata; all ephemeral role state lives in
-# Actions artifacts and runner filesystems, never persistent candidate branches.
 git worktree remove --force "$worktree"
 git worktree prune
 

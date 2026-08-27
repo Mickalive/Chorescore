@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "cycle": "33107099691",
+  "role": "mobile",
+  "round": 1,
+  "decision": "accept",
+  "summary": "Vérification indépendante du candidat « verification-only, zéro delta » pour le critère DRC-05 (contraste textSecondary). L'arbre accepté (identique au candidat, diff -rq exit 0 hors .opencode/.test-build) contient déjà le jeton textSecondary = #3C6E8E. Calcul WCAG indépendant : #3C6E8E atteint ≥ 4,5:1 (AA) sur les 8 fonds réels de l'inventaire (min 5,0769:1 sur #EDF8F6). L'ancien #457B9D (4,3564:1 sur surfaceAlt, 4,4329:1 sur #F7FCFB) est bien le seuil qui échouait. npm run check = 164/164 verts. Preuve de mutation ciblée : sur copie jetable, le retour à #457B9D fait échouer exactement le nouveau test d'inventaire (161) ; le garde legacy (162) et tous les autres tests restent verts, aucune assertion existante retirée ni affaiblie. Inventaire secondaire exhaustif vérifié (43 sites textSecondary, tous les fonds codés en dur recensés ; #FFF4F1 est réservé aux erreurs en couleur #A9422F, jamais textSecondary). Aucune régression textMuted/wrap F3-R2/identité visuelle. Constat bloquant hérité MOB-CYCLE32961708279-SEG résolu. Aucun mustFix.",
+  "findings": [
+    {
+      "id": "AUD-33107099691-1",
+      "severity": "info",
+      "path": "src/components/theme.ts",
+      "problem": "Constat bloquant hérité MOB-CYCLE32961708279-SEG : textSecondary #457B9D sur surfaceAlt #F8F9FA = 4,36:1 et sur #F7FCFB = 4,43:1, tous deux < 4,5:1 (AA). Le jeton central doit atteindre ≥ 4,5:1 sur chaque fond réel.",
+      "evidence": "L'arbre accepté (== candidat, zéro delta) définit textSecondary: '#3C6E8E'. Calcul WCAG indépendant (seuil linéaire 0,04045) : #3C6E8E sur background #FEFEFE 5,4607:1, surface #FFFFFF 5,5073:1, surfaceAlt #F8F9FA 5,2246:1, #F7FCFB 5,3164:1, #FFFDF5 5,4078:1, secondary #F1FAEE 5,1530:1, #EDF8F6 5,0769:1, #F6FCFA 5,3036:1 — toutes ≥ 4,5:1. npm run check = 164/164 (typecheck + node --test), dont les tests theme-contrast 158-162.",
+      "mustFix": false,
+      "requiredFix": "Aucune : le jeton accepté satisfait déjà le critère sur tous les fonds réels.",
+      "verification": "node /tmp/opencode/wcag.mjs (ratios ci-dessus) ; npm run check (164/164)."
+    },
+    {
+      "id": "AUD-33107099691-2",
+      "severity": "info",
+      "path": "tests/theme-contrast.test.ts",
+      "problem": "L'inventaire secondaire doit être exhaustif (tous les fonds réels, y compris codés en dur) — un fond manquant avait causé le repair RUN_33080384862 (#F6FCFA).",
+      "evidence": "Recensement indépendant : 43 usages de COLORS.textSecondary dans app/ et src/. Tous les fonds rencontrés appartiennent à l'un des 8 de l'inventaire (background, surface, surfaceAlt, secondary, #F7FCFB, #FFFDF5, #EDF8F6, #F6FCFA). Les fonds codés en dur hors jetons trouvés (#F7FCFB, #FFFDF5, #EDF8F6, #F6FCFA, #FFF4F1) : #FFF4F1 n'héberge QUE des messages d'erreur en couleur #A9422F (dialogError/shareError/errorText/AppButton danger), jamais textSecondary. #F6FCFA (TaskRow activeCard meta) est bien couvert par le test.",
+      "mustFix": false,
+      "requiredFix": "Aucune : l'inventaire du test couvre tous les fonds réels hébergeant textSecondary.",
+      "verification": "grep -rn textSecondary app/ src/ + grep backgroundColor hex ; relecture de chaque site et de son fond réel."
+    },
+    {
+      "id": "AUD-33107099691-3",
+      "severity": "info",
+      "path": "tests/theme-contrast.test.ts",
+      "problem": "Preuve de mutation exigée : le retour à #457B9D doit faire échouer exactement les nouveaux cas textSecondary, sans affaiblir les assertions existantes.",
+      "evidence": "Sur copie jetable (/tmp/opencode/mut, node_modules lié), textSecondary rétabli à #457B9D puis npm test : exactement 1 échec — test 161 « le jeton textSecondary atteint AA … sur chaque fond réel de l'inventaire secondaire » (assertions surfaceAlt 4,3564:1 et #F7FCFB 4,4329:1). Le test 162 (garde legacy : #457B9D < 4,5 sur surfaceAlt/#F7FCFB) reste VERT, de même que textMuted (158-159) et paires de remplacement (160). Bilan 163/164, aucune régression collatérale, aucune assertion retirée.",
+      "mustFix": false,
+      "requiredFix": "Aucune : la garde déterministe est ciblée et effective.",
+      "verification": "Mutation sur /tmp/opencode/mut + npm test (163 pass / 1 fail = test 161)."
+    },
+    {
+      "id": "AUD-33107099691-4",
+      "severity": "info",
+      "path": "src/components/theme.ts; src/components/SegmentedControl.tsx; src/components/segmentedLayout.ts; app/(tabs)/history.tsx",
+      "problem": "Non-régression des acquis DRC-04/DRC-05 : textMuted, wrap du filtre membre (MOB-C4-F1), réinitialisation F3-R2, identité visuelle canonique.",
+      "evidence": "textMuted #56707C sur ses 5 fonds : 5,1998 / 5,2442 / 4,9750 / 5,0624 / 5,1495:1 (tous ≥ 4,5, pas de régression). SegmentedControl expose bien wrap et le filtre membre de l'historique le consomme (history.tsx:169) ; réinitialisation F3-R2 intacte (setMemberFilter(null) aux lignes 37 et 98). #3C6E8E reste dans la famille bleu foncé sobre (assombrissement homothétique de #457B9D), pas de refonte.",
+      "mustFix": false,
+      "requiredFix": "Aucune.",
+      "verification": "npm run check 164/164 ; grep wrap/reset dans history.tsx ; calcul WCAG textMuted indépendant."
+    },
+    {
+      "id": "AUD-33107099691-5",
+      "severity": "info",
+      "path": "app/onboarding.tsx",
+      "problem": "textSecondary est aussi utilisé comme borderColor (case à cocher, ligne 184) — composant d'interface non-textuel. DRC-05 vise les paires texte/fond (4,5:1), mais la conformité 1.4.11 (3:1 UI) doit être vérifiée pour ne pas masquer une régression.",
+      "evidence": "#3C6E8E sur le fond d'onboarding #FEFEFE = 5,4607:1 ≥ 3:1 (seuil composant UI). Aucune paire texte/fond n'est créée par cet usage ; pas de violation DRC-05.",
+      "mustFix": false,
+      "requiredFix": "Aucune : usage non-textuel déjà au-delà du seuil 3:1.",
+      "verification": "Calcul WCAG indépendant #3C6E8E/#FEFEFE."
+    },
+    {
+      "id": "AUD-33107099691-6",
+      "severity": "info",
+      "path": "(racine dépôt)",
+      "problem": "Intégrité du candidat : vérifier qu'il s'agit bien d'un zéro delta verification-only, sans fichier hors app/, src/, tests/ ni dépendance/réseau ajoutés.",
+      "evidence": "diff -rq (en excluant .git, node_modules, reports, .opencode, .test-build) entre le checkout courant et l'arbre accepté /home/runner/work/_temp/accepted-mobile : identique (exit 0). Seuls .opencode et .test-build (artefacts non produit) diffèrent. Aucun fichier hors app/, src/, tests/ ; aucune dépendance/lockfile modifié(e).",
+      "mustFix": false,
+      "requiredFix": "Aucune.",
+      "verification": "diff -rq current vs accepted-tree (exit 0)."
+    }
+  ],
+  "checks": [
+    "Calcul WCAG indépendant (node /tmp/opencode/wcag.mjs, seuil linéaire 0,04045) : textSecondary #3C6E8E ≥ 4,5:1 sur les 8 fonds réels (min 5,0769:1 sur #EDF8F6) ; legacy #457B9D = 4,3564:1 (surfaceAlt) et 4,4329:1 (#F7FCFB) ; textMuted #56707C ≥ 4,5:1 sur ses 5 fonds (pas de régression).",
+    "npm run check : tsc --noEmit + node --test = 164/164 verts, dont theme-contrast 158-162.",
+    "Preuve de mutation sur copie jetable (/tmp/opencode/mut) : rétablir textSecondary à #457B9D fait échouer exactement le test 161 (inventaire secondaire) ; le garde legacy 162 et tous les autres tests restent verts (163/164).",
+    "Exhaustivité de l'inventaire : grep de tous les usages textSecondary dans app/ et src/ (43 sites) et de tous les backgroundColor hex codés en dur ; chaque fond réel appartient aux 8 de l'inventaire ; #FFF4F1 est réservé aux erreurs (#A9422F), jamais textSecondary.",
+    "Non-régression wrap (MOB-C4-F1) et reset F3-R2 : SegmentedControl expose wrap, consommé par le filtre membre (history.tsx:169) ; setMemberFilter(null) aux lignes 37 et 98.",
+    "Intégrité zéro-delta : diff -rq checkout courant vs arbre accepté (hors .git/node_modules/reports/.opencode/.test-build) identique (exit 0) ; aucun fichier hors app/, src/, tests/."
+  ]
+}

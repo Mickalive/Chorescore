@@ -1,7 +1,7 @@
 ---
 description: Exécute une tâche backend activée et bornée, sans activer de service réel.
 mode: primary
-model: opencode/x-preview-f-free
+model: opencode/deepseek-v4-flash-free
 temperature: 0.05
 permission:
   edit:

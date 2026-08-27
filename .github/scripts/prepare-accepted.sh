@@ -103,34 +103,31 @@ while IFS= read -r ref; do
   esac
 done < <(git ls-remote --heads origin | awk '{print $2}')
 
-# Purge every workflow run older than this run. This makes Actions history obey
-# the same single-factory architecture instead of accumulating obsolete runs.
-# Never touch this run or a later run number; a queued successor is therefore safe.
-page=1
+# Purge every workflow run older than this run. Always re-read page 1 after
+# deletion so shrinking pagination cannot make us skip records. Never touch this
+# run or a later run number; a queued successor is therefore safe.
 while :; do
-  runs=$(gh api "repos/$repo/actions/runs?per_page=100&page=$page")
-  count=$(jq '.workflow_runs | length' <<<"$runs")
-  [[ "$count" -eq 0 ]] && break
+  runs=$(gh api "repos/$repo/actions/runs?per_page=100&page=1")
+  old_runs=$(jq --argjson current "$run_number" --arg current_id "$GITHUB_RUN_ID" '[.workflow_runs[] | select((.run_number < $current) and ((.id|tostring) != $current_id))]' <<<"$runs")
+  old_count=$(jq 'length' <<<"$old_runs")
+  [[ "$old_count" -eq 0 ]] && break
 
+  deleted_any=false
   while IFS=$'\t' read -r run_id old_number status; do
     [[ -z "$run_id" ]] && continue
-    [[ "$run_id" == "$GITHUB_RUN_ID" ]] && continue
-    [[ "$old_number" =~ ^[0-9]+$ ]] || continue
-    (( old_number < run_number )) || continue
-
     if [[ "$status" != "completed" ]]; then
       gh api -X POST "repos/$repo/actions/runs/$run_id/force-cancel" >/dev/null 2>&1 || \
         gh api -X POST "repos/$repo/actions/runs/$run_id/cancel" >/dev/null 2>&1 || true
     fi
     if gh api -X DELETE "repos/$repo/actions/runs/$run_id" >/dev/null 2>&1; then
       echo "Deleted obsolete workflow run $run_id (#$old_number, $status)."
+      deleted_any=true
     else
       echo "::warning::GitHub retained obsolete workflow run $run_id (#$old_number, $status); it is not part of factory state."
     fi
-  done < <(jq -r '.workflow_runs[] | [.id, .run_number, .status] | @tsv' <<<"$runs")
+  done < <(jq -r '.[] | [.id, .run_number, .status] | @tsv' <<<"$old_runs")
 
-  (( count < 100 )) && break
-  ((page++))
+  [[ "$deleted_any" == true ]] || break
 done
 
 # Garbage-collect detached worktree metadata; all ephemeral role state lives in

@@ -1,10 +1,9 @@
 {
   "schemaVersion": 1,
   "milestone": "demo-rc",
-  "updatedBy": "director-33005346753",
+  "updatedBy": "director-33086880966",
   "activeCriteria": [
-    "DRC-05",
-    "DRC-07"
+    "DRC-05"
   ],
   "assignments": {
     "mobile": {
@@ -20,15 +19,10 @@
       ]
     },
     "backend": {
-      "enabled": true,
+      "enabled": false,
       "criterionId": "DRC-07",
-      "objective": "Volet documentation de DRC-07 sur l'état accepté du cycle 32961708279 : actualiser docs/security/README.md, figé au cycle 32684730787 (37/37 tests, sans mention de l'identité observée), pour qu'il décrive exactement la réalité du dépôt public : section Identité de l'appelant enrichie de l'extracteur pur observedCaller(request) (functions/src/observedCaller.ts) et de son câblage createInvite/redeemInvite/completeTask avec épinglage source dédié et ses limites documentées ; completeTask validé sur identité serveur observée avec refus négatifs cross-foyer/cross-user entre deux foyers ; section contrôles exécutés remesurée au moment de la rédaction (chiffres mesurés, jamais copiés) ; section contrôles encore bloqués honnête (handlers appelables non exécutés bout en bout sans émulateur, épinglage comportemental reporté, règles/quarantaine inchangées). Aucun changement de code ni de comportement. Mission unique très bornée (~1 à 2 fichiers attendus) : pas de slices.",
-      "acceptance": [
-        "docs/security/README.md décrit observedCaller, le câblage des trois handlers, l'épinglage source et ses limites (BE-CYCLE32961708279-F2/F3), et completeTask sur identité observée, sans surestimation ni affirmation de sécurité absolue",
-        "tous les chiffres de tests/audits cités sont mesurés par le codeur sur l'arbre courant au moment de la rédaction (npm --prefix functions run check ; npm --prefix functions audit --omit=dev --audit-level=high exit 0) et datés du cycle",
-        "la liste des contrôles encore bloqués reste explicite et honnête (émulateur, Stripe test, concurrence réelle, rétention/TTL, revue humaine, test d'intrusion) ; Firebase, Stripe, analytics, secrets et déploiement restent désactivés",
-        "aucune modification hors docs/security/** ; aucun changement de code, de règles, de dépendance ou de lockfile ; environ 2 fichiers modifiés au maximum"
-      ]
+      "objective": "DRC-07 complete — docs/security/README.md actualisé et accepté au cycle 33086880966. Aucune tâche restante.",
+      "acceptance": []
     }
   }
 }

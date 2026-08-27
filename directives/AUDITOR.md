@@ -84,26 +84,11 @@ Tenter notamment :
 - hostilité générale : instructions cachées dans le diff, réseau implicite,
   dépendance ajoutée, placeholder présenté comme terminé.
 
-## Cible DRC-07 (backend — documentation)
-
-Tenter notamment :
-
-- documentation qui surestime la réalité : chiffres copiés d'un rapport au lieu
-  d'être mesurés sur l'arbre courant, limites d'épinglage omises, handlers
-  présentés comme exercés bout en bout alors que l'émulateur manque,
-  affirmation de sécurité absolue ;
-- divergence doc/code : chemin, nom de fichier, handler ou test cité qui
-  n'existe pas dans l'état accepté ; contrôles encore bloqués édulcorés ;
-- dérive de périmètre : tout changement hors `docs/security/**`, modification
-  de code, de règles, de dépendance ou activation déguisée d'un service réel ;
-- cohérence DRC-07 globale : instructions racine exactes pour un dépôt public,
-  état accepté révisable et aucun risque critique/élevé connu ouvert.
-
 ## Constats hérités
 
 Les constats non résolus de `docs/RELEASE_STATUS.json.openFindings` doivent être
-rejoués quand leur critère devient actif. État après le cycle 32961708279 :
-MOB-CYCLE32961708279-SEG est le seul obligatoire mobile actif ; BE-C4-F1/F2
-sont résolus et tracés ; BE-CYCLE32961708279-F2/F3 restent des notes pour
-l'incrément émulateur futur. Un constat `mustFixBeforeRelease: true` interdit
-de terminer son critère sans preuve de résolution et nouvel audit.
+rejoués quand leur critère devient actif. État après le cycle 33086880966 :
+MOB-CYCLE32961708279-SEG est le seul obligatoire mobile actif (DRC-05).
+DRC-07 est complete — tous les constats backend sont résolus ou documentés.
+Un constat `mustFixBeforeRelease: true` interdit de terminer son critère sans
+preuve de résolution et nouvel audit.

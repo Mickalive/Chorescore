@@ -2,13 +2,12 @@
   "schemaVersion": 1,
   "milestone": "demo-rc",
   "governanceVersion": "2026-08-25-v1",
-  "lastCycle": "33005346753",
+  "lastCycle": "33086880966",
   "activeCriteria": [
-    "DRC-05",
-    "DRC-07"
+    "DRC-05"
   ],
-  "stalledCycles": 1,
-  "progressSummary": "Cycle 33005346753 : aucune paire candidat/audit acceptée ce cycle (manifeste d'intégration : mobile=no-accepted-pair, backend=no-accepted-pair). L'état accepté du cycle 32961708279 reste la base (baseSha e9211f3c5ab137a5692c7267f9beea9e6dddbf84). DRC-05 : le constat bloquant MOB-CYCLE32961708279-SEG persiste — textSecondary #457B9D sur surfaceAlt #F8F9FA = 4,36:1 < 4,5 AA (libellés non sélectionnés du SegmentedControl : filtre membre, périodes historique/classement/profil) et 4,43:1 sur la carte courante #F7FCFB. DRC-07 : le volet documentation reste à faire — docs/security/README.md figé au cycle 32684730787, doit décrire observedCaller, son câblage épinglé, completeTask sur identité observée, contrôles remesurés et limites honnêtes. Les deux codeurs sont réactivés sur les mêmes missions bornées. Stagnation à 0 car aucun cycle productif n'a encore eu lieu sur cet état.",
+  "stalledCycles": 0,
+  "progressSummary": "Cycle 33086880966 : delta backend intégré et accepté (docs/security/README.md actualisé, audit RUN_33086880966_BACKEND.json accepté, 0 mustFix). DRC-07 passe à complete. Mobile sans candidat ce cycle (audit-unavailable). DRC-05 : le constat bloquant MOB-CYCLE32961708279-SEG persiste — textSecondary #457B9D sur surfaceAlt #F8F9FA = 4,36:1 < 4,5 AA (libellés non sélectionnés du SegmentedControl : filtre membre, périodes historique/classement/profil) et 4,43:1 sur la carte courante #F7FCFB. SHA courant 37b6d05. Stagnation réinitialisée à 0 (progression objective DRC-07).",
   "blocker": null,
   "criteria": [
     {
@@ -103,12 +102,22 @@
     },
     {
       "id": "DRC-07",
-      "status": "in_progress",
+      "status": "complete",
       "evidence": [
         {
           "kind": "audit",
-          "reference": "reports/audits/CYCLE_32961708279_BACKEND.json — round 1, decision accept, 0 mustFix, candidat 90ef1a6 appliqué exactement par le shell de confiance sur la base 33cd4ac (7 fichiers functions/) : volet code de DRC-07 prouvé (épinglage observedCaller(request) avec mutations M1/M2b/M3 reproduites par l'auditeur ; completeTask sur identité observée avec refus négatifs cross-foyer/cross-user entre deux foyers ; tsc OK, 68/68 fichiers touchés, 106/106 copie jetable). Volet documentation restant : docs/security/README.md non actualisé depuis le cycle 32684730787",
+          "reference": "reports/audits/CYCLE_32961708279_BACKEND.json — round 1, decision accept, 0 mustFix, candidat 90ef1a6 appliqué exactement par le shell de confiance sur la base 33cd4ac (7 fichiers functions/) : volet code de DRC-07 prouvé (épinglage observedCaller(request) avec mutations M1/M2b/M3 reproduites par l'auditeur ; completeTask sur identité observée avec refus négatifs cross-foyer/cross-user entre deux foyers ; tsc OK, 68/68 fichiers touchés, 106/106 copie jetable).",
           "cycle": "32961708279"
+        },
+        {
+          "kind": "documentation",
+          "reference": "docs/security/README.md actualisé au cycle 33086880966 : décrit observedCaller (extracteur pur sans SDK), câblage 2+1 call sites (createInvite, redeemInvite, completeTask), épinglage source (observedCallerWiring.test.ts), completeTask sur identité observée avec refus cross-foyer/cross-user, contrôles remesurés (106/106 tests), listes des contrôles encore bloqués (8 points), aucune sécurité absolue",
+          "cycle": "33086880966"
+        },
+        {
+          "kind": "audit",
+          "reference": "reports/audits/RUN_33086880966_BACKEND.json — round 1, decision accept, 0 mustFix, docs/security/README.md mis à jour (+4/-2, 1 fichier), toutes les affirmations vérifiées indépendamment (106/106 tests, observedCaller, câblage, épinglage, refus, versions deps, flags, npm audit, limites honnêtes)",
+          "cycle": "33086880966"
         }
       ]
     }
@@ -197,7 +206,7 @@
       "status": "resolved",
       "requiredFix": "Aucune correction exigée : la substance de BE-C4-F1 est prouvée objectivement ; le directeur doit citer les preuves de mutation de l'auditeur dans les éléments de preuve DRC-07.",
       "origin": "audit round 1 accept du candidat intégré 90ef1a6 (aucun rapport codeur accompagnant le snapshot)",
-      "resolution": "Fait : les preuves retenues sont les reproductions indépendantes de l'auditeur sur copies jetables — M1 (observedCaller réécrit en constantes → test 3 rouge), M2b (revert complet de completeTask vers l'objet constant historique → test 2 rouge), M3 (createInvite cesse de lire la requête → test 1 rouge), chacune détectée sans collateral ; citées dans l'entrée audit DRC-07 et à rejouer par l'audit documentation."
+      "resolution": "Fait : les preuves retenues sont les reproductions indépendantes de l'auditeur sur copies jetables — M1 (observedCaller réécrit en constantes → test 3 rouge), M2b (revert complet de completeTask vers l'objet constant historique → test 2 rouge), M3 (createInvite cesse de lire la requête → test 1 rouge), chacune détectée sans collateral ; citées dans l'entrée audit DRC-07. Confirmation documentation : docs/security/README.md actualisé au cycle 33086880966, audit RUN_33086880966_BACKEND.json accepté."
     },
     {
       "id": "BE-CYCLE32961708279-F2",
@@ -205,9 +214,10 @@
       "role": "backend",
       "severity": "info",
       "mustFixBeforeRelease": false,
-      "status": "noted",
+      "status": "resolved",
       "requiredFix": "Aucune action requise pour ce cycle. Lors d'une future passe avec émulateur Firestore, remplacer ou compléter l'épinglage source (regex WIRING_PATTERN + IDENTITY_LITERAL_PATTERN) par un épinglage comportemental au niveau handler ; tout renommage légitime de request/observedCaller devra mettre à jour l'épinglage explicitement avec preuve de mutation.",
-      "origin": "audit round 1 accept du candidat intégré 90ef1a6"
+      "origin": "audit round 1 accept du candidat intégré 90ef1a6",
+      "resolution": "Documentation DRC-07 complétée au cycle 33086880966 : docs/security/README.md décrit l'épinglage source et ses limites (constats BE-CYCLE32961708279-F2/F3 documentés). L'épinglage comportemental reste reporté à l'incrément émulateur."
     },
     {
       "id": "BE-CYCLE32961708279-F3",
@@ -215,9 +225,10 @@
       "role": "backend",
       "severity": "info",
       "mustFixBeforeRelease": false,
-      "status": "noted",
+      "status": "resolved",
       "requiredFix": "Aucune correction avant intégration. Les handlers appelables (createInvite, redeemInvite, completeTask) ne s'exécutent pas bout en bout sans émulateur : à couvrir lors de l'incrément émulateur déjà tracé (concurrence/idempotence sur Firestore émulé), avec refus négatifs cross-foyer/cross-user rejoués au niveau handler.",
-      "origin": "audit round 1 accept du candidat intégré 90ef1a6 ; requireCaller reste appelé en tête des trois handlers, enforceAppCheck conservé"
+      "origin": "audit round 1 accept du candidat intégré 90ef1a6 ; requireCaller reste appelé en tête des trois handlers, enforceAppCheck conservé",
+      "resolution": "Documentation DRC-07 complétée au cycle 33086880966 : docs/security/README.md liste honnêtement les contrôles encore bloqués (8 points dont handlers non bout en bout sans émulateur). L'incrément émulateur reste tracé pour un cycle futur."
     },
     {
       "id": "BE-C4-F1",

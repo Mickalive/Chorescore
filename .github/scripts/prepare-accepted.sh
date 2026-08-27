@@ -44,14 +44,15 @@ fi
 accepted_sha=$(git -C "$accepted" rev-parse HEAD)
 
 jq -e '
-  .schemaVersion==1 and .milestone=="demo-rc" and
-  (.assignments|type=="object") and
+  . as $root |
+  $root.schemaVersion==1 and $root.milestone=="demo-rc" and
+  ($root.assignments|type=="object") and
   all(["mobile","backend"][]; . as $r |
-    (.assignments[$r]|type=="object") and
-    (.assignments[$r].enabled|type=="boolean") and
-    (.assignments[$r].criterionId|type=="string") and
-    (.assignments[$r].objective|type=="string") and
-    (.assignments[$r].acceptance|type=="array"))
+    ($root.assignments[$r]|type=="object") and
+    ($root.assignments[$r].enabled|type=="boolean") and
+    ($root.assignments[$r].criterionId|type=="string") and
+    ($root.assignments[$r].objective|type=="string") and
+    ($root.assignments[$r].acceptance|type=="array"))
 ' "$accepted/directives/TASKS.json" >/dev/null
 
 jq -e '

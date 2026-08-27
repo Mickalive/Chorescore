@@ -1,7 +1,7 @@
 ---
 description: Audite contradictoirement un candidat complet et renvoie les corrections obligatoires au codeur.
 mode: primary
-model: opencode/x-preview-f-free
+model: opencode/deepseek-v4-flash-free
 temperature: 0.05
 permission:
   edit:

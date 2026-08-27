@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Release attestation runs only after the accepted source has produced and passed the standalone APK smoke gate.
 
 source_sha="${SOURCE_SHA:?}"
 apk_sha="${APK_SHA256:?}"

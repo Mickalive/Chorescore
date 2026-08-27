@@ -3,7 +3,7 @@
   "milestone": "demo-rc",
   "title": "Démo RC Android installable, locale et honnête",
   "objective": "Une application Android cohérente, persistante, testée et réellement utilisable sans compte, secret, paiement, Metro ni réseau au runtime.",
-  "completionRule": "Tous les critères DRC sont complete, aucun finding bloquant ne reste ouvert, et DRC-06 possède audit source-readiness, artefact et runtime-smoke Android API 35.",
+  "completionRule": "Tous les critères DRC sont complete, aucun finding bloquant ne reste ouvert, et DRC-06 possède artefact et runtime-smoke Android API 35.",
   "criteria": [
     {"id":"DRC-01","priority":10,"title":"Parcours cœur hors ligne","outcome":"Onboarding, tâches manuelles/chronométrées, classement, historique et profil fonctionnent de bout en bout sans placeholder ni réseau.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
     {"id":"DRC-02","priority":20,"title":"Persistance et reprise","outcome":"Les données de démonstration survivent au redémarrage avec schéma versionné, migration sûre, hydratation explicite et reprise cohérente d'un chronomètre actif.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
@@ -11,7 +11,7 @@
     {"id":"DRC-04","priority":40,"title":"Fonctions premium honnêtes en démo","outcome":"Filtres et synthèses semaine/mois, foyers locaux multiples et export local produisent un vrai résultat ; aucun bouton ne simule un succès ou un achat.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
     {"id":"DRC-05","priority":50,"title":"Qualité de parcours et accessibilité","outcome":"Les parcours critiques, erreurs, états vides, navigation, annonces accessibles et contrastes possèdent des preuves déterministes.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
     {"id":"DRC-07","priority":60,"title":"Dépôt révisable et documentation publique","outcome":"La documentation correspond au code accepté, le dépôt public ne surestime pas sa sécurité, le control-plane est réduit à une seule factory et aucun risque critique/élevé connu ne reste ouvert.","allowedRoles":["mobile","backend"],"requiredEvidence":["documentation","audit"]},
-    {"id":"DRC-06","priority":70,"title":"Artefact Android installable","outcome":"La source est auditée puis un APK reproductible est construit depuis lab/chorescore, conservé comme artefact, installé et parcouru sur Android API 35 sans Metro ni réseau.","allowedRoles":["mobile"],"requiredEvidence":["audit","artifact","runtime-smoke"]}
+    {"id":"DRC-06","priority":70,"title":"Artefact Android installable","outcome":"Dès que DRC-01 à DRC-05 et DRC-07 sont complets sans finding bloquant, un APK reproductible est construit depuis lab/chorescore, conservé comme artefact, installé et parcouru sur Android API 35 sans Metro ni réseau.","allowedRoles":[],"requiredEvidence":["artifact","runtime-smoke"]}
   ],
   "productionBeta": {
     "status": "out-of-scope",

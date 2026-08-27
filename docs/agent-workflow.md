@@ -1,88 +1,32 @@
-# Équipe GitHub OpenCode / Ox
+# ChoreScore Product Factory
 
-La boucle autonome travaille uniquement dans GitHub Actions avec
-`opencode/x-preview-f-free`, sans clé fournisseur. Elle part de la branche
-acceptée persistante `lab/chorescore` et ne fusionne ni ne déploie.
+ChoreScore utilise un seul workflow GitHub Actions : `.github/workflows/chorescore-factory.yml`.
 
-## Une organisation à deux couches
+## Lanes
 
-Les responsabilités stables sont sous `governance/roles/`. Elles sont
-immuables pour toutes les automations et protégées par un manifeste SHA-256.
+Chaque run est un cycle autonome :
 
-Les tâches variables sont sous `directives/` et dans
-`docs/RELEASE_STATUS.json`. Seul le directeur peut les réécrire. Un codeur ne
-peut donc pas agrandir son poste et le directeur ne peut pas modifier sa propre
-fiche.
+- **Mobile engineer** et **Backend engineer** travaillent en parallèle lorsque leur tâche est activée ;
+- chaque candidat est transmis comme artefact temporaire à son **auditeur indépendant** ;
+- les deux audits peuvent eux aussi travailler en parallèle ;
+- une phase unique intègre uniquement les audits `accept`, exécute les checks complets, persiste l'état produit puis lance le **Release Director**.
 
-| Poste | Quand il tourne | Écriture |
-| --- | --- | --- |
-| Ingénieur produit mobile | tâche mobile `enabled: true` | `app/`, `src/`, `tests/` |
-| Ingénieur backend/intégration | tâche backend `enabled: true` | Functions, règles et tests sécurité |
-| Auditeur indépendant | une fois par codeur actif, puis après correction | rapports d'audit uniquement |
-| Directeur de livraison | après les audits | tâches, état et rapport ; jamais le code produit |
+Aucune branche candidate, audit ou recovery n'est créée. `lab/chorescore` est l'unique état produit cumulatif. `main` contient la constitution humaine et la factory.
 
-Les huit anciens agents génériques ont été supprimés. Le workflow n'instancie
-plus un backend inutile pour une tranche purement mobile.
+## Continuité
 
-## Cycle
+Le workflow est planifié toutes les cinq minutes avec un seul groupe de concurrence et `cancel-in-progress: false`. Un cycle en cours n'est jamais annulé par le suivant ; GitHub conserve au plus un successeur en attente. Un run rouge n'efface aucune progression déjà poussée.
 
-1. Le shell rattache `lab/chorescore` à l'historique de `main`, remplace
-   toute la surface de contrôle humaine, supprime les workflows/agents obsolètes,
-   vérifie les empreintes et valide les tâches.
-2. Seuls les codeurs activés partent de l'état accepté, chacun dans son snapshot.
-3. Un auditeur distinct contrôle chaque candidat et produit un JSON strict.
-4. Tout constat `mustFix: true` déclenche le même codeur en correction.
-5. Le candidat corrigé est audité une seconde fois.
-6. Le shell applique exactement une paire candidat/audit `accept` sans
-   `mustFix`; le directeur ne peut modifier que l'état, les tâches et son
-   rapport, puis les vérifications contrôlent aussi que l'arbre produit est
-   resté identique.
-7. Le shell valide la progression, pousse `lab/chorescore`, conserve une seule
-   PR brouillon et relance si la décision vaut `continue`.
+Ox (`opencode/x-preview-f-free`) est le seul modèle. Chaque appel réessaie les pannes transitoires ; après épuisement, le run suivant reprend la même lane depuis `lab/chorescore`.
 
-Un second audit encore négatif ne disparaît pas : toutes ses corrections
-deviennent la première tâche du même poste au cycle suivant.
+## Intégration
 
-## Progression vers un produit fini
+Un candidat n'entre dans `lab/chorescore` que si son audit JSON strict est valide, vaut `accept` et ne contient aucun `mustFix: true`. Les checks application, export Android, Functions et audits de dépendances sont exécutés avant persistance.
 
-La cible immuable est `governance/RELEASE_DEFINITION.json`. Le directeur
-sélectionne au plus deux critères incomplets et doit fournir les types de preuves
-demandés avant de marquer un critère `complete`.
+Le code audité est poussé **avant** l'appel du Directeur : une panne Directeur ne peut donc pas faire perdre un progrès produit déjà validé.
 
-`stalledCycles` est déterministe : un diff produit accepté, une transition
-d'état ou une nouvelle preuve objective remet le compteur à zéro. Sans progrès,
-il augmente jusqu'à deux. Le directeur doit alors réduire ou déplacer la
-tranche ; il ne peut pas arrêter une release encore réalisable localement.
+## Livraison finale
 
-Le jalon courant est une démo RC locale et installable. Firebase/Stripe réels,
-données personnelles, déploiement, validation juridique et test d'intrusion
-restent des prérequis humains séparés pour une future bêta de production.
+Après DRC-05 et DRC-07, le mobile effectue une passe DRC-06 source-readiness auditée. Puis la factory construit l'APK release, l'installe sur Android API 35, coupe réseau Wi-Fi/data, démarre sans Metro, traverse onboarding, reprend un chrono après redémarrage et visite la navigation cœur.
 
-## Continuité et récupération
-
-Les appels OX réessaient les pannes fournisseur à cinq minutes d'intervalle.
-Après épuisement d'un job, le workflow crée après cinq minutes une nouvelle
-exécution récupérant les snapshots déjà publiés. Le bridge attend douze minutes
-et n'intervient qu'en secours si ce successeur n'existe pas. La limite par job
-évite de monopoliser indéfiniment un runner ; la récupération entre runs n'a
-pas de plafond global.
-
-Les branches candidates et rapports restent conservés. Les runs portant une
-preuve de livraison ne sont jamais supprimés par le nettoyage explicite.
-
-## Garde-fous
-
-- actions tierces épinglées à un SHA ;
-- installation par lockfile avec scripts désactivés ;
-- démo sans réseau, secret, compte ou paiement ;
-- aucun auto-merge ni déploiement ;
-- audit contradictoire et checks application/Functions avant relance ;
-- construction finale d'un APK standalone depuis un commit source figé,
-  installation et lancement sur un émulateur Android API 35 sans Metro ni
-  réseau, parcours onboarding, chronomètre persistant et navigation principale,
-  SHA-256, captures et journaux conservés avec l'artefact GitHub pendant
-  90 jours ;
-- une unique PR brouillon `lab/chorescore → main` pour la revue humaine.
-
-Le dépôt est public. Ne jamais y placer de donnée réelle ou de secret. La
-production reste fermée même si la démo est publiquement consultable.
+Le SHA-256, le rapport runtime et l'APK sont conservés comme artefact 90 jours. DRC-06 ne devient `complete` qu'après cette preuve, puis la factory se désactive.

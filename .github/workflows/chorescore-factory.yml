@@ -1,0 +1,352 @@
+name: ChoreScore Product Factory
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/chorescore-factory.yml"
+      - ".github/scripts/**"
+      - ".github/actions/setup-opencode/**"
+      - ".opencode/agents/**"
+      - "MAIN_PROMPT.md"
+      - "AGENTS.md"
+      - "governance/**"
+      - "directives/DIRECTOR.md"
+      - "docs/agent-workflow.md"
+      - "docs/architecture.md"
+      - "docs/product-decisions.md"
+      - "opencode.json"
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: chorescore-product-factory-v3
+  cancel-in-progress: false
+
+env:
+  OX_MODEL: opencode/x-preview-f-free
+  OPENCODE_MAX_ATTEMPTS: "3"
+  OPENCODE_RETRY_DELAY_SECONDS: "300"
+  OPENCODE_ATTEMPT_TIMEOUT_SECONDS: "2400"
+  CYCLE_KEY: ${{ github.run_id }}
+  CI: "true"
+  EXPO_NO_TELEMETRY: "1"
+  EXPO_PUBLIC_DATA_MODE: demo
+
+jobs:
+  prepare:
+    name: Prepare accepted product
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      accepted_sha: ${{ steps.prepare.outputs.accepted_sha }}
+      final: ${{ steps.prepare.outputs.final }}
+      pending_artifact: ${{ steps.prepare.outputs.pending_artifact }}
+      mobile_enabled: ${{ steps.prepare.outputs.mobile_enabled }}
+      backend_enabled: ${{ steps.prepare.outputs.backend_enabled }}
+    steps:
+      - name: Checkout the only control plane
+        uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Prepare clean cumulative state and remove legacy orchestration
+        id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/prepare-accepted.sh
+
+  mobile_candidate:
+    name: Mobile lane — engineer
+    needs: prepare
+    if: ${{ needs.prepare.result == 'success' && needs.prepare.outputs.final != 'true' && needs.prepare.outputs.pending_artifact != 'true' && needs.prepare.outputs.mobile_enabled == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          ref: ${{ needs.prepare.outputs.accepted_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@ae0d4ed08881f17d1511386f5be3e62356acd4a6
+        with:
+          node-version: 22.13.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install locked mobile dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install reviewed Ox/OpenCode CLI
+        uses: ./.github/actions/setup-opencode
+      - name: Produce bounded mobile candidate
+        run: bash .github/scripts/candidate-lane.sh mobile
+      - name: Upload ephemeral mobile candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: candidate-mobile
+          path: ${{ runner.temp }}/candidate-mobile
+          if-no-files-found: error
+          retention-days: 2
+
+  backend_candidate:
+    name: Backend lane — engineer
+    needs: prepare
+    if: ${{ needs.prepare.result == 'success' && needs.prepare.outputs.final != 'true' && needs.prepare.outputs.pending_artifact != 'true' && needs.prepare.outputs.backend_enabled == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          ref: ${{ needs.prepare.outputs.accepted_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@ae0d4ed08881f17d1511386f5be3e62356acd4a6
+        with:
+          node-version: 22.13.0
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      - name: Install locked backend dependencies
+        run: npm --prefix functions ci --ignore-scripts --no-audit --no-fund
+      - name: Install reviewed Ox/OpenCode CLI
+        uses: ./.github/actions/setup-opencode
+      - name: Produce bounded backend candidate
+        run: bash .github/scripts/candidate-lane.sh backend
+      - name: Upload ephemeral backend candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: candidate-backend
+          path: ${{ runner.temp }}/candidate-backend
+          if-no-files-found: error
+          retention-days: 2
+
+  mobile_audit:
+    name: Mobile lane — independent auditor
+    needs: [prepare, mobile_candidate]
+    if: ${{ always() && needs.prepare.result == 'success' && needs.mobile_candidate.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          ref: ${{ needs.prepare.outputs.accepted_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@ae0d4ed08881f17d1511386f5be3e62356acd4a6
+        with:
+          node-version: 22.13.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install locked mobile dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Download mobile candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" -n candidate-mobile -D /tmp/candidate-mobile
+      - name: Install reviewed Ox/OpenCode CLI
+        uses: ./.github/actions/setup-opencode
+      - name: Audit mobile candidate independently
+        env:
+          ACCEPTED_SHA: ${{ needs.prepare.outputs.accepted_sha }}
+        run: bash .github/scripts/audit-lane.sh mobile /tmp/candidate-mobile
+      - name: Upload mobile audit
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: audit-mobile
+          path: ${{ runner.temp }}/audit-mobile
+          if-no-files-found: error
+          retention-days: 14
+
+  backend_audit:
+    name: Backend lane — independent auditor
+    needs: [prepare, backend_candidate]
+    if: ${{ always() && needs.prepare.result == 'success' && needs.backend_candidate.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          ref: ${{ needs.prepare.outputs.accepted_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@ae0d4ed08881f17d1511386f5be3e62356acd4a6
+        with:
+          node-version: 22.13.0
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      - name: Install locked backend dependencies
+        run: npm --prefix functions ci --ignore-scripts --no-audit --no-fund
+      - name: Download backend candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" -n candidate-backend -D /tmp/candidate-backend
+      - name: Install reviewed Ox/OpenCode CLI
+        uses: ./.github/actions/setup-opencode
+      - name: Audit backend candidate independently
+        env:
+          ACCEPTED_SHA: ${{ needs.prepare.outputs.accepted_sha }}
+        run: bash .github/scripts/audit-lane.sh backend /tmp/candidate-backend
+      - name: Upload backend audit
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: audit-backend
+          path: ${{ runner.temp }}/audit-backend
+          if-no-files-found: error
+          retention-days: 14
+
+  director:
+    name: Integrate audited lanes and direct next cycle
+    needs: [prepare, mobile_candidate, backend_candidate, mobile_audit, backend_audit]
+    if: ${{ always() && needs.prepare.result == 'success' && needs.prepare.outputs.final != 'true' && needs.prepare.outputs.pending_artifact != 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 220
+    outputs:
+      accepted_sha: ${{ steps.direct.outputs.accepted_sha }}
+      pending_artifact: ${{ steps.direct.outputs.pending_artifact }}
+    steps:
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          ref: ${{ needs.prepare.outputs.accepted_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@ae0d4ed08881f17d1511386f5be3e62356acd4a6
+        with:
+          node-version: 22.13.0
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
+      - name: Install all locked dependencies
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm --prefix functions ci --ignore-scripts --no-audit --no-fund
+      - name: Download successful lane evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MOBILE_CANDIDATE_RESULT: ${{ needs.mobile_candidate.result }}
+          BACKEND_CANDIDATE_RESULT: ${{ needs.backend_candidate.result }}
+          MOBILE_AUDIT_RESULT: ${{ needs.mobile_audit.result }}
+          BACKEND_AUDIT_RESULT: ${{ needs.backend_audit.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/factory
+          [[ "$MOBILE_CANDIDATE_RESULT" != success ]] || gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" -n candidate-mobile -D /tmp/factory/candidate-mobile
+          [[ "$BACKEND_CANDIDATE_RESULT" != success ]] || gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" -n candidate-backend -D /tmp/factory/candidate-backend
+          [[ "$MOBILE_AUDIT_RESULT" != success ]] || gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" -n audit-mobile -D /tmp/factory/audit-mobile
+          [[ "$BACKEND_AUDIT_RESULT" != success ]] || gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" -n audit-backend -D /tmp/factory/audit-backend
+      - name: Install reviewed Ox/OpenCode CLI
+        uses: ./.github/actions/setup-opencode
+      - name: Integrate only accepted audits, verify product, and run Director
+        id: direct
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACCEPTED_SHA: ${{ needs.prepare.outputs.accepted_sha }}
+          MOBILE_CANDIDATE_RESULT: ${{ needs.mobile_candidate.result }}
+          BACKEND_CANDIDATE_RESULT: ${{ needs.backend_candidate.result }}
+          MOBILE_AUDIT_RESULT: ${{ needs.mobile_audit.result }}
+          BACKEND_AUDIT_RESULT: ${{ needs.backend_audit.result }}
+        run: bash .github/scripts/integrate-director.sh
+
+  release:
+    name: Build and attest final Android APK
+    needs: [prepare, director]
+    if: ${{ always() && needs.prepare.result == 'success' && (needs.prepare.outputs.pending_artifact == 'true' || (needs.director.result == 'success' && needs.director.outputs.pending_artifact == 'true')) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          ref: lab/chorescore
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Prove source is ready for DRC-06
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .pendingArtifact=="DRC-06" and
+            all(.criteria[]; if .id=="DRC-06" then .status=="in_progress" and any(.evidence[]?; .kind=="audit") else .status=="complete" end) and
+            all(.openFindings[]?; (.mustFixBeforeRelease!=true) or .status=="resolved")
+          ' docs/RELEASE_STATUS.json >/dev/null
+      - uses: actions/setup-node@ae0d4ed08881f17d1511386f5be3e62356acd4a6
+        with:
+          node-version: 22.13.0
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
+      - name: Reinstall and reverify exact accepted source
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm --prefix functions ci --ignore-scripts --no-audit --no-fund
+          npm run check
+          npx --no-install expo export --platform android --output-dir "$RUNNER_TEMP/chorescore-final-export"
+          npm --prefix functions run check
+          npm audit --omit=dev --audit-level=high
+          npm --prefix functions audit --omit=dev --audit-level=high
+      - name: Build release APK
+        id: build
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_sha=$(git rev-parse HEAD)
+          npx --no-install expo prebuild --platform android --no-install
+          git diff --exit-code -- package.json package-lock.json app.json
+          (cd android && ./gradlew :app:assembleRelease --no-daemon --stacktrace)
+          apk="$GITHUB_WORKSPACE/android/app/build/outputs/apk/release/app-release.apk"
+          test -s "$apk"
+          apk_sha=$(sha256sum "$apk" | awk '{print $1}')
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "apk_path=$apk" >> "$GITHUB_OUTPUT"
+          echo "apk_sha256=$apk_sha" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=chorescore-demo-rc-$source_sha" >> "$GITHUB_OUTPUT"
+      - name: Enable Android emulator acceleration
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -r /dev/kvm && test -w /dev/kvm
+      - name: Smoke standalone APK on API 35 without Metro or network
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 35
+          target: default
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash "$GITHUB_WORKSPACE/.github/scripts/smoke-android-apk.sh" "${{ steps.build.outputs.apk_path }}" com.mickalive.chorescore "$RUNNER_TEMP/chorescore-runtime-smoke"
+      - name: Upload final installable APK
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ${{ steps.build.outputs.artifact_name }}
+          path: |
+            ${{ steps.build.outputs.apk_path }}
+            ${{ runner.temp }}/chorescore-runtime-smoke
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+      - name: Attest final release and stop the factory
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.build.outputs.source_sha }}
+          APK_SHA256: ${{ steps.build.outputs.apk_sha256 }}
+          ARTIFACT_NAME: ${{ steps.build.outputs.artifact_name }}
+        run: bash .github/scripts/release-attest.sh
+
+  stop_if_already_final:
+    name: Stop already-complete factory
+    needs: prepare
+    if: ${{ needs.prepare.result == 'success' && needs.prepare.outputs.final == 'true' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Disable the only workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/chorescore-factory.yml/disable" >/dev/null

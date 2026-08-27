@@ -1,23 +1,14 @@
 {
   "schemaVersion": 1,
   "milestone": "demo-rc",
-  "updatedBy": "director-33111799778",
-  "activeCriteria": [
-    "DRC-06"
-  ],
+  "updatedBy": "director-33111958796",
+  "activeCriteria": [],
   "assignments": {
     "mobile": {
-      "enabled": true,
+      "enabled": false,
       "criterionId": "DRC-06",
-      "objective": "Tâche bornée DRC-06 source-readiness : vérifier que l'état accepté (SHA 37b6d05) est apte au build APK release. Vérifier l'absence de placeholder, de code dev-only ou de dépendance réseau dans le code produit ; confirmer que les exports/config Android (app.json, eas.json ou équivalent) sont cohérents avec la démo hors ligne ; s'assurer que la démo fonctionne sans Metro ni réseau au runtime ; documenter tout point bloquant résiduel. Ne construit pas l'APK — cette tâche est une pré-vérification auditable.",
-      "acceptance": [
-        "revue de l'état accepté : aucun placeholder, '// TODO', 'console.log' de debug ou code conditionnel node-only dans app/ et src/",
-        "exports/config Android vérifiés : app.json, eas.json ou équivalent représentent correctement la démo hors ligne (EXPO_PUBLIC_DATA_MODE=demo)",
-        "démo hors ligne cohérente : aucun import conditionnel vers des services réels (Firebase, Stripe, analytics) dans le code produit ; aucun appel réseau au runtime en mode demo",
-        "tests existants passent : npm run check vert (164+ tests)",
-        "points bloquants résiduels documentés dans le rapport du codeur (le cas échéant)",
-        "auditeur indépendant valide la source-readiness avec décision accept, 0 mustFix"
-      ]
+      "objective": "DRC-06 source-readiness acceptée (audit RUN_33111958796_MOBILE.json, decision accept, 0 mustFix, delta zéro). Aucune tâche restante pour ce poste.",
+      "acceptance": []
     },
     "backend": {
       "enabled": false,

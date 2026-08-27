@@ -2,12 +2,10 @@
   "schemaVersion": 1,
   "milestone": "demo-rc",
   "governanceVersion": "2026-08-25-v1",
-  "lastCycle": "33111799778",
-  "activeCriteria": [
-    "DRC-06"
-  ],
+  "lastCycle": "33111958796",
+  "activeCriteria": [],
   "stalledCycles": 0,
-  "progressSummary": "Cycle 33111799778 : delta zéro mobile (verification-only), audit indépendant RUN_33111799778_MOBILE.json accepté, 0 mustFix. textSecondary #3C6E8E ≥ 4,5:1 sur les 8 fonds réels, 164/164 tests, preuve de mutation. MOB-CYCLE32961708279-SEG résolu. DRC-05 passe à complete. DRC-01 à DRC-04 déjà complete. DRC-07 déjà complete. DRC-06 en attente de source-readiness audit mobile. SHA courant 37b6d05.",
+  "progressSummary": "Cycle 33111958796 : DRC-06 source-readiness audit accepté (verification-only, delta zéro, 0 mustFix). DRC-01 à DRC-05 et DRC-07 tous complete. Aucun finding mustFixBeforeRelease non résolu. DRC-06 passe à in_progress, pendingArtifact='DRC-06'. Les deux codeurs désactivés. Décision stop — le shell de confiance construit, atteste et publie l'APK release.",
   "blocker": null,
   "criteria": [
     {
@@ -107,8 +105,14 @@
     },
     {
       "id": "DRC-06",
-      "status": "pending",
-      "evidence": []
+      "status": "in_progress",
+      "evidence": [
+        {
+          "kind": "audit",
+          "reference": "reports/audits/RUN_33111958796_MOBILE.json — source-readiness verification-only, delta zéro, decision accept, 0 mustFix. Le code produit est apte au build APK release : aucun placeholder/TODO/console.log, aucune dépendance réseau vers des services réels, config Android cohérente, démo câblée en dur en mode hors ligne, 164/164 tests, npm audit prod high = 0.",
+          "cycle": "33111958796"
+        }
+      ]
     },
     {
       "id": "DRC-07",
@@ -132,7 +136,7 @@
       ]
     }
   ],
-  "pendingArtifact": null,
+  "pendingArtifact": "DRC-06",
   "openFindings": [
     {
       "id": "MOB-C4-F1",

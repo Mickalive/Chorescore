@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "cycle": "33111958796",
+  "decision": "stop",
+  "reason": "DRC-01 à DRC-05 et DRC-07 tous complete. DRC-06 source-readiness audit accepté (RUN_33111958796_MOBILE.json, verification-only, delta zéro, 0 mustFix). Aucun finding mustFixBeforeRelease non résolu. DRC-06 passe à in_progress, pendingArtifact='DRC-06'. Les deux codeurs désactivés. Le shell de confiance construit, atteste et publie l'APK release.",
+  "activeCriteria": [],
+  "progressEvidence": [
+    "DRC-06 source-readiness acceptée : audit RUN_33111958796_MOBILE.json, decision accept, 0 mustFix, delta zéro",
+    "Code produit apte au build APK : aucun placeholder/TODO/console.log, aucune dépendance réseau, config Android cohérente, démo câblée en dur en mode hors ligne",
+    "164/164 tests passent, npm audit prod high = 0",
+    "Mutation proof : ProductionAppService remplaçant DemoAppService échoue le test d'activation démo",
+    "DRC-01 à DRC-05 complets avec preuves tests + audit",
+    "DRC-07 complet avec documentation + audit"
+  ],
+  "next": {
+    "mobile": "Désactivé — aucun travail source restant",
+    "backend": "Désactivé — DRC-07 complete",
+    "audit": "Aucune lane audit active — les deux codeurs sont désactivés"
+  },
+  "humanActions": []
+}

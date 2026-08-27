@@ -29,23 +29,18 @@ jobs:
         uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
         with:
           persist-credentials: false
-
       - name: Node baseline
         uses: actions/setup-node@ae0d4ed08881f17d1511386f5be3e62356acd4a6
         with:
           node-version: 22.13.0
           cache: npm
           cache-dependency-path: package-lock.json
-
       - name: Locked install
         run: npm ci --ignore-scripts --no-audit --no-fund
-
       - name: Typecheck and tests
         run: npm run check
-
       - name: Offline Android bundle
         run: npx --no-install expo export --platform android --output-dir "$RUNNER_TEMP/chorescore-android"
-
       - name: Production vulnerability gate
         run: npm audit --omit=dev --audit-level=high
 
@@ -61,20 +56,16 @@ jobs:
         uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
         with:
           persist-credentials: false
-
       - name: Node baseline
         uses: actions/setup-node@ae0d4ed08881f17d1511386f5be3e62356acd4a6
         with:
           node-version: 22.13.0
           cache: npm
           cache-dependency-path: functions/package-lock.json
-
       - name: Locked install
         run: npm ci --ignore-scripts --no-audit --no-fund
-
       - name: Typecheck and tests
         run: npm run check
-
       - name: Production vulnerability gate
         run: npm audit --omit=dev --audit-level=high
 
@@ -83,16 +74,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
-      IMMUTABLE_MANIFEST_SHA256: eba7b17dff1f9f004c469260236c83cb43305d1649c5d2e780e090ad4db90b39
+      IMMUTABLE_MANIFEST_SHA256: 5686b277148abca0d329523d2e01f37e590c24e7da4ac2958833446c17f7be9c
     steps:
       - name: Checkout
         uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
         with:
           persist-credentials: false
-
       - name: Immutable constitution
         run: bash .github/scripts/verify-immutable-governance.sh
-
       - name: Control-plane architecture
         shell: bash
         run: |

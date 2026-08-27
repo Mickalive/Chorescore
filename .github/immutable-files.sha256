@@ -1,4 +1,3 @@
-17e83e5b3c5ef35b3d05ed5146fd51fd3ccadbbd9325a1474247198d3cf9e6da  .github/scripts/ensure-continuous-loop.sh
 f0b5da9241c4c42620a58b23f662aef5be17445949e797941375ed13df9e862b  .github/scripts/integrate-audited-candidates.sh
 60dc3bb70926c279fcd671e3f9a6cb77ae011a5c7e645515bb50ff0eb1369b0d  .github/scripts/normalize-audit-json.sh
 10ba60483b165a2875e7d6db6defb940bce39f9be6bea0e20e58a658cc79c478  .github/scripts/run-opencode-with-retry.sh
@@ -9,7 +8,7 @@ c0af8da3490999e8c43cf1336b25f13c47524aa4d202566bf9aa6c64199abd19  .github/script
 672356a377b3d3bd1c7d8750aaefb67bf957d1e9659a88663473e3eef43bca86  .github/scripts/verify-final-release.sh
 0b821695627fbfcc52dd79fab05e22fcc5b2469984d25712a458fd28f52bf80f  .github/scripts/verify-immutable-governance.sh
 6dcc46bf2be14e3579de14e6de134823b7399165e137871dc5e3ae15e5bd5c80  .github/scripts/verify-product-coherence.sh
-b9ae5bc4ead5a9fac1eb7e5ff8726ab96f10b78279874db07adf1c46039797f4  .github/scripts/verify-workflow-architecture.sh
+09c45994cf289a6bd9ec5f9e9b2dfff65b5fc4928aedb96f4329bb1fd81e1afc  .github/scripts/verify-workflow-architecture.sh
 6a84e3946f3abd6c8379e549dee86feae5210ed853457eccd4292a6a79d43ecd  .opencode/agents/backend-cycle-runner.md
 996b4d525200f6c258f21bfa0c926b32f2a4f190ae31ba33b4558c02f972d82f  .opencode/agents/cycle-auditor.md
 62819dfbef7d89b442d4fbf9d106d84db191ab4b130daf5a24dfd66fb64fbf4d  .opencode/agents/cycle-director.md

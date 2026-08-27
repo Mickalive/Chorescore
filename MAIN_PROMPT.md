@@ -94,25 +94,38 @@ Les candidats et audits transitent par des artefacts temporaires du run ; ils ne
 
 Chaque cycle suit cet ordre :
 1. synchroniser la constitution humaine depuis `main` vers l'état accepté sans écraser les tâches/état dynamiques ;
-2. lancer les codeurs activés en lanes séparées ;
-3. lancer un auditeur distinct pour chaque candidat produit ;
-4. intégrer seulement une paire dont l'audit JSON strict vaut `accept` et ne contient aucun `mustFix: true` ;
-5. exécuter les vérifications complètes application, export Android, Functions et audits de dépendances ;
-6. persister immédiatement le code audité sur `lab/chorescore` avant l'appel du Directeur ;
-7. exécuter le Directeur, qui met à jour uniquement l'état et les prochaines tâches ;
-8. laisser le run suivant reprendre depuis `lab/chorescore`.
+2. auditer en parallèle les modèles gratuits OpenCode connus avec un vrai appel outil headless ;
+3. sélectionner les modèles sains et adaptés aux rôles, avec diversité codeur/auditeur dès qu'au moins deux modèles sont sains ;
+4. lancer les codeurs activés en lanes séparées ;
+5. lancer un auditeur distinct pour chaque candidat produit ;
+6. intégrer seulement une paire dont l'audit JSON strict vaut `accept` et ne contient aucun `mustFix: true` ;
+7. exécuter les vérifications complètes application, export Android, Functions et audits de dépendances ;
+8. persister immédiatement le code audité sur `lab/chorescore` avant l'appel du Directeur ;
+9. exécuter le Directeur, qui met à jour uniquement l'état et les prochaines tâches ;
+10. laisser le run suivant reprendre depuis `lab/chorescore`.
 
 Les branches `cycle/*`, recovery branches, Launch Bridge, CI parallèle et watchdog séparé n'appartiennent plus à l'architecture.
 
-## Continuité
+## Modèles gratuits et continuité
 
-L'usine n'a **aucun plafond global de cycles**.
+L'usine n'a **aucun plafond global de cycles** et ne dépend d'aucun modèle gratuit unique.
 
-Ox est le seul modèle autorisé : `opencode/x-preview-f-free`. Une indisponibilité fournisseur provoque des retries espacés puis une nouvelle tentative de la même lane lors d'un run suivant ; elle ne transforme jamais une release incomplète en état terminal.
+Seuls des modèles gratuits servis par OpenCode Zen et **ayant réussi le probe réel du cycle** peuvent être utilisés. Le probe doit prouver qu'un `opencode run` headless réussit un vrai appel outil en lisant un nonce inconnu. Une simple réponse texte ou la seule présence du modèle dans un catalogue ne suffit pas.
+
+La factory maintient un pool de modèles gratuits connus et peut y inclure des modèles encore routables même lorsqu'ils viennent d'être retirés d'une page de documentation. Les modèles indisponibles, limités ou cassés sont simplement écartés pour ce cycle.
+
+Le modèle choisi est toujours passé explicitement par `opencode run --model ...`. Le frontmatter d'un agent n'est jamais l'autorité de sélection.
+
+La préférence de rôle est déterministe :
+- code : modèles gratuits orientés coding et tool-calling fiables ;
+- audit/Direction : modèles gratuits aptes au raisonnement multi-fichiers et aux outils ;
+- si plusieurs modèles sont sains, un auditeur utilise de préférence un modèle différent de son codeur.
+
+Une panne fournisseur, un 403/429, un timeout ou une dégradation d'un modèle provoque des retries bornés du job puis un nouveau probe au cycle suivant. Aucune panne de modèle ne transforme une release incomplète en état terminal.
 
 Le workflow est déclenché toutes les cinq minutes et utilise un groupe de concurrence unique avec `cancel-in-progress: false` : un cycle en cours continue, tandis qu'au plus un successeur attend. Un run rouge ne détruit aucune progression déjà poussée sur `lab/chorescore`.
 
-La stagnation, un audit négatif, une panne Ox, un build rouge ou l'absence de candidat signifient **continuer/corriger**, jamais « produit terminé ».
+La stagnation, un audit négatif, une panne de modèle, un build rouge ou l'absence de candidat signifient **continuer/corriger**, jamais « produit terminé ».
 
 ## DRC-06 et condition terminale unique
 

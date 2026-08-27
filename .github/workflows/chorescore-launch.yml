@@ -1,6 +1,14 @@
 name: ChoreScore Supervisor
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/chorescore-loop.yml"
+      - ".github/workflows/chorescore-launch.yml"
+      - ".github/workflows/ci.yml"
+      - ".github/scripts/**"
   workflow_run:
     workflows:
       - "ChoreScore Autonomous App Loop"

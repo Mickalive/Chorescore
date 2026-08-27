@@ -17,10 +17,27 @@ workflow_count=$(find "$worktree/.github/workflows" -maxdepth 1 -type f -name '*
 [[ "$workflow_count" -eq 1 && -f "$worktree/.github/workflows/chorescore-factory.yml" ]] || { echo "::error::Expected exactly one workflow." >&2; exit 20; }
 git -C "$worktree" config user.name chorescore-factory
 git -C "$worktree" config user.email chorescore-factory@users.noreply.github.com
+status_file="$worktree/docs/RELEASE_STATUS.json"; tasks_file="$worktree/directives/TASKS.json"; test -s "$status_file" && test -s "$tasks_file"
+# Expo SDK 57's native C++ bridge requires the SDK-compatible Reanimated/Worklets pair.
+# npm's peer resolver previously floated these to Reanimated 4.6.0 + Worklets 0.12.1,
+# which passes JS tests/export but cannot compile expo-modules-core (WorkletRuntime::executeSync was removed).
+# Normalize the accepted source itself before DRC-06 so the APK is always built from a committed lockfile.
+if jq -e '.pendingArtifact=="DRC-06"' "$status_file" >/dev/null; then
+  if ! jq -e '.dependencies["react-native-reanimated"]=="4.5.1" and .dependencies["react-native-worklets"]=="0.10.1"' "$worktree/package.json" >/dev/null 2>&1 || \
+     ! jq -e '.packages["node_modules/react-native-reanimated"].version=="4.5.1" and .packages["node_modules/react-native-worklets"].version=="0.10.1"' "$worktree/package-lock.json" >/dev/null 2>&1; then
+    command -v npm >/dev/null 2>&1 || { echo "::error::npm is required to normalize Expo 57 native dependencies." >&2; exit 21; }
+    echo "Normalizing Expo 57 native pair: react-native-reanimated=4.5.1, react-native-worklets=0.10.1"
+    (
+      cd "$worktree"
+      npm install --package-lock-only --ignore-scripts --no-audit --no-fund --save-exact react-native-reanimated@4.5.1 react-native-worklets@0.10.1
+    )
+    jq -e '.dependencies["react-native-reanimated"]=="4.5.1" and .dependencies["react-native-worklets"]=="0.10.1"' "$worktree/package.json" >/dev/null
+    jq -e '.packages["node_modules/react-native-reanimated"].version=="4.5.1" and .packages["node_modules/react-native-worklets"].version=="0.10.1"' "$worktree/package-lock.json" >/dev/null
+  fi
+fi
 git -C "$worktree" add -A
 if ! git -C "$worktree" diff --cached --quiet; then git -C "$worktree" commit -m "ChoreScore factory: align clean control plane"; git -c "http.extraheader=AUTHORIZATION: basic $auth" -C "$worktree" push origin "HEAD:refs/heads/lab/chorescore"; fi
 accepted_sha=$(git -C "$worktree" rev-parse HEAD)
-status_file="$worktree/docs/RELEASE_STATUS.json"; tasks_file="$worktree/directives/TASKS.json"; test -s "$status_file" && test -s "$tasks_file"
 jq -e '.milestone=="demo-rc" and ([.criteria[].id]|sort)==(["DRC-01","DRC-02","DRC-03","DRC-04","DRC-05","DRC-06","DRC-07"]|sort)' "$status_file" >/dev/null
 jq -e '.schemaVersion>=1 and (.assignments.mobile.enabled|type=="boolean") and (.assignments.backend.enabled|type=="boolean")' "$tasks_file" >/dev/null
 final=false

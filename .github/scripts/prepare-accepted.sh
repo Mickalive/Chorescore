@@ -2,103 +2,148 @@
 set -euo pipefail
 
 repo="${GITHUB_REPOSITORY:?}"
-auth=$(printf 'x-access-token:%s' "${GH_TOKEN:?}" | base64 -w0)
+cycle="${CYCLE_KEY:?}"
+run_number="${GITHUB_RUN_NUMBER:?}"
 main_sha=$(git rev-parse HEAD)
+auth=$(printf 'x-access-token:%s' "${GH_TOKEN:?}" | base64 -w0)
 
-test "$repo" = "Mickalive/Chorescore"
-test "$(find .github/workflows -maxdepth 1 -type f -name '*.yml' | wc -l)" -eq 1
-test -s .github/workflows/chorescore-factory.yml
-for f in MAIN_PROMPT.md AGENTS.md governance/RELEASE_DEFINITION.json governance/roles/MOBILE_PRODUCT_ENGINEER.md governance/roles/BACKEND_INTEGRATION_ENGINEER.md governance/roles/INDEPENDENT_RELEASE_AUDITOR.md governance/roles/RELEASE_DIRECTOR.md directives/DIRECTOR.md .opencode/agents/mobile-cycle-runner.md .opencode/agents/backend-cycle-runner.md .opencode/agents/cycle-auditor.md .opencode/agents/cycle-director.md; do
-  test -s "$f"
-done
-
-git -c "http.extraheader=AUTHORIZATION: basic $auth" fetch origin \
-  "+refs/heads/lab/chorescore:refs/remotes/origin/lab/chorescore" \
-  "+refs/heads/main:refs/remotes/origin/main"
-accepted="${RUNNER_TEMP:?}/accepted-prepare"
-rm -rf "$accepted"
-git worktree add --detach "$accepted" refs/remotes/origin/lab/chorescore
-accepted_before=$(git -C "$accepted" rev-parse HEAD)
-
-for path in .github .opencode governance; do
-  git -C "$accepted" rm -r -f --ignore-unmatch -- "$path" >/dev/null 2>&1 || true
-done
-for path in AGENTS.md CLAUDE.md MAIN_PROMPT.md opencode.json directives/DIRECTOR.md docs/agent-workflow.md docs/architecture.md docs/product-decisions.md; do
-  git -C "$accepted" rm -f --ignore-unmatch -- "$path" >/dev/null 2>&1 || true
-done
-git -C "$accepted" checkout "$main_sha" -- \
-  .github .opencode governance AGENTS.md CLAUDE.md MAIN_PROMPT.md opencode.json \
-  directives/DIRECTOR.md docs/agent-workflow.md docs/architecture.md docs/product-decisions.md
-
-git -C "$accepted" add -A -- \
-  .github .opencode governance AGENTS.md CLAUDE.md MAIN_PROMPT.md opencode.json \
-  directives/DIRECTOR.md docs/agent-workflow.md docs/architecture.md docs/product-decisions.md
-if ! git -C "$accepted" diff --cached --quiet; then
-  git -C "$accepted" config user.name chorescore-factory
-  git -C "$accepted" config user.email chorescore-factory@users.noreply.github.com
-  git -C "$accepted" commit -m "ChoreScore factory v3: align clean control plane"
+# The only persistent product state is lab/chorescore. Create it from main only if
+# the repository has never had an accepted lane.
+if git ls-remote --exit-code --heads origin refs/heads/lab/chorescore >/dev/null 2>&1; then
   git -c "http.extraheader=AUTHORIZATION: basic $auth" fetch origin "+refs/heads/lab/chorescore:refs/remotes/origin/lab/chorescore"
-  test "$(git -C "$accepted" rev-parse refs/remotes/origin/lab/chorescore)" = "$accepted_before"
-  git -c "http.extraheader=AUTHORIZATION: basic $auth" -C "$accepted" push origin "HEAD:refs/heads/lab/chorescore"
+  accepted_sha=$(git rev-parse refs/remotes/origin/lab/chorescore)
+else
+  accepted_sha="$main_sha"
+  git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin "$main_sha:refs/heads/lab/chorescore"
 fi
-accepted_sha=$(git -C "$accepted" rev-parse HEAD)
 
-jq -e '
-  . as $root |
-  $root.schemaVersion==1 and $root.milestone=="demo-rc" and
-  ($root.assignments|type=="object") and
-  all(["mobile","backend"][]; . as $r |
-    ($root.assignments[$r]|type=="object") and
-    ($root.assignments[$r].enabled|type=="boolean") and
-    ($root.assignments[$r].criterionId|type=="string") and
-    ($root.assignments[$r].objective|type=="string") and
-    ($root.assignments[$r].acceptance|type=="array"))
-' "$accepted/directives/TASKS.json" >/dev/null
+# Sync the human-owned constitution/control files from main onto the cumulative
+# accepted lane. This never copies application/product state from main.
+worktree="${RUNNER_TEMP:?}/chorescore-accepted-prepare"
+rm -rf "$worktree"
+git worktree add --detach "$worktree" "$accepted_sha"
 
-jq -e '
-  .schemaVersion==1 and .milestone=="demo-rc" and
-  ([.criteria[].id]|sort)==(["DRC-01","DRC-02","DRC-03","DRC-04","DRC-05","DRC-06","DRC-07"]|sort)
-' "$accepted/docs/RELEASE_STATUS.json" >/dev/null
-
-final=$(jq -r '
-  all(.criteria[]; .status=="complete") and
-  .pendingArtifact==null and
-  (.activeCriteria|length)==0 and
-  all(.openFindings[]?; (.mustFixBeforeRelease!=true) or .status=="resolved") and
-  any(.criteria[]; .id=="DRC-06" and any(.evidence[]?; .kind=="artifact") and any(.evidence[]?; .kind=="runtime-smoke"))
-' "$accepted/docs/RELEASE_STATUS.json")
-pending=$(jq -r '.pendingArtifact=="DRC-06"' "$accepted/docs/RELEASE_STATUS.json")
-mobile_enabled=$(jq -r '.assignments.mobile.enabled' "$accepted/directives/TASKS.json")
-backend_enabled=$(jq -r '.assignments.backend.enabled' "$accepted/directives/TASKS.json")
-
-echo "accepted_sha=$accepted_sha" >> "${GITHUB_OUTPUT:?}"
-echo "final=$final" >> "$GITHUB_OUTPUT"
-echo "pending_artifact=$pending" >> "$GITHUB_OUTPUT"
-echo "mobile_enabled=$mobile_enabled" >> "$GITHUB_OUTPUT"
-echo "backend_enabled=$backend_enabled" >> "$GITHUB_OUTPUT"
-
-while IFS= read -r ref; do
-  [[ -n "$ref" ]] || continue
-  short=${ref#refs/heads/}
-  gh api -X DELETE "repos/$repo/git/refs/heads/$short" >/dev/null 2>&1 || true
-done < <(gh api --paginate "repos/$repo/git/matching-refs/heads/cycle/" --jq '.[].ref' 2>/dev/null || true)
-
-gh api -X DELETE "repos/$repo/git/refs/heads/tmp-shard-proof" >/dev/null 2>&1 || true
-
-while IFS= read -r ref; do
-  [[ -n "$ref" ]] || continue
-  short=${ref#refs/heads/}
-  case "$short" in
-    archive/chorescore/pre-single-factory-main-final-20260827|archive/chorescore/pre-single-factory-accepted-20260827-v2|archive/chorescore/pre-single-factory-controlplane-20260827) continue ;;
-  esac
-  gh api -X DELETE "repos/$repo/git/refs/heads/$short" >/dev/null 2>&1 || true
-done < <(gh api --paginate "repos/$repo/git/matching-refs/heads/archive/chorescore/" --jq '.[].ref' 2>/dev/null || true)
-
-while IFS=$'\t' read -r run_id path status; do
-  [[ -n "$run_id" ]] || continue
-  [[ "$path" != ".github/workflows/chorescore-factory.yml" ]] || continue
-  if [[ "$status" != completed ]]; then
-    gh api -X POST "repos/$repo/actions/runs/$run_id/force-cancel" >/dev/null 2>&1 || true
+human_paths=(
+  MAIN_PROMPT.md
+  AGENTS.md
+  governance
+  directives/DIRECTOR.md
+  .opencode/agents
+  .github/workflows/chorescore-factory.yml
+  .github/actions/setup-opencode
+  .github/scripts
+)
+for path in "${human_paths[@]}"; do
+  rm -rf "$worktree/$path"
+  if git cat-file -e "$main_sha:$path" 2>/dev/null; then
+    mkdir -p "$worktree/$(dirname "$path")"
+    git archive "$main_sha" "$path" | tar -x -C "$worktree"
   fi
-  gh api -X DELETE "repos/$repo/actions/runs/$run_id" >/dev/null 2>&1 || true
-done < <(gh api --paginate "repos/$repo/actions/runs?per_page=100" --jq '.workflow_runs[] | [.id,.path,.status] | @tsv' 2>/dev/null || true)
+done
+
+# Remove obsolete control-plane files from the accepted lane if they survived
+# from historical states.
+rm -f \
+  "$worktree/.github/workflows/chorescore-loop.yml" \
+  "$worktree/.github/workflows/chorescore-launch.yml" \
+  "$worktree/.github/workflows/ci.yml" \
+  "$worktree/.github/scripts/ensure-continuous-loop.sh" \
+  "$worktree/.github/scripts/verify-workflow-architecture.sh" \
+  "$worktree/.github/scripts/verify-immutable-governance.sh" \
+  "$worktree/.github/immutable-files.sha256"
+rm -rf "$worktree/.chorescore"
+
+# The accepted lane must expose exactly one workflow.
+workflow_count=$(find "$worktree/.github/workflows" -maxdepth 1 -type f -name '*.yml' | wc -l)
+if [[ "$workflow_count" -ne 1 ]] || [[ ! -f "$worktree/.github/workflows/chorescore-factory.yml" ]]; then
+  echo "::error::Accepted lane does not contain exactly the single ChoreScore factory workflow." >&2
+  exit 20
+fi
+
+git -C "$worktree" config user.name chorescore-factory
+git -C "$worktree" config user.email chorescore-factory@users.noreply.github.com
+git -C "$worktree" add -A -- "${human_paths[@]}" .github .chorescore 2>/dev/null || git -C "$worktree" add -A
+if ! git -C "$worktree" diff --cached --quiet; then
+  git -C "$worktree" commit -m "ChoreScore factory: align clean control plane"
+  git -c "http.extraheader=AUTHORIZATION: basic $auth" -C "$worktree" push origin "HEAD:refs/heads/lab/chorescore"
+fi
+accepted_sha=$(git -C "$worktree" rev-parse HEAD)
+
+# Release state remains the sole authority for whether product work is complete.
+status_file="$worktree/docs/RELEASE_STATUS.json"
+tasks_file="$worktree/directives/TASKS.json"
+test -s "$status_file"
+test -s "$tasks_file"
+jq -e '.milestone=="demo-rc" and ([.criteria[].id] | sort) == (["DRC-01","DRC-02","DRC-03","DRC-04","DRC-05","DRC-06","DRC-07"] | sort)' "$status_file" >/dev/null
+jq -e '.schemaVersion>=1 and (.assignments.mobile.enabled|type=="boolean") and (.assignments.backend.enabled|type=="boolean")' "$tasks_file" >/dev/null
+
+final=false
+if jq -e '
+  all(.criteria[]; .status=="complete") and
+  (.activeCriteria|length)==0 and
+  .pendingArtifact==null and
+  ([.openFindings[]? | select(.mustFixBeforeRelease==true and .status=="unresolved")] | length)==0 and
+  any(.criteria[] | select(.id=="DRC-06") | .evidence[]?; .kind=="artifact") and
+  any(.criteria[] | select(.id=="DRC-06") | .evidence[]?; .kind=="runtime-smoke")
+' "$status_file" >/dev/null; then
+  final=true
+fi
+pending_artifact=$(jq -r '.pendingArtifact=="DRC-06"' "$status_file")
+mobile_enabled=$(jq -r '.assignments.mobile.enabled' "$tasks_file")
+backend_enabled=$(jq -r '.assignments.backend.enabled' "$tasks_file")
+
+# Legacy refs are not part of the architecture anymore. Remove every old
+# cycle/recovery ref. Archive snapshots are deliberately not touched here.
+while IFS= read -r ref; do
+  [[ -z "$ref" ]] && continue
+  case "$ref" in
+    refs/heads/cycle/chorescore/*|refs/heads/recovery/chorescore/*)
+      git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin ":$ref" || true
+      ;;
+  esac
+done < <(git ls-remote --heads origin | awk '{print $2}')
+
+# Purge every workflow run older than this run. This makes Actions history obey
+# the same single-factory architecture instead of accumulating obsolete runs.
+# Never touch this run or a later run number; a queued successor is therefore safe.
+page=1
+while :; do
+  runs=$(gh api "repos/$repo/actions/runs?per_page=100&page=$page")
+  count=$(jq '.workflow_runs | length' <<<"$runs")
+  [[ "$count" -eq 0 ]] && break
+
+  while IFS=$'\t' read -r run_id old_number status; do
+    [[ -z "$run_id" ]] && continue
+    [[ "$run_id" == "$GITHUB_RUN_ID" ]] && continue
+    [[ "$old_number" =~ ^[0-9]+$ ]] || continue
+    (( old_number < run_number )) || continue
+
+    if [[ "$status" != "completed" ]]; then
+      gh api -X POST "repos/$repo/actions/runs/$run_id/force-cancel" >/dev/null 2>&1 || \
+        gh api -X POST "repos/$repo/actions/runs/$run_id/cancel" >/dev/null 2>&1 || true
+    fi
+    if gh api -X DELETE "repos/$repo/actions/runs/$run_id" >/dev/null 2>&1; then
+      echo "Deleted obsolete workflow run $run_id (#$old_number, $status)."
+    else
+      echo "::warning::GitHub retained obsolete workflow run $run_id (#$old_number, $status); it is not part of factory state."
+    fi
+  done < <(jq -r '.workflow_runs[] | [.id, .run_number, .status] | @tsv' <<<"$runs")
+
+  (( count < 100 )) && break
+  ((page++))
+done
+
+# Garbage-collect detached worktree metadata; all ephemeral role state lives in
+# Actions artifacts and runner filesystems, never persistent candidate branches.
+git worktree remove --force "$worktree"
+git worktree prune
+
+{
+  echo "accepted_sha=$accepted_sha"
+  echo "final=$final"
+  echo "pending_artifact=$pending_artifact"
+  echo "mobile_enabled=$mobile_enabled"
+  echo "backend_enabled=$backend_enabled"
+} >> "${GITHUB_OUTPUT:?}"
+
+echo "Clean factory state ready at $accepted_sha (cycle $cycle)."

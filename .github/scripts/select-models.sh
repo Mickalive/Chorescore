@@ -10,74 +10,95 @@ mapfile -t probe_files < <(find "$probe_root" -type f -name probe.json -print | 
 (( ${#probe_files[@]} > 0 ))
 
 healthy=()
+responsive=()
 for file in "${probe_files[@]}"; do
   if jq -e '.healthy==true' "$file" >/dev/null; then
-    healthy+=("$(jq -r '.model' "$file")")
+    model=$(jq -r '.model' "$file")
+    elapsed=$(jq -r '.elapsedSeconds // 9999' "$file")
+    healthy+=("$model")
+    if [[ "$elapsed" =~ ^[0-9]+$ ]] && (( elapsed <= 30 )); then
+      responsive+=("$model")
+    fi
   fi
 done
 
 healthy_count=${#healthy[@]}
+responsive_count=${#responsive[@]}
 if (( healthy_count == 0 )); then
   jq -n --slurpfile probes <(jq -s '.' "${probe_files[@]}") \
-    '{schemaVersion:1,healthyCount:0,selected:null,probes:$probes[0]}' > "$selection"
+    '{schemaVersion:1,healthyCount:0,responsiveCount:0,selected:null,probes:$probes[0]}' > "$selection"
   echo "::error::No free OpenCode model passed the real tool-call probe." >&2
   cat "$selection"
   exit 75
 fi
 
-is_healthy() {
-  local needle="$1" item
-  for item in "${healthy[@]}"; do
+contains() {
+  local needle="$1"; shift
+  local item
+  for item in "$@"; do
     [[ "$item" == "$needle" ]] && return 0
   done
   return 1
 }
 
+is_healthy() { contains "$1" "${healthy[@]}"; }
+is_responsive() { contains "$1" "${responsive[@]}"; }
+
 coding_pref=(
+  mimo-v2.5-free
+  hy3-free
+  big-pickle
+  muse-spark-1.2-contributor-free
+  nemotron-3-ultra-free
+  nemotron-3.5-lightning-free
   deepseek-v4-flash-free
   north-mini-code-free
   laguna-s-2.1-free
-  nemotron-3.5-lightning-free
-  mimo-v2.5-free
-  nemotron-3-ultra-free
-  hy3-free
   ling-3.0-flash-free
   ling-3.0-tiny-free
-  big-pickle
-  muse-spark-1.2-contributor-free
   x-preview-f-free
 )
 
 review_pref=(
+  mimo-v2.5-free
+  hy3-free
+  muse-spark-1.2-contributor-free
+  big-pickle
+  nemotron-3-ultra-free
+  nemotron-3.5-lightning-free
   laguna-s-2.1-free
   deepseek-v4-flash-free
-  mimo-v2.5-free
-  nemotron-3.5-lightning-free
-  nemotron-3-ultra-free
   north-mini-code-free
-  hy3-free
   ling-3.0-flash-free
   ling-3.0-tiny-free
-  big-pickle
-  muse-spark-1.2-contributor-free
   x-preview-f-free
 )
 
-pick() {
-  local pref_name="$1"; shift
+pick_from_tier() {
+  local tier="$1" pref_name="$2"; shift 2
   local -n pref="$pref_name"
   local candidate excluded bad
   for candidate in "${pref[@]}"; do
-    is_healthy "$candidate" || continue
+    if [[ "$tier" == responsive ]]; then
+      is_responsive "$candidate" || continue
+    else
+      is_healthy "$candidate" || continue
+    fi
     bad=false
     for excluded in "$@"; do
       [[ -n "$excluded" && "$candidate" == "$excluded" ]] && bad=true
     done
     [[ "$bad" == false ]] && { printf '%s\n' "$candidate"; return 0; }
   done
-  for candidate in "${pref[@]}"; do
-    is_healthy "$candidate" && { printf '%s\n' "$candidate"; return 0; }
-  done
+  return 1
+}
+
+pick() {
+  local pref_name="$1"; shift
+  pick_from_tier responsive "$pref_name" "$@" && return 0
+  pick_from_tier healthy "$pref_name" "$@" && return 0
+  pick_from_tier responsive "$pref_name" && return 0
+  pick_from_tier healthy "$pref_name" && return 0
   return 1
 }
 
@@ -94,8 +115,9 @@ jq -n \
   --arg backendAudit "$backend_audit" \
   --arg director "$director" \
   --argjson healthyCount "$healthy_count" \
+  --argjson responsiveCount "$responsive_count" \
   --slurpfile probes <(jq -s '.' "${probe_files[@]}") \
-  '{schemaVersion:1,healthyCount:$healthyCount,selected:{mobile:$mobile,backend:$backend,mobileAudit:$mobileAudit,backendAudit:$backendAudit,director:$director},probes:$probes[0]}' \
+  '{schemaVersion:1,healthyCount:$healthyCount,responsiveCount:$responsiveCount,responsiveThresholdSeconds:30,selected:{mobile:$mobile,backend:$backend,mobileAudit:$mobileAudit,backendAudit:$backendAudit,director:$director},probes:$probes[0]}' \
   > "$selection"
 
 echo "healthy_count=$healthy_count" >> "${GITHUB_OUTPUT:?}"

@@ -1,32 +1,34 @@
 # Gouvernance autonome ChoreScore
 
-Ce dossier sépare durablement **le poste** de **la tâche**.
+La gouvernance sépare le **poste** stable de la **tâche** dynamique.
 
-## Fichiers immuables pour les automations
+## Constitution humaine
 
-- `roles/` : fiches de poste, responsabilités, limites et preuves attendues ;
-- `RELEASE_DEFINITION.json` : définition humaine et mesurable du jalon à livrer ;
-- `VERSION` : version du dispositif de gouvernance.
+Les agents ne modifient jamais :
+- `MAIN_PROMPT.md` ;
+- `governance/RELEASE_DEFINITION.json` ;
+- `governance/roles/**` ;
+- `directives/DIRECTOR.md` ;
+- `.opencode/agents/**` ;
+- `.github/workflows/chorescore-factory.yml`.
 
-Ces fichiers, le prompt maître, le contrat du directeur et les quatre définitions
-OpenCode actives sont recensés dans `.github/immutable-files.sha256`. Le
-workflow vérifie le manifeste et chaque empreinte avant et après les interventions
-des agents. Une automation ne peut ni les modifier, ni modifier le manifeste.
+Ces fichiers appartiennent à `main`. La factory les synchronise vers `lab/chorescore` avant le travail des agents. Les permissions OpenCode et les contrôles de chemins du shell empêchent les rôles de modifier cette constitution.
 
-## Fichiers de tâches modifiables par le directeur
+## État dynamique
 
-- `directives/TASKS.json` : postes activés et critère de livraison confié à chacun ;
-- `directives/MOBILE.md` et `directives/BACKEND.md` : consignes détaillées ;
-- `directives/AUDITOR.md` : risques et preuves à contrôler ;
-- `docs/NEXT_CYCLE.md` : synthèse lisible ;
-- `docs/RELEASE_STATUS.json` : avancement et preuves cumulatives.
+Le Directeur peut modifier uniquement :
+- `directives/TASKS.json` ;
+- `directives/MOBILE.md` ;
+- `directives/BACKEND.md` ;
+- `directives/AUDITOR.md` ;
+- `docs/NEXT_CYCLE.md` ;
+- `docs/RELEASE_STATUS.json` ;
+- `reports/director/**`.
 
-Le directeur ne change jamais sa fiche de poste. Il ne peut changer que ces
-fichiers de tâches et d'état, dans les limites du prompt maître.
+## Usine
 
-## Règle d'effectif
+Il n'existe qu'un seul control-plane : `.github/workflows/chorescore-factory.yml`.
 
-Le workflow n'instancie que les codeurs dont `enabled` vaut `true` dans
-`directives/TASKS.json`. Pour chaque codeur actif, un audit indépendant est
-obligatoire. Le directeur s'exécute toujours après les audits. Un rôle désactivé
-ne reçoit pas un faux travail destiné à occuper la boucle.
+Mobile et Backend sont deux lanes parallèles. Chaque lane possède son auditeur indépendant. Le shell intègre seulement les patches acceptés, exécute les checks complets, persiste le produit sur `lab/chorescore`, puis le Directeur choisit les tâches suivantes.
+
+Aucune branche `cycle/*` ou recovery n'est nécessaire au fonctionnement normal. `lab/chorescore` est l'unique état produit accepté.

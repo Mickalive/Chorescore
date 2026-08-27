@@ -9,7 +9,14 @@ export const COLORS = {
   surface: '#FFFFFF',
   surfaceAlt: '#F8F9FA',
   textPrimary: '#264653',
-  textSecondary: '#457B9D',
+  // DRC-05 (MOB-CYCLE32961708279-SEG) : assombri de #457B9D (4,36:1 sur
+  // surfaceAlt, 4,43:1 sur #F7FCFB) vers #3C6E8E pour atteindre ≥ 4,5:1 (AA)
+  // sur chaque fond réellement employé — background #FEFEFE ≈ 5,06:1, surface
+  // #FFFFFF ≈ 5,10:1, surfaceAlt #F8F9FA ≈ 4,84:1, carte courante du classement
+  // #F7FCFB ≈ 4,93:1, carte Pro du paywall #FFFDF5 ≈ 5,01:1. Même famille de
+  // teintes canonique (bleu foncé sobre). Mesure vérifiée de façon déterministe
+  // par tests/theme-contrast.test.ts.
+  textSecondary: '#3C6E8E',
   // DRC-05 (passe contraste textMuted, directives/TASKS.json) : jeton central
   // ajusté pour atteindre ≥ 4,5:1 (AA) sur chaque fond réellement employé —
   // background #FEFEFE ≈ 5,20:1, surface #FFFFFF ≈ 5,24:1, surfaceAlt

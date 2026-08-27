@@ -237,8 +237,9 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   emptyText: {
-    // Contraste AA requis : textSecondary sur surfaceAlt ≈ 4,36:1 (< 4,5:1),
-    // textPrimary atteint ≈ 9,56:1 (constat F1 de l'audit mobile 32688156479).
+    // Contraste AA : textPrimary sur surfaceAlt ≈ 9,56:1 (constat F1 de l'audit
+    // mobile 32688156479). textSecondary sur surfaceAlt atteint désormais ≈ 4,84:1
+    // (≥ 4,5:1) grâce à l'ajustement MOB-CYCLE32961708279-SEG dans theme.ts.
     color: COLORS.textPrimary,
     lineHeight: 20,
   },

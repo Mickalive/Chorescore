@@ -425,10 +425,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   reportFile: {
-    // Hiérarchie volontaire : textSecondary (≈ 4,55:1 sur background,
-    // constat F6 de l'audit mobile 32919230502) plutôt que textMuted, dont le
-    // jeton central a été assombri à la passe DRC-05 pour atteindre ≥ 4,5:1
-    // sur tous ses fonds réels (tests/theme-contrast.test.ts).
+    // Hiérarchie volontaire : textSecondary (≈ 5,06:1 sur background,
+    // constat F6 de l'audit mobile 32919230502, jeton ajusté
+    // MOB-CYCLE32961708279-SEG) plutôt que textMuted, dont le jeton central a
+    // été assombri à la passe DRC-05 pour atteindre ≥ 4,5:1 sur tous ses fonds
+    // réels (tests/theme-contrast.test.ts).
     color: COLORS.textSecondary,
     fontSize: 12,
   },
@@ -529,8 +530,9 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   emptyText: {
-    // Contraste AA requis : textSecondary sur surfaceAlt ≈ 4,36:1 (< 4,5:1),
-    // textPrimary atteint ≈ 9,56:1 (constat F1 de l'audit mobile 32688156479).
+    // Contraste AA : textPrimary sur surfaceAlt ≈ 9,56:1 (constat F1 de l'audit
+    // mobile 32688156479). textSecondary sur surfaceAlt atteint désormais ≈ 4,84:1
+    // (≥ 4,5:1) grâce à l'ajustement MOB-CYCLE32961708279-SEG dans theme.ts.
     color: COLORS.textPrimary,
     lineHeight: 20,
   },

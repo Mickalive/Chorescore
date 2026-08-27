@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "cycle": "33088946592",
+  "role": "mobile",
+  "round": 1,
+  "decision": "accept",
+  "summary": "Le candidat résout le constat bloquant MOB-CYCLE32961708279-SEG (DRC-05) : textSecondary assombri de #457B9D à #3C6E8E, atteignant ≥ 4,5:1 sur les 8 fonds réels inventoriés. Inventaire exhaustif documenté, mesures WCAG indépendantes vérifiées, preuve de mutation ciblée fournie (rétablissement #457B9D fait échouer exactement le nouveau test d'inventaire). Aucune régression des acquis (textMuted, wrap filtre membre, F3-R2, frontières année/now). Périmètre respecté (4 fichiers modifiés dans app/, src/, tests/). npm run check vert (164/164), export Android démo OK, npm audit high/clean.",
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "info",
+      "path": "src/components/theme.ts, tests/theme-contrast.test.ts",
+      "problem": "Le constat bloquant MOB-CYCLE32961708279-SEG est résolu. Le jeton central textSecondary a été assombri de #457B9D à #3C6E8E, atteignant ≥ 4,5:1 (AA) sur les 8 fonds réels inventoriés.",
+      "evidence": "Mesures WCAG indépendantes : textSecondary #3C6E8E sur background 5,46:1, surface 5,51:1, surfaceAlt 5,22:1, #F7FCFB 5,32:1, #FFFDF5 5,41:1, secondary 5,15:1, #EDF8F6 5,08:1, #F6FCFA 5,30:1. 164/164 tests verts. Test d'inventaire secondaire (161) vert. Test de mutation (162) vert prouvant la détection de régression sur surfaceAlt (4,36:1) et #F7FCFB (4,43:1).",
+      "mustFix": false,
+      "requiredFix": "Aucune — le critère est satisfait.",
+      "verification": "Relancer npm run check et vérifier que le test « le jeton textSecondary atteint AA (≥ 4,5:1) sur chaque fond réel de l'inventaire secondaire » passe."
+    },
+    {
+      "id": "F2",
+      "severity": "info",
+      "path": "tests/theme-contrast.test.ts, src/components/SegmentedControl.tsx, tests/segmented-layout.test.ts, tests/history.test.ts",
+      "problem": "Aucune régression des acquis DRC-05 : paires textMuted conformes, wrap filtre membre (MOB-C4-F1) et réinitialisation F3-R2 intacts, frontières année/borne now (MOB-C4-F2) passantes.",
+      "evidence": "Mesures WCAG indépendantes textMuted #56707C toutes ≥ 4,5:1 (background 5,20:1, surface 5,24:1, surfaceAlt 4,98:1, #F7FCFB 5,06:1, #FFFDF5 5,15:1, secondary 4,91:1, #EDF8F6 4,83:1, #F6FCFA 5,05:1). Suite complète 164/164 verte incluant tests theme-contrast (textMuted), segmented-layout, history.",
+      "mustFix": false,
+      "requiredFix": "Aucune.",
+      "verification": "npm run check vert."
+    },
+    {
+      "id": "F3",
+      "severity": "info",
+      "path": "Diff global (git diff --staged)",
+      "problem": "Périmètre respecté : aucun fichier hors app/, src/, tests/ ; aucune dépendance ajoutée ; démo hors ligne préservée.",
+      "evidence": "git diff --staged ne liste que 4 fichiers (theme.ts, theme-contrast.test.ts, history.tsx, index.tsx). package.json et package-lock.json inchangés. Export Android démo réussi sans réseau. npm audit --omit=dev --audit-level=high : 0 high/critical.",
+      "mustFix": false,
+      "requiredFix": "Aucune.",
+      "verification": "git diff --staged --name-only ne liste que les 4 fichiers attendus ; EXPO_PUBLIC_DATA_MODE=demo npx expo export --platform android réussit."
+    }
+  ],
+  "checks": [
+    "npm run check (typecheck + 164 tests) : PASS",
+    "EXPO_PUBLIC_DATA_MODE=demo npx expo export --platform android : PASS",
+    "npm audit --omit=dev --audit-level=high : PASS (0 high/critical)",
+    "Mesure WCAG indépendante textSecondary #3C6E8E sur 8 fonds réels : toutes ≥ 4,5:1",
+    "Mesure WCAG indépendante textMuted #56707C (non-régression) : toutes ≥ 4,5:1",
+    "Preuve de mutation (rétablissement #457B9D) : exactement 1 échec ciblé sur le nouveau test d'inventaire secondaire",
+    "Inventaire secondaire exhaustif vérifié par grep indépendant sur app/ et src/"
+  ]
+}

@@ -1,0 +1,141 @@
+name: ChoreScore Final APK Rescue
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/chorescore-final-apk.yml"
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: chorescore-final-apk-rescue
+  cancel-in-progress: true
+
+env:
+  CI: "true"
+  EXPO_NO_TELEMETRY: "1"
+  EXPO_PUBLIC_DATA_MODE: demo
+  CYCLE_KEY: ${{ github.run_id }}
+
+jobs:
+  release:
+    name: Build, publish, smoke and attest final APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout accepted product
+        uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          ref: lab/chorescore
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prove source is ready for DRC-06
+        run: |
+          set -euo pipefail
+          jq -e '
+            .pendingArtifact=="DRC-06" and
+            all(.criteria[]; if .id=="DRC-06" then .status=="in_progress" and any(.evidence[]?; .kind=="audit") else .status=="complete" end) and
+            all(.openFindings[]?; (.mustFixBeforeRelease!=true) or .status=="resolved")
+          ' docs/RELEASE_STATUS.json >/dev/null
+
+      - name: Setup Node
+        uses: actions/setup-node@ae0d4ed08881f17d1511386f5be3e62356acd4a6
+        with:
+          node-version: 22.13.0
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
+
+      - name: Reinstall and reverify exact accepted source
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm --prefix functions ci --ignore-scripts --no-audit --no-fund
+          npm run check
+          npx --no-install expo export --platform android --output-dir "$RUNNER_TEMP/chorescore-final-export"
+          npm --prefix functions run check
+          npm audit --omit=dev --audit-level=high
+          npm --prefix functions audit --omit=dev --audit-level=high
+
+      - name: Build release APK
+        id: build
+        env:
+          NODE_ENV: production
+        run: |
+          set -euo pipefail
+          source_sha=$(git rev-parse HEAD)
+          npx --no-install expo prebuild --platform android --no-install
+          git diff --exit-code -- package.json package-lock.json app.json
+          (cd android && ./gradlew :app:assembleRelease --no-daemon --stacktrace)
+          apk="$GITHUB_WORKSPACE/android/app/build/outputs/apk/release/app-release.apk"
+          test -s "$apk"
+          apk_sha=$(sha256sum "$apk" | awk '{print $1}')
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "apk_path=$apk" >> "$GITHUB_OUTPUT"
+          echo "apk_sha256=$apk_sha" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=chorescore-final-$source_sha" >> "$GITHUB_OUTPUT"
+
+      # Publish the real APK immediately. The emulator is a release gate, but it must
+      # never again prevent a successfully built installable APK from being downloadable.
+      - name: Publish installable APK immediately
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ${{ steps.build.outputs.artifact_name }}
+          path: ${{ steps.build.outputs.apk_path }}
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+
+      - name: Prepare Android emulator acceleration when available
+        run: |
+          set -euo pipefail
+          if [[ -e /dev/kvm ]]; then
+            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules >/dev/null
+            sudo udevadm control --reload-rules || true
+            sudo udevadm trigger --name-match=kvm || true
+          fi
+          if [[ -r /dev/kvm && -w /dev/kvm ]]; then
+            echo "KVM acceleration available."
+          else
+            echo "::notice::KVM unavailable; emulator runner will use software fallback."
+          fi
+
+      - name: Smoke standalone APK on API 35 without Metro or network
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 35
+          target: default
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          disable-linux-hw-accel: auto
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash "$GITHUB_WORKSPACE/.github/scripts/smoke-android-apk-v2.sh" "${{ steps.build.outputs.apk_path }}" com.mickalive.chorescore "$RUNNER_TEMP/chorescore-runtime-smoke"
+
+      - name: Upload runtime smoke evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: chorescore-runtime-smoke-${{ steps.build.outputs.source_sha }}
+          path: ${{ runner.temp }}/chorescore-runtime-smoke
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Attest final release and stop factory
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.build.outputs.source_sha }}
+          APK_SHA256: ${{ steps.build.outputs.apk_sha256 }}
+          ARTIFACT_NAME: ${{ steps.build.outputs.artifact_name }}
+        run: bash .github/scripts/release-attest.sh
+
+      - name: Disable rescue workflow after final attestation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/chorescore-final-apk.yml/disable" >/dev/null

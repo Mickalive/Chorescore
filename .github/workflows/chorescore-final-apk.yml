@@ -81,8 +81,6 @@ jobs:
           echo "apk_sha256=$apk_sha" >> "$GITHUB_OUTPUT"
           echo "artifact_name=chorescore-final-$source_sha" >> "$GITHUB_OUTPUT"
 
-      # Publish the real APK immediately. The emulator is a release gate, but it must
-      # never again prevent a successfully built installable APK from being downloadable.
       - name: Publish installable APK immediately
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
@@ -116,7 +114,7 @@ jobs:
           disable-animations: true
           disable-linux-hw-accel: auto
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: bash "$GITHUB_WORKSPACE/.github/scripts/smoke-android-apk-v2.sh" "${{ steps.build.outputs.apk_path }}" com.mickalive.chorescore "$RUNNER_TEMP/chorescore-runtime-smoke"
+          script: bash "$GITHUB_WORKSPACE/.github/scripts/smoke-android-apk.sh" "${{ steps.build.outputs.apk_path }}" com.mickalive.chorescore "$RUNNER_TEMP/chorescore-runtime-smoke"
 
       - name: Upload runtime smoke evidence
         if: always()

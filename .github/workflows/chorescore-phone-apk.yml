@@ -1,0 +1,67 @@
+name: ChoreScore Phone APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/chorescore-phone-apk.yml"
+
+permissions:
+  contents: read
+
+env:
+  CI: "true"
+  EXPO_NO_TELEMETRY: "1"
+  EXPO_PUBLIC_DATA_MODE: demo
+
+jobs:
+  phone-apk:
+    name: Build installable APK for real-device testing
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout accepted product
+        uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          ref: lab/chorescore
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@ae0d4ed08881f17d1511386f5be3e62356acd4a6
+        with:
+          node-version: 22.13.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Build release APK
+        id: build
+        env:
+          NODE_ENV: production
+        run: |
+          set -euo pipefail
+          source_sha=$(git rev-parse HEAD)
+          npx --no-install expo prebuild --platform android --no-install
+          (cd android && ./gradlew :app:assembleRelease --no-daemon --stacktrace)
+          apk="$GITHUB_WORKSPACE/android/app/build/outputs/apk/release/app-release.apk"
+          test -s "$apk"
+          apk_sha=$(sha256sum "$apk" | awk '{print $1}')
+          printf '%s  %s\n' "$apk_sha" "app-release.apk" > "$GITHUB_WORKSPACE/APK_SHA256.txt"
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "apk_path=$apk" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=chorescore-phone-$source_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Upload phone APK
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ${{ steps.build.outputs.artifact_name }}
+          path: |
+            ${{ steps.build.outputs.apk_path }}
+            APK_SHA256.txt
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0

@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "milestone": "demo-rc",
   "governanceVersion": "2026-08-30-product-reset",
-  "lastCycle": "human-product-reset-20260830",
+  "lastCycle": "33278810674",
   "activeCriteria": ["DRC-01"],
-  "stalledCycles": 0,
-  "progressSummary": "Revue humaine sur téléphone : la RC précédente est rejetée comme produit malgré ses tests techniques. Elle a dérivé vers une todo list de définitions de tâches, une métrique de points trop centrale, des périodes insuffisantes et une UX éditoriale/commentatrice. Le produit canonique est rétabli comme un Tricount des tâches ménagères : foyer -> entrées libres nom/personne/durée -> journal -> bilan temps réel semaine/mois/année/depuis le début. DRC-02 et DRC-07 restent techniquement acquis ; DRC-01, DRC-03, DRC-04 et DRC-05 sont rouverts. DRC-06 redevient pending et aucun nouvel APK ne peut être qualifié final avant réalignement produit.",
+  "stalledCycles": 1,
+  "progressSummary": "Cycle 33278810674 : candidat mobile indisponible (candidate-unavailable). Aucun delta produit appliqué. Le code source conserve l'ancien modèle todo-list (TaskDefinition, entry.taskId, 4 onglets). Les 4 open findings produit-reset restent unresolved. DRC-02 et DRC-07 restent complete. DRC-01 reste in_progress, DRC-03/04/05 restent pending.",
   "blocker": "PRODUCT-RESET-20260830",
   "criteria": [
     {

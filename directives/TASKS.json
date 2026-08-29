@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "milestone": "demo-rc",
-  "updatedBy": "human-product-reset-20260830-v2",
+  "updatedBy": "director-33278810674",
   "activeCriteria": ["DRC-01"],
   "assignments": {
     "mobile": {
       "enabled": true,
       "criterionId": "DRC-01",
-      "objective": "Refondre ChoreScore comme un Tricount des tâches ménagères. La source de vérité doit être un registre d'entrées autonomes par foyer. Supprimer l'entité métier persistante TaskDefinition et toute dépendance obligatoire entry.taskId vers une définition. Chaque entrée porte son libellé libre, sa personne, sa durée réelle, son foyer et sa date. Deux actions identiques restent deux entrées distinctes ; les agrégations par libellé sont calculées à la volée depuis l'historique. Préserver et adapter persistance, isolation, chrono et export avec migration sûre de l'ancien schéma.",
+      "objective": "Refondre ChoreScore comme un Tricount des tâches ménagères. Le candidat précédent est indisponible ; le même objectif reste prioritaire. La source de vérité doit être un registre d'entrées autonomes par foyer. Supprimer l'entité métier persistante TaskDefinition et toute dépendance obligatoire entry.taskId vers une définition. Chaque entrée porte son libellé libre, sa personne, sa durée réelle, son foyer et sa date. Deux actions identiques restent deux entrées distinctes ; les agrégations par libellé sont calculées à la volée depuis l'historique. Réduire la navigation à 3 onglets : Accueil | Bilan | Foyer. Implémenter le bilan temps réel avec les 4 périodes (semaine/mois/année/depuis le début). Préserver et adapter persistance, isolation, chrono et export avec migration sûre de l'ancien schéma.",
       "acceptance": [
         "Créer ou choisir un foyer local et ses membres fonctionne réellement.",
         "Ajouter crée immédiatement une entrée autonome avec libellé libre, personne et durée réelle.",
@@ -20,7 +20,10 @@
         "Aucune catégorie n'est obligatoire.",
         "Le temps réel est affiché en minutes/heures ; aucun point n'est métrique principale.",
         "La pondération éventuelle reste dans Options avancées, vaut 1 par défaut et ne modifie jamais le temps réel.",
-        "Le parcours principal converge vers Accueil / Bilan / Foyer et ne contient aucune liste de tâches actives/archivées."
+        "La navigation est réduite à 3 onglets : Accueil | Bilan | Foyer.",
+        "Bilan propose les 4 périodes : semaine/mois/année/depuis le début.",
+        "Bilan affiche temps total du foyer, temps par personne, part en %, graphe Personnes et graphe Tâches avec minutes/heures.",
+        "La liste chronologique des entrées individuelles de la période apparaît sous les graphes."
       ]
     },
     "backend": {

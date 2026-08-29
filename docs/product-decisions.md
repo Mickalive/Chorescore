@@ -13,14 +13,16 @@
 11. L'application ne parle jamais de « points » comme métrique principale.
 12. ChoreScore n'est pas une todo list et ne gère pas des tâches « à faire », « actives » ou « archivées » dans le parcours cœur.
 13. Le foyer est un objet de premier rang : création, choix/changement de foyer, membres et isolation des données.
-14. L'interface doit être légère et mobile : une action principale évidente pour ajouter une entrée, peu de texte permanent, pas de batterie de boutons sur chaque ligne, actions rares dans un menu/détail.
-15. Le produit aide à objectiver la répartition des tâches avec un ton calme et factuel ; il n'humilie pas les membres et ne transforme pas le bilan en jugement moral.
-16. L'essai complet dure 30 jours.
-17. Après l'essai, l'offre gratuite conserve un foyer, les entrées libres, la saisie manuelle/chrono, le bilan hebdomadaire au temps réel et l'accès à la semaine courante du lundi au dimanche.
-18. Premium ajoute notamment pondération avancée facultative, périodes/analyses avancées, export et foyers multiples.
-19. Standard coûte 2,99 €/mois pour 1 à 7 personnes. Pro coûte 5,99 €/mois à partir de 8 personnes ; mêmes fonctionnalités, seule la taille change.
-20. La RC utilise uniquement des données locales, fonctionne hors ligne et ne simule jamais un paiement ou une synchronisation réelle.
-21. Les données appartiennent aux personnes qui les créent. Les informations légales et de confidentialité restent dans les écrans appropriés et ne doivent pas encombrer le parcours principal.
+14. Le bilan de base permet de consulter **semaine, mois, année et depuis le début**. Ces quatre horizons ne sont pas premium.
+15. Pour chaque période, l'app affiche le temps total du foyer, le temps de chaque membre et sa part du total en pourcentage.
+16. L'interface doit être légère et mobile : une action principale évidente pour ajouter une entrée, peu de texte permanent, pas de batterie de boutons sur chaque ligne, actions rares dans un menu/détail.
+17. **L'application n'interprète pas les chiffres et ne commente pas les personnes.** Aucun message du type « discutez des écarts », « ceci n'est pas un verdict », « votre contribution est... », conseil relationnel, encouragement, culpabilisation ou commentaire automatique sur l'équilibre. Elle affiche les données ; l'utilisateur en tire ses propres conclusions.
+18. L'essai complet dure 30 jours.
+19. Après l'essai, l'offre gratuite conserve un foyer, les entrées libres, la saisie manuelle/chrono et le bilan en temps réel sur semaine/mois/année/depuis le début.
+20. Premium ajoute notamment pondération avancée facultative, analyses comparatives/filtres avancés, export et foyers multiples.
+21. Standard coûte 2,99 €/mois pour 1 à 7 personnes. Pro coûte 5,99 €/mois à partir de 8 personnes ; mêmes fonctionnalités, seule la taille change.
+22. La RC utilise uniquement des données locales, fonctionne hors ligne et ne simule jamais un paiement ou une synchronisation réelle.
+23. Les informations légales et de confidentialité restent dans les écrans appropriés et ne doivent pas encombrer le parcours principal.
 
 ## Direction visuelle
 

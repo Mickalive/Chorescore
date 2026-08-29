@@ -1,19 +1,28 @@
 # Décisions produit canoniques
 
-Ces décisions remplacent les anciennes pistes exploratoires présentes dans les échanges préparatoires.
+1. ChoreScore est une **application mobile** Expo/React Native.
+2. Le concept est volontairement simple : **un Tricount des tâches ménagères**.
+3. L'utilisateur crée ou choisit un **foyer** puis enregistre des **entrées de travail domestique**.
+4. Une entrée contient au minimum : **nom libre de la tâche**, **personne**, **durée**, **foyer**, **date/heure**.
+5. Le nom est toujours libre. Il n'existe **aucune catégorie obligatoire**, aucun catalogue de tâches et aucune obligation de créer une définition de tâche au préalable.
+6. La durée peut être saisie manuellement ou obtenue avec un chrono. Un chrono terminé devient une entrée ordinaire du journal.
+7. Le journal du foyer fonctionne comme un registre : ajout, modification et suppression d'entrées réelles.
+8. Le bilan agrège les entrées par membre et période afin de rendre visible la contribution de chacun.
+9. ChoreScore n'est pas une todo list et ne gère pas des tâches « à faire », « actives » ou « archivées » dans le parcours cœur.
+10. Le foyer est un objet de premier rang : création, choix/changement de foyer, membres et isolation des données.
+11. L'interface doit être légère et mobile : une action principale évidente pour ajouter une entrée, peu de texte permanent, pas de batterie de boutons sur chaque ligne, actions rares dans un menu/détail.
+12. Le produit aide à objectiver la répartition des tâches avec un ton calme et factuel ; il n'humilie pas les membres et ne transforme pas le classement en jugement moral.
+13. L'essai complet dure 30 jours.
+14. Après l'essai, l'offre gratuite conserve un foyer, les entrées libres, la saisie manuelle/chrono, le bilan hebdomadaire au temps brut et l'accès à la semaine courante du lundi au dimanche.
+15. Premium ajoute notamment pondération personnalisée, périodes/analyses avancées, export et foyers multiples.
+16. Standard coûte 2,99 €/mois pour 1 à 7 personnes. Pro coûte 5,99 €/mois à partir de 8 personnes ; mêmes fonctionnalités, seule la taille change.
+17. Si la pondération est active, le score vaut `(durée en secondes / 60) × poidsFigé`. En gratuit le poids effectif vaut 1 ; l'arrondi reste réservé à l'affichage.
+18. La RC utilise uniquement des données locales, fonctionne hors ligne et ne simule jamais un paiement ou une synchronisation réelle.
+19. Les données appartiennent aux personnes qui les créent. Les informations légales et de confidentialité restent dans les écrans appropriés et ne doivent pas encombrer le parcours principal.
 
-1. ChoreScore est une **application mobile** Expo/React Native, pas un site.
-2. Le produit aide à objectiver la répartition des tâches avec un ton calme et factuel ; il n'utilise ni humiliation, ni disparition punitive des données, ni faux sentiment d'urgence.
-3. L'essai complet dure 30 jours.
-4. Après l'essai, l'offre gratuite conserve le suivi, la saisie manuelle ou chronométrée, le classement hebdomadaire au temps brut et 30 jours d'historique.
-5. La pondération personnalisée, les analyses avancées, les exports et les foyers multiples sont premium.
-6. Standard coûte 2,99 €/mois pour un foyer de 1 à 7 personnes incluses. Pro coûte 5,99 €/mois à partir de 8 personnes. Les fonctionnalités sont identiques.
-7. Le score d'une tâche terminée vaut `(durée en secondes / 60) × poidsFigé`. Le poids va de 1 à 1000 ; en gratuit, le poids effectif vaut 1. L'arrondi est réservé à l'affichage.
-8. Les données appartiennent aux personnes qui les créent. Les conditions de service obligatoires sont séparées du consentement analytique facultatif.
-9. La démo utilise uniquement des données synthétiques et locales. Elle ne crée aucun compte, n'écrit sur aucun réseau et ne simule jamais un paiement comme réussi.
-10. L'application ne promet pas une sécurité absolue. La cible de livraison est l'absence de vulnérabilité critique ou élevée connue sur le commit contrôlé, suivie d'un test d'intrusion avant mise en production réelle.
+## Direction visuelle
 
-## Palette
+La palette peut servir de base mais n'est pas une obligation de composition. Le design doit privilégier hiérarchie, espace, typographie, lisibilité et simplicité plutôt que multiplier les cartes colorées.
 
 | Usage | Couleur |
 | --- | --- |

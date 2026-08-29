@@ -1,19 +1,29 @@
 {
   "schemaVersion": 1,
   "milestone": "demo-rc",
-  "updatedBy": "director-33111958796",
-  "activeCriteria": [],
+  "updatedBy": "human-product-reset-20260830",
+  "activeCriteria": ["DRC-01"],
   "assignments": {
     "mobile": {
-      "enabled": false,
-      "criterionId": "DRC-06",
-      "objective": "DRC-06 source-readiness acceptée (audit RUN_33111958796_MOBILE.json, decision accept, 0 mustFix, delta zéro). Aucune tâche restante pour ce poste.",
-      "acceptance": []
+      "enabled": true,
+      "criterionId": "DRC-01",
+      "objective": "Refondre le parcours mobile autour du produit canonique : ChoreScore est un Tricount des tâches ménagères, pas une todo list. Remplacer le parcours basé sur TaskDefinition/categories/tâches actives par un registre d'entrées libres rattachées à un foyer. L'utilisateur doit pouvoir créer/choisir un foyer, puis ajouter directement une entrée avec nom libre, personne et durée réelle (manuelle ou chrono). Préserver autant que possible les briques techniques utiles déjà acceptées (persistance, isolation, chrono, export) et fournir une migration sûre des anciennes données locales plutôt qu'une perte silencieuse.",
+      "acceptance": [
+        "Le premier parcours utile permet de créer ou choisir un foyer local et ses membres, sans onboarding éditorial ou pseudo-juridique envahissant.",
+        "Depuis le journal du foyer, un bouton Ajouter une entrée permet de saisir n'importe quel nom de tâche libre, choisir la personne et saisir une durée réelle.",
+        "Aucune catégorie n'est obligatoire et aucune définition de tâche préalable n'est nécessaire.",
+        "Le chrono part d'un nom libre et crée à l'arrêt une entrée normale avec la durée mesurée.",
+        "Le parcours principal ne contient plus de liste de tâches actives/archivées ni quatre boutons par tâche.",
+        "Le temps réel est affiché en minutes/heures ; aucun point n'est présenté comme métrique principale.",
+        "La pondération éventuelle reste cachée dans Options avancées, vaut 1 par défaut et ne modifie jamais le temps réel.",
+        "Les données locales existantes sont migrées ou explicitement récupérées sans corruption silencieuse.",
+        "Les tests couvrent création/choix de foyer, ajout libre manuel, chrono libre, persistance et isolation de foyer."
+      ]
     },
     "backend": {
       "enabled": false,
       "criterionId": "DRC-07",
-      "objective": "DRC-07 complete — docs/security/README.md actualisé et accepté au cycle 33086880966. Aucune tâche restante.",
+      "objective": "Backend inchangé pendant la refonte locale du produit mobile.",
       "acceptance": []
     }
   }

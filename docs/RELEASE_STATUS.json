@@ -1,366 +1,107 @@
 {
   "schemaVersion": 1,
   "milestone": "demo-rc",
-  "governanceVersion": "2026-08-25-v1",
-  "lastCycle": "33111958796",
-  "activeCriteria": [],
+  "governanceVersion": "2026-08-30-product-reset",
+  "lastCycle": "human-product-reset-20260830",
+  "activeCriteria": ["DRC-01"],
   "stalledCycles": 0,
-  "progressSummary": "Cycle 33111958796 : DRC-06 source-readiness audit accepté (verification-only, delta zéro, 0 mustFix). DRC-01 à DRC-05 et DRC-07 tous complete. Aucun finding mustFixBeforeRelease non résolu. DRC-06 passe à in_progress, pendingArtifact='DRC-06'. Les deux codeurs désactivés. Décision stop — le shell de confiance construit, atteste et publie l'APK release.",
-  "blocker": null,
+  "progressSummary": "Revue humaine sur téléphone : la RC précédente est rejetée comme produit malgré ses tests techniques. Elle a dérivé vers une todo list de définitions de tâches, une métrique de points trop centrale, des périodes insuffisantes et une UX éditoriale/commentatrice. Le produit canonique est rétabli comme un Tricount des tâches ménagères : foyer -> entrées libres nom/personne/durée -> journal -> bilan temps réel semaine/mois/année/depuis le début. DRC-02 et DRC-07 restent techniquement acquis ; DRC-01, DRC-03, DRC-04 et DRC-05 sont rouverts. DRC-06 redevient pending et aucun nouvel APK ne peut être qualifié final avant réalignement produit.",
+  "blocker": "PRODUCT-RESET-20260830",
   "criteria": [
     {
       "id": "DRC-01",
-      "status": "complete",
+      "status": "in_progress",
       "evidence": [
-        {
-          "kind": "tests",
-          "reference": "npm run check — 71 tests mobile acceptés au cycle 32692689814",
-          "cycle": "32692689814"
-        },
-        {
-          "kind": "audit",
-          "reference": "audits mobile cycle 32692689814, décision accept",
-          "cycle": "32692689814"
-        }
+        {"kind":"tests","reference":"Historique : ancien parcours technique testé avant reset produit (71+ puis 164 tests). Ces preuves restent utiles aux briques réutilisées mais ne certifient plus le parcours canonique.","cycle":"pre-reset"},
+        {"kind":"product-reset","reference":"Revue humaine 2026-08-30 : ancien parcours rejeté ; nouvelle exigence = foyer + journal + entrée libre nom/personne/durée manuelle ou chrono, sans catalogue ni catégorie obligatoire.","cycle":"human-product-reset-20260830"}
       ]
     },
     {
       "id": "DRC-02",
       "status": "complete",
       "evidence": [
-        {
-          "kind": "tests",
-          "reference": "npm run check sur l'état intégré cycle 32857952394 : typecheck OK, 102/102 tests dont 23 tests persistance/migration/corruption/reprise du candidat réparé 77b5c4e (79 -> 102)",
-          "cycle": "32857952394"
-        },
-        {
-          "kind": "audit",
-          "reference": "reports/audits/CYCLE_32786797876_MOBILE_FINAL.json — round 2, decision accept, 0 mustFix, candidat réparé 77b5c4e porté intégral",
-          "cycle": "32786797876"
-        }
+        {"kind":"tests","reference":"Persistance/migration/corruption/reprise précédemment acceptées, 102 tests au cycle 32857952394 puis non-régressions ultérieures.","cycle":"32857952394"},
+        {"kind":"audit","reference":"reports/audits/CYCLE_32786797876_MOBILE_FINAL.json — persistance et reprise acceptées. À préserver et adapter au nouveau schéma sans perte silencieuse.","cycle":"32786797876"}
       ]
     },
     {
       "id": "DRC-03",
-      "status": "complete",
+      "status": "pending",
       "evidence": [
-        {
-          "kind": "tests",
-          "reference": "npm run check sur l'état intégré cycle 32864465631 : typecheck OK, 121/121 tests (102 -> 121, +19 tests data-control couvrant modification/archivage, correction depuis weightSnapshot figé, suppression sans orpheline, annulation de chrono, validateur renforcé, échec fermé production)",
-          "cycle": "32864465631"
-        },
-        {
-          "kind": "audit",
-          "reference": "reports/audits/CYCLE_32864465631_MOBILE.json — round 1, decision accept, 0 mustFix, candidat 1fce8b3 intégré bit-à-bit (12/12 blobs identiques), preuve de mutation de l'auditeur sur copie jetable",
-          "cycle": "32864465631"
-        }
+        {"kind":"tests","reference":"Historique : modification/suppression/annulation couvertes sur l'ancien modèle au cycle 32864465631. Les primitives peuvent être réutilisées mais doivent être appliquées aux entrées libres, pas aux définitions de tâches.","cycle":"32864465631"},
+        {"kind":"product-reset","reference":"À revalider : modifier/supprimer une entrée libre et corriger nom/personne/durée/date/options avancées ; aucun archivage de TaskDefinition requis.","cycle":"human-product-reset-20260830"}
       ]
     },
     {
       "id": "DRC-04",
-      "status": "complete",
+      "status": "pending",
       "evidence": [
-        {
-          "kind": "tests",
-          "reference": "Vérifications ciblées exécutées par l'auditeur round 2 sur le candidat intégré 327fba8 (contenu identique à l'arbre staged de lab/chorescore) : npx tsc -p tsconfig.test.json OK ; node --test persistence+premium-local+data-control = 76/76 (bornes de période et filtrage, isolation multi-foyers dans le document v2, export local consultable, paywall honnête, weightSnapshot figé, migration v1→v2 re-validée) ; node --test store-interactions = 18/18 ; preuves de mutation positives (garde cross-foyer tour 1 ; garde isDurableState(migrated) tour 2 : exactement 4 échecs ciblés)",
-          "cycle": "32919230502"
-        },
-        {
-          "kind": "audit",
-          "reference": "reports/audits/CYCLE_32919230502_MOBILE_FINAL.json — round 2, decision accept, 0 mustFix, candidat réparé 327fba8 appliqué exactement par le shell de confiance sur la base 0463683 (diff 11 fichiers, +1787/-68, strictement app/, src/, tests/, manifeste immuable OK sur le candidat)",
-          "cycle": "32919230502"
-        }
+        {"kind":"tests","reference":"Historique : isolation multi-foyers et export local précédemment testés au cycle 32919230502 ; briques à préserver.","cycle":"32919230502"},
+        {"kind":"product-reset","reference":"À revalider : création/changement de foyer réellement accessible et bilan temps réel semaine/mois/année/depuis le début. Ces quatre périodes sont cœur produit, pas premium. Pondération seulement facultative dans Options avancées.","cycle":"human-product-reset-20260830"}
       ]
     },
     {
       "id": "DRC-05",
-      "status": "complete",
+      "status": "pending",
       "evidence": [
-        {
-          "kind": "tests",
-          "reference": "tests domaine et annonces accessibles acceptés au cycle 32692689814",
-          "cycle": "32692689814"
-        },
-        {
-          "kind": "tests",
-          "reference": "Vérifications ciblées de l'auditeur round 2 sur le candidat intégré e18bf1d (copies jetables, candidat jamais édité) : clean-test-build + tsc OK ; node --test theme-contrast+segmented-layout+history = 15/15 (paires textMuted y compris #FFFDF5, contrat wrap du filtre membre, frontières année/borne now) ; suite complète 162/162 ; preuves de mutation A (retour #6D8793 → échec AA détecté), B (retrait paire → seule perte de couverture), C (limite statique inventaire documentée)",
-          "cycle": "32961708279"
-        },
-        {
-          "kind": "audit",
-          "reference": "reports/audits/CYCLE_32961708279_MOBILE_FINAL.json — round 2, decision accept, 0 mustFix, candidat réparé e18bf1d appliqué exactement par le shell de confiance sur la base 33cd4ac (7 fichiers, +357/-26, strictement app/, src/, tests/, manifeste immuable OK). Restant bloquant : contraste textSecondary/surfaceAlt 4,36:1 (constat MOB-CYCLE32961708279-SEG)",
-          "cycle": "32961708279"
-        },
-        {
-          "kind": "tests",
-          "reference": "164/164 tests passent (npm run check) — cycle 33111799778, verification-only, delta zéro. theme-contrast subtests 159-162 couvrent l'inventaire secondaire complet (8 fonds réels). textSecondary #3C6E8E ≥ 4,5:1 sur les 8 fonds mesuré indépendamment.",
-          "cycle": "33111799778"
-        },
-        {
-          "kind": "audit",
-          "reference": "reports/audits/RUN_33111799778_MOBILE.json — decision accept, 0 mustFix, verification-only, delta zéro. textSecondary #3C6E8E mesuré ≥ 4,5:1 sur les 8 fonds réels. Ancien #457B9D reproduit 4,36:1/4,43:1. Preuve de mutation exécutée sur copie jetable (test 4 échoue, tests 1-3/5 restent verts). Non-régression textMuted/wrap/frontières vérifiée.",
-          "cycle": "33111799778"
-        }
+        {"kind":"tests","reference":"Historique : contrastes, grandes tailles de texte et layout ont reçu des preuves jusqu'à 164/164 tests. Ces preuves techniques restent pertinentes mais ne certifient pas la qualité UX du nouveau produit.","cycle":"33111799778"},
+        {"kind":"product-reset","reference":"À revalider par audit UX produit : interface simple et moderne, Ajouter une entrée évident, journal compact, bilan lisible, aucun texte automatique interprétant les chiffres/personnes, aucun pseudo-conseil relationnel, aucune batterie de boutons par ligne.","cycle":"human-product-reset-20260830"}
       ]
     },
     {
       "id": "DRC-06",
-      "status": "in_progress",
+      "status": "pending",
       "evidence": [
-        {
-          "kind": "audit",
-          "reference": "reports/audits/RUN_33111958796_MOBILE.json — source-readiness verification-only, delta zéro, decision accept, 0 mustFix. Le code produit est apte au build APK release : aucun placeholder/TODO/console.log, aucune dépendance réseau vers des services réels, config Android cohérente, démo câblée en dur en mode hors ligne, 164/164 tests, npm audit prod high = 0.",
-          "cycle": "33111958796"
-        }
+        {"kind":"historical-audit","reference":"Ancienne source-readiness RUN_33111958796_MOBILE.json conservée comme historique technique uniquement ; invalidée comme attestation produit par le reset humain du 2026-08-30.","cycle":"33111958796"}
       ]
     },
     {
       "id": "DRC-07",
       "status": "complete",
       "evidence": [
-        {
-          "kind": "audit",
-          "reference": "reports/audits/CYCLE_32961708279_BACKEND.json — round 1, decision accept, 0 mustFix, candidat 90ef1a6 appliqué exactement par le shell de confiance sur la base 33cd4ac (7 fichiers functions/) : volet code de DRC-07 prouvé (épinglage observedCaller(request) avec mutations M1/M2b/M3 reproduites par l'auditeur ; completeTask sur identité observée avec refus négatifs cross-foyer/cross-user entre deux foyers ; tsc OK, 68/68 fichiers touchés, 106/106 copie jetable).",
-          "cycle": "32961708279"
-        },
-        {
-          "kind": "documentation",
-          "reference": "docs/security/README.md actualisé au cycle 33086880966 : décrit observedCaller (extracteur pur sans SDK), câblage 2+1 call sites (createInvite, redeemInvite, completeTask), épinglage source (observedCallerWiring.test.ts), completeTask sur identité observée avec refus négatifs cross-foyer/cross-user, contrôles remesurés (106/106 tests), listes des contrôles encore bloqués (8 points), aucune sécurité absolue",
-          "cycle": "33086880966"
-        },
-        {
-          "kind": "audit",
-          "reference": "reports/audits/RUN_33086880966_BACKEND.json — round 1, decision accept, 0 mustFix, docs/security/README.md mis à jour (+4/-2, 1 fichier), toutes les affirmations vérifiées indépendamment (106/106 tests, observedCaller, câblage, épinglage, refus, versions deps, flags, npm audit, limites honnêtes)",
-          "cycle": "33086880966"
-        }
+        {"kind":"audit","reference":"reports/audits/CYCLE_32961708279_BACKEND.json — contrôles backend acceptés.","cycle":"32961708279"},
+        {"kind":"documentation","reference":"docs/security/README.md actualisé et accepté au cycle 33086880966 ; limites documentées honnêtement.","cycle":"33086880966"},
+        {"kind":"audit","reference":"reports/audits/RUN_33086880966_BACKEND.json — documentation DRC-07 acceptée, 106/106 tests backend.","cycle":"33086880966"}
       ]
     }
   ],
-  "pendingArtifact": "DRC-06",
+  "pendingArtifact": null,
   "openFindings": [
     {
-      "id": "MOB-C4-F1",
-      "criterionId": "DRC-05",
+      "id": "PRODUCT-RESET-CORE",
+      "criterionId": "DRC-01",
       "role": "mobile",
-      "severity": "low",
+      "severity": "critical",
       "mustFixBeforeRelease": true,
-      "status": "resolved",
-      "requiredFix": "Rendre le filtre membre utilisable sur petit écran et grandes tailles de texte (repli, défilement ou sélection dédiée) et fournir une preuve.",
-      "resolution": "Résolu par le candidat intégré e18bf1d (cycle 32961708279) : mode wrap du SegmentedControl (flexShrink 0, flexBasis auto, flexWrap conteneur) consommé par le filtre membre de l'historique, contrat pur testé dans tests/segmented-layout.test.ts, cible tactile minHeight 42 conservée, comportement de réinitialisation F3-R2 intact. Revue sémantique indépendante de l'auditeur round 2 ; période historique, classement et profil restent en mode défaut à l'identique."
-    },
-    {
-      "id": "MOB-C4-F2",
-      "criterionId": "DRC-05",
-      "role": "mobile",
-      "severity": "low",
-      "mustFixBeforeRelease": true,
-      "status": "resolved",
-      "requiredFix": "Ajouter les tests de frontière année et borne haute now pour les filtres d'historique.",
-      "resolution": "Résolu par le candidat intégré e18bf1d (cycle 32961708279) : tests de frontière d'année et borne haute now dans tests/history.test.ts avec bornes calculées identiques aux bornes filtrées ; ancre non circulaire vérifiée indépendamment par l'auditeur round 2 (now vendredi 01/01/2027 12:00 → début semaine lundi 28/12/2026, borne mois 01/01/2027 00:00, bornes inclusives testées à ±1 s)."
-    },
-    {
-      "id": "MOB-CYCLE32961708279-SEG",
-      "criterionId": "DRC-05",
-      "role": "mobile",
-      "severity": "low",
-      "mustFixBeforeRelease": true,
-      "status": "resolved",
-      "requiredFix": "Ramener chaque paire réelle de textSecondary à ≥ 4,5:1 (AA) : ajuster le jeton central du thème ou employer explicitement un jeton conforme, couvrir au minimum surfaceAlt #F8F9FA (4,36:1 mesuré — libellés non sélectionnés du SegmentedControl : filtre membre, périodes historique/classement/profil) et la carte courante #F7FCFB (4,43:1), étendre tests/theme-contrast.test.ts avec l'inventaire secondaire complet des fonds réels (y compris hors jetons), fournir la mesure WCAG tracée et une preuve de mutation, sans régression des paires textMuted/textSecondary déjà conformes.",
-      "origin": "Constat F2 de la paire de récupération 32956994425 (non intégrée), vérifié par le directeur sur l'arbre intégré : lecture ciblée de SegmentedControl.tsx/segmentedLayout.ts/theme.ts + calcul WCAG indépendant (4,3564:1 sur surfaceAlt ; méthode calquée sur les mesures de l'auditeur round 2, reproduites à 4,5532/4,5921). L'audit round 2 intégré ne couvrait que l'inventaire textMuted.",
-      "resolution": "Résolu par le cycle 33111799778 : audit indépendant RUN_33111799778_MOBILE.json accepté, verification-only, delta zéro. textSecondary ajusté de #457B9D à #3C6E8E dans theme.ts (même démarche que la passe textMuted). Mesures WCAG 2.x indépendantes : textSecondary #3C6E8E ≥ 4,5:1 sur les 8 fonds réels (surfaceAlt 5,22:1, #F7FCFB 5,32:1, background 5,46:1, surface 5,51:1, #FFFDF5 5,41:1, secondary 5,15:1, #EDF8F6 5,08:1, #F6FCFA 5,30:1). Ancien #457B9D mesuré 4,3564:1/4,4329:1 reproduit le constat bloquant. Preuve de mutation sur copie jetable (test 4 échoue, tests 1-3/5 restent verts). 164/164 tests passent. Non-régression textMuted/wrap/frontières vérifiée."
-    },
-    {
-      "id": "MOB-C4-F3",
-      "criterionId": "DRC-05",
-      "role": "mobile",
-      "severity": "info",
-      "mustFixBeforeRelease": false,
       "status": "unresolved",
-      "requiredFix": "Documenter ou rafraîchir le passage semaine/mois pendant une session longue.",
-      "response": "Réponse du directeur (cycle 32961708279) : l'audit round 2 confirme que le candidat intégré ne référence plus MOB-C4-F3 dans theme.ts (traçabilité corrigée) ; le constat reste facultatif et non bloquant, repris uniquement si une passe DRC-05 ultérieure le permet."
+      "requiredFix": "Remplacer le modèle et le parcours todo/listes de TaskDefinition par un registre Tricount-like : créer/choisir un foyer puis enregistrer directement une entrée libre nom + personne + durée réelle, manuelle ou chrono."
     },
     {
-      "id": "MOB-CYCLE32961708279-F3-R2",
-      "criterionId": "DRC-05",
+      "id": "PRODUCT-RESET-DATA",
+      "criterionId": "DRC-03",
       "role": "mobile",
-      "severity": "info",
-      "mustFixBeforeRelease": false,
-      "status": "resolved",
-      "requiredFix": "Aucun — correction de traçabilité appliquée : le commentaire du jeton textMuted désigne désormais la ligne contraste de directives/TASKS.json au lieu de MOB-C4-F3 (passage semaine/mois), supprimant la confusion de périmètre.",
-      "origin": "audit final round 2 accept du candidat réparé e18bf1d (intégré)",
-      "resolution": "Vérifié par l'auditeur round 2 : aucune occurrence de MOB-C4-F3 dans le diff ; changement de commentaire uniquement, aucun effet d'exécution."
-    },
-    {
-      "id": "MOB-CYCLE32961708279-F2-R2",
-      "criterionId": "DRC-05",
-      "role": "mobile",
-      "severity": "info",
-      "mustFixBeforeRelease": false,
-      "status": "deferred",
-      "requiredFix": "Facultatif : ajouter maxWidth: '100%' à SegmentOptionStyleWrap et épingle la propriété dans tests/segmented-layout.test.ts, à l'occasion d'une future évolution rendant les noms de membres saisissables (scénario aujourd'hui non atteignable : libellés issus des identités de démonstration fixes).",
-      "origin": "audit final round 2 accept du candidat réparé e18bf1d (intégré), report à l'identique du tour 1",
-      "response": "Réponse du directeur : reporté jusqu'à ce qu'une création/renommage d'utilisateur rende le scénario réel ; aucune action maintenant."
-    },
-    {
-      "id": "MOB-CYCLE32961708279-OPT-R2",
-      "criterionId": "DRC-05",
-      "role": "mobile",
-      "severity": "info",
-      "mustFixBeforeRelease": false,
-      "status": "noted",
-      "requiredFix": "Aucun aujourd'hui. À l'occasion d'une future passe thème/paywall : rapporter le backgroundColor codé en dur #FFFDF5 de proCard sur un jeton du thème afin que le garde déterministe protège aussi cette carte, et mettre à jour l'inventaire du test.",
-      "origin": "audit final round 2 accept du candidat réparé e18bf1d (intégré) ; preuve de mutation C (fond dérivé #E3DCC0 non détecté par le test statique)",
-      "response": "Réponse du directeur : risque résiduel documenté dans theme.ts et le docblock du test ; toutes les paires réelles mesurées ≥ 4,5:1. Aucune action avant une passe thème/paywall."
-    },
-    {
-      "id": "BE-CYCLE32961708279-F1",
-      "criterionId": "DRC-07",
-      "role": "backend",
-      "severity": "info",
-      "mustFixBeforeRelease": false,
-      "status": "resolved",
-      "requiredFix": "Aucune correction exigée : la substance de BE-C4-F1 est prouvée objectivement ; le directeur doit citer les preuves de mutation de l'auditeur dans les éléments de preuve DRC-07.",
-      "origin": "audit round 1 accept du candidat intégré 90ef1a6 (aucun rapport codeur accompagnant le snapshot)",
-      "resolution": "Fait : les preuves retenues sont les reproductions indépendantes de l'auditeur sur copies jetables — M1 (observedCaller réécrit en constantes → test 3 rouge), M2b (revert complet de completeTask vers l'objet constant historique → test 2 rouge), M3 (createInvite cesse de lire la requête → test 1 rouge), chacune détectée sans collateral ; citées dans l'entrée audit DRC-07. Confirmation documentation : docs/security/README.md actualisé au cycle 33086880966, audit RUN_33086880966_BACKEND.json accepté."
-    },
-    {
-      "id": "BE-CYCLE32961708279-F2",
-      "criterionId": "DRC-07",
-      "role": "backend",
-      "severity": "info",
-      "mustFixBeforeRelease": false,
-      "status": "resolved",
-      "requiredFix": "Aucune action requise pour ce cycle. Lors d'une future passe avec émulateur Firestore, remplacer ou compléter l'épinglage source (regex WIRING_PATTERN + IDENTITY_LITERAL_PATTERN) par un épinglage comportemental au niveau handler ; tout renommage légitime de request/observedCaller devra mettre à jour l'épinglage explicitement avec preuve de mutation.",
-      "origin": "audit round 1 accept du candidat intégré 90ef1a6",
-      "resolution": "Documentation DRC-07 complétée au cycle 33086880966 : docs/security/README.md décrit l'épinglage source et ses limites (constats BE-CYCLE32961708279-F2/F3 documentés). L'épinglage comportemental reste reporté à l'incrément émulateur."
-    },
-    {
-      "id": "BE-CYCLE32961708279-F3",
-      "criterionId": "DRC-07",
-      "role": "backend",
-      "severity": "info",
-      "mustFixBeforeRelease": false,
-      "status": "resolved",
-      "requiredFix": "Aucune correction avant intégration. Les handlers appelables (createInvite, redeemInvite, completeTask) ne s'exécutent pas bout en bout sans émulateur : à couvrir lors de l'incrément émulateur déjà tracé (concurrence/idempotence sur Firestore émulé), avec refus négatifs cross-foyer/cross-user rejoués au niveau handler.",
-      "origin": "audit round 1 accept du candidat intégré 90ef1a6 ; requireCaller reste appelé en tête des trois handlers, enforceAppCheck conservé",
-      "resolution": "Documentation DRC-07 complétée au cycle 33086880966 : docs/security/README.md liste honnêtement les contrôles encore bloqués (8 points dont handlers non bout en bout sans émulateur). L'incrément émulateur reste tracé pour un cycle futur."
-    },
-    {
-      "id": "BE-C4-F1",
-      "criterionId": "DRC-07",
-      "role": "backend",
-      "severity": "low",
+      "severity": "high",
       "mustFixBeforeRelease": true,
-      "status": "resolved",
-      "requiredFix": "Épingler par test le câblage observedInviteCaller(request) afin qu'un retour aux constantes soit détecté.",
-      "resolution": "Résolu par le candidat intégré 90ef1a6 (cycle 32961708279) : functions/test/observedCallerWiring.test.ts épingle le câblage observedCaller(request) (comptes exacts 2 dans invites.ts, 1 dans tasks.ts) et interdit les littéraux d'identité inline ; preuves de mutation reproduites par l'auditeur sur copies jetables (M1/M2b/M3 → exactement un échec ciblé à chaque mutation, copie saine 3/3 verte). Voir BE-CYCLE32961708279-F1 pour l'adoption formelle des preuves."
-    },
-    {
-      "id": "BE-C4-F2",
-      "criterionId": "DRC-07",
-      "role": "backend",
-      "severity": "info",
-      "mustFixBeforeRelease": false,
-      "status": "resolved",
-      "requiredFix": "Appliquer l'identité observée à completeTask lors du prochain incrément backend pertinent.",
-      "resolution": "Résolu par le candidat intégré 90ef1a6 (cycle 32961708279) : completeTask valide l'appelant via observedCaller(request) côté serveur ; refus cross-foyer et cross-user couverts par tests négatifs entre au moins deux foyers ; les nouveaux tests d'isolation échouent si les portes adhésion/propriété sont neutralisées (mutation M4b de l'auditeur)."
-    },
-    {
-      "id": "MOB-CYCLE32857952394-F1",
-      "criterionId": "DRC-03",
-      "role": "mobile",
-      "severity": "low",
-      "mustFixBeforeRelease": false,
-      "status": "resolved",
-      "requiredFix": "Ajouter au validateur de persistance un passage d'intégrité référentielle (chaque entry.taskId / entry.userId existe dans tasks / users du même snapshot) et refuser ou repliquer proprement le document sinon, avec cas de test.",
-      "origin": "audit round 1 du candidat courant 9d47082, applicable au code intégré",
-      "resolution": "Résolu par le candidat intégré 1fce8b3 (cycle 32864465631) : isDurableState refuse toute entrée dont taskId/userId est absent des collections du même document, avec mise en quarantaine visible. Quatre cas de test dédiés dans tests/data-control.test.ts ; preuve de mutation de l'auditeur (bloc retiré en copie jetable -> 3 tests rouges). Vérifié à l'identique dans l'état intégré."
-    },
-    {
-      "id": "MOB-CYCLE32857952394-F2",
-      "criterionId": "DRC-03",
-      "role": "mobile",
-      "severity": "low",
-      "mustFixBeforeRelease": false,
-      "status": "resolved",
-      "requiredFix": "Vérifier l'unicité des identifiants par collection (users, memberships, tasks, entries) dans le validateur de persistance et refuser le document en cas de doublon, avec cas de test.",
-      "origin": "audit round 1 du candidat courant 9d47082, applicable au code intégré",
-      "resolution": "Résolu par le candidat intégré 1fce8b3 (cycle 32864465631) : unicité vérifiée pour users, tasks et entries ; memberships contrôlées par clé naturelle (householdId, userId) car elles n'ont pas d'identifiant propre. Cas de test doublon présent et preuve de mutation associée."
-    },
-    {
-      "id": "MOB-CYCLE32857952394-F4",
-      "criterionId": "DRC-05",
-      "role": "mobile",
-      "severity": "info",
-      "mustFixBeforeRelease": false,
       "status": "unresolved",
-      "requiredFix": "Garde-fou temporel optionnel sur la porte d'hydratation (Promise.race avec délai débouchant sur l'état recovered unreadable-storage déjà implémenté) si l'adaptateur de stockage ne se résolvait jamais. Théorique avec AsyncStorage.",
-      "origin": "audit round 1 du candidat courant 9d47082, applicable au code intégré"
+      "requiredFix": "Appliquer correction et suppression aux entrées libres du journal ; retirer du parcours principal la gestion active/archivée de définitions de tâches."
     },
     {
-      "id": "MOB-C5-N1",
-      "criterionId": "DRC-05",
-      "role": "mobile",
-      "severity": "info",
-      "mustFixBeforeRelease": false,
-      "status": "unresolved",
-      "requiredFix": "Facultatif : ignorer la première écriture suivant une restauration 'restored' si aucune mutation n'a eu lieu (une sauvegarde redondante par lancement). Test associé : zéro appel setItem après hydratation sans mutation.",
-      "origin": "audit final round 2 accept du candidat réparé 77b5c4e (intégré)"
-    },
-    {
-      "id": "MOB-CYCLE32864465631-F1",
-      "criterionId": "DRC-05",
-      "role": "mobile",
-      "severity": "info",
-      "mustFixBeforeRelease": false,
-      "status": "deferred",
-      "requiredFix": "Facultatif lors d'une passe DRC-05 : ajouter des tests de composants (rendu des boutons Corriger/Supprimer/Modifier/Archiver/Annuler et des dialogues de confirmation) si un harnais UI est introduit.",
-      "origin": "audit round 1 accept du candidat intégré 1fce8b3",
-      "response": "Réponse du directeur : la couche domaine/service/persistence est entièrement testée (chaque refus et chaque effet des trois opérations) ; le dépôt n'a pas de harnais de test UI, conformément à la stratégie existante. La suggestion est reportée à la passe DRC-05 et ne bloque rien."
-    },
-    {
-      "id": "MOB-CYCLE32864465631-F2",
-      "criterionId": "DRC-03",
-      "role": "mobile",
-      "severity": "info",
-      "mustFixBeforeRelease": false,
-      "status": "noted",
-      "requiredFix": "Aucun. Observation pour mémoire : toute évolution du modèle de plans devrait réexaminer la conservation explicite du poids stocké en scénario gratuit.",
-      "origin": "audit round 1 accept du candidat intégré 1fce8b3",
-      "response": "Réponse du directeur : comportement conforme au canon (le poids effectif des nouvelles entrées reste 1 via getEffectiveWeight, champ verrouillé à l'interface) et encodé par un test dédié qui passe au rouge si la conservation régresse. Aucune action."
-    },
-    {
-      "id": "MOB-CYCLE32864465631-F3",
-      "criterionId": "DRC-03",
-      "role": "mobile",
-      "severity": "info",
-      "mustFixBeforeRelease": false,
-      "status": "noted",
-      "requiredFix": "Aucun. Le refus explicite hors borne (message + aperçu en attente) est préféré à un clamp silencieux ; alternative cosmétique possible : maxLength borné dynamiquement à 1440.",
-      "origin": "audit round 1 accept du candidat intégré 1fce8b3",
-      "response": "Réponse du directeur : le refus explicite est plus honnête qu'un clamp silencieux selon le canon produit ; couvert par les tests de refus 0 / 12,5 / 1441 et le test de borne haute préexistant. Aucune action."
-    },
-    {
-      "id": "MOB-CYCLE32919230502-F1",
+      "id": "PRODUCT-RESET-BALANCE",
       "criterionId": "DRC-04",
       "role": "mobile",
-      "severity": "medium",
+      "severity": "high",
       "mustFixBeforeRelease": true,
-      "status": "resolved",
-      "requiredFix": "Dans parseEnvelope, après migrateV1ToV2, rejouer isDurableState sur l'état migré et retourner {outcome:'invalid', reason:'invalid-shape'} en cas d'échec ; ajouter les quatre cas de test exigés (entrée vers foyer inconnu, adhésion vers utilisateur ou foyer inconnu, utilisateur actif sans adhésion au foyer actif) et un cas de non-régression.",
-      "origin": "audit round 1 (decision repair) du candidat e1983a7, cycle 32919230502",
-      "resolution": "Résolu par le candidat réparé 327fba8 intégré : la branche version===1 rejoue isDurableState sur l'état migré et refuse en invalid-shape (quarantaine visible dès la première lecture, aucun re-persistance d'un état condamné). Les quatre cas exigés + un cinquième cas de quarantaine première lecture sont dans tests/persistence.test.ts. Reproduction indépendante (entry.householdId='household_ghost' → invalid au lieu de valid) et preuve de mutation (retrait de la garde → exactement 4 échecs) réalisées par l'auditeur round 2 sur copies jetables, candidat jamais édité."
+      "status": "unresolved",
+      "requiredFix": "Faire du bilan temps réel la fonction cœur : semaine, mois, année, depuis le début ; temps total du foyer, temps par membre et part en %. Les quatre périodes restent accessibles dans le produit de base."
     },
     {
-      "id": "MOB-CYCLE32919230502-OPT",
-      "criterionId": "DRC-04",
+      "id": "PRODUCT-RESET-UX",
+      "criterionId": "DRC-05",
       "role": "mobile",
-      "severity": "info",
-      "mustFixBeforeRelease": false,
-      "status": "resolved",
-      "requiredFix": "Cinq améliorations facultatives du tour 1 : F2 avertissement trans-foyer nommant le foyer d'origine à la bascule avec chrono actif ; F3 réinitialisation du filtre membre au changement de foyer actif ; F4 suppression de la constante morte MONTHS_FR de exportReport.ts ; F5 ordinal français « 1er » dans formatDateFr ; F6 contraste AA de la méta-ligne fichier du ReportModal.",
-      "origin": "audits round 1 (repair) et round 2 (accept) du cycle 32919230502",
-      "resolution": "Les cinq améliorations sont appliquées dans le candidat réparé 327fba8 intégré et vérifiées par l'audit round 2 (constats F2-R2 à F6-R2 ; mesure WCAG indépendante 4,55:1 pour textSecondary sur background, contre 3,76:1 pour l'ancienne paire). Le traitement systématique de textMuted reste programmé sous DRC-05."
+      "severity": "high",
+      "mustFixBeforeRelease": true,
+      "status": "unresolved",
+      "requiredFix": "Refondre l'interface : design mobile propre et léger, journal compact, action d'ajout évidente, pondération seulement en Options avancées, temps réel toujours principal, et suppression de tout message automatique qui interprète, moralise ou commente les chiffres/personnes."
     }
   ]
 }

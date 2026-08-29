@@ -3,22 +3,24 @@
 1. ChoreScore est une **application mobile** Expo/React Native.
 2. Le concept est volontairement simple : **un Tricount des tâches ménagères**.
 3. L'utilisateur crée ou choisit un **foyer** puis enregistre des **entrées de travail domestique**.
-4. Une entrée contient au minimum : **nom libre de la tâche**, **personne**, **durée**, **foyer**, **date/heure**.
-5. Le nom est toujours libre. Il n'existe **aucune catégorie obligatoire**, aucun catalogue de tâches et aucune obligation de créer une définition de tâche au préalable.
+4. Une entrée contient au minimum : **nom libre de la tâche**, **personne**, **durée réelle**, **foyer**, **date/heure**.
+5. Le nom est toujours libre. Il n'existe aucune catégorie obligatoire, aucun catalogue de tâches et aucune obligation de créer une définition de tâche au préalable.
 6. La durée peut être saisie manuellement ou obtenue avec un chrono. Un chrono terminé devient une entrée ordinaire du journal.
 7. Le journal du foyer fonctionne comme un registre : ajout, modification et suppression d'entrées réelles.
-8. Le bilan agrège les entrées par membre et période afin de rendre visible la contribution de chacun.
-9. ChoreScore n'est pas une todo list et ne gère pas des tâches « à faire », « actives » ou « archivées » dans le parcours cœur.
-10. Le foyer est un objet de premier rang : création, choix/changement de foyer, membres et isolation des données.
-11. L'interface doit être légère et mobile : une action principale évidente pour ajouter une entrée, peu de texte permanent, pas de batterie de boutons sur chaque ligne, actions rares dans un menu/détail.
-12. Le produit aide à objectiver la répartition des tâches avec un ton calme et factuel ; il n'humilie pas les membres et ne transforme pas le classement en jugement moral.
-13. L'essai complet dure 30 jours.
-14. Après l'essai, l'offre gratuite conserve un foyer, les entrées libres, la saisie manuelle/chrono, le bilan hebdomadaire au temps brut et l'accès à la semaine courante du lundi au dimanche.
-15. Premium ajoute notamment pondération personnalisée, périodes/analyses avancées, export et foyers multiples.
-16. Standard coûte 2,99 €/mois pour 1 à 7 personnes. Pro coûte 5,99 €/mois à partir de 8 personnes ; mêmes fonctionnalités, seule la taille change.
-17. Si la pondération est active, le score vaut `(durée en secondes / 60) × poidsFigé`. En gratuit le poids effectif vaut 1 ; l'arrondi reste réservé à l'affichage.
-18. La RC utilise uniquement des données locales, fonctionne hors ligne et ne simule jamais un paiement ou une synchronisation réelle.
-19. Les données appartiennent aux personnes qui les créent. Les informations légales et de confidentialité restent dans les écrans appropriés et ne doivent pas encombrer le parcours principal.
+8. Le bilan principal agrège le **temps réel** par membre et sa part du temps total du foyer.
+9. **1 minute réelle reste 1 minute réelle.** Le temps affiché et stocké n'est jamais transformé.
+10. Une pondération facultative peut exister uniquement dans `Options avancées` lors de l'ajout ou de la modification d'une entrée. Elle vaut 1 par défaut, reste invisible dans le parcours simple et ne sert qu'à une vue secondaire de contribution pondérée.
+11. L'application ne parle jamais de « points » comme métrique principale.
+12. ChoreScore n'est pas une todo list et ne gère pas des tâches « à faire », « actives » ou « archivées » dans le parcours cœur.
+13. Le foyer est un objet de premier rang : création, choix/changement de foyer, membres et isolation des données.
+14. L'interface doit être légère et mobile : une action principale évidente pour ajouter une entrée, peu de texte permanent, pas de batterie de boutons sur chaque ligne, actions rares dans un menu/détail.
+15. Le produit aide à objectiver la répartition des tâches avec un ton calme et factuel ; il n'humilie pas les membres et ne transforme pas le bilan en jugement moral.
+16. L'essai complet dure 30 jours.
+17. Après l'essai, l'offre gratuite conserve un foyer, les entrées libres, la saisie manuelle/chrono, le bilan hebdomadaire au temps réel et l'accès à la semaine courante du lundi au dimanche.
+18. Premium ajoute notamment pondération avancée facultative, périodes/analyses avancées, export et foyers multiples.
+19. Standard coûte 2,99 €/mois pour 1 à 7 personnes. Pro coûte 5,99 €/mois à partir de 8 personnes ; mêmes fonctionnalités, seule la taille change.
+20. La RC utilise uniquement des données locales, fonctionne hors ligne et ne simule jamais un paiement ou une synchronisation réelle.
+21. Les données appartiennent aux personnes qui les créent. Les informations légales et de confidentialité restent dans les écrans appropriés et ne doivent pas encombrer le parcours principal.
 
 ## Direction visuelle
 

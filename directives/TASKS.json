@@ -1,23 +1,26 @@
 {
   "schemaVersion": 1,
   "milestone": "demo-rc",
-  "updatedBy": "human-product-reset-20260830",
+  "updatedBy": "human-product-reset-20260830-v2",
   "activeCriteria": ["DRC-01"],
   "assignments": {
     "mobile": {
       "enabled": true,
       "criterionId": "DRC-01",
-      "objective": "Refondre le parcours mobile autour du produit canonique : ChoreScore est un Tricount des tâches ménagères, pas une todo list. Remplacer le parcours basé sur TaskDefinition/categories/tâches actives par un registre d'entrées libres rattachées à un foyer. L'utilisateur doit pouvoir créer/choisir un foyer, puis ajouter directement une entrée avec nom libre, personne et durée réelle (manuelle ou chrono). Préserver autant que possible les briques techniques utiles déjà acceptées (persistance, isolation, chrono, export) et fournir une migration sûre des anciennes données locales plutôt qu'une perte silencieuse.",
+      "objective": "Refondre ChoreScore comme un Tricount des tâches ménagères. La source de vérité doit être un registre d'entrées autonomes par foyer. Supprimer l'entité métier persistante TaskDefinition et toute dépendance obligatoire entry.taskId vers une définition. Chaque entrée porte son libellé libre, sa personne, sa durée réelle, son foyer et sa date. Deux actions identiques restent deux entrées distinctes ; les agrégations par libellé sont calculées à la volée depuis l'historique. Préserver et adapter persistance, isolation, chrono et export avec migration sûre de l'ancien schéma.",
       "acceptance": [
-        "Le premier parcours utile permet de créer ou choisir un foyer local et ses membres, sans onboarding éditorial ou pseudo-juridique envahissant.",
-        "Depuis le journal du foyer, un bouton Ajouter une entrée permet de saisir n'importe quel nom de tâche libre, choisir la personne et saisir une durée réelle.",
-        "Aucune catégorie n'est obligatoire et aucune définition de tâche préalable n'est nécessaire.",
-        "Le chrono part d'un nom libre et crée à l'arrêt une entrée normale avec la durée mesurée.",
-        "Le parcours principal ne contient plus de liste de tâches actives/archivées ni quatre boutons par tâche.",
-        "Le temps réel est affiché en minutes/heures ; aucun point n'est présenté comme métrique principale.",
-        "La pondération éventuelle reste cachée dans Options avancées, vaut 1 par défaut et ne modifie jamais le temps réel.",
-        "Les données locales existantes sont migrées ou explicitement récupérées sans corruption silencieuse.",
-        "Les tests couvrent création/choix de foyer, ajout libre manuel, chrono libre, persistance et isolation de foyer."
+        "Créer ou choisir un foyer local et ses membres fonctionne réellement.",
+        "Ajouter crée immédiatement une entrée autonome avec libellé libre, personne et durée réelle.",
+        "Le chrono part d'un libellé libre et crée à l'arrêt une entrée autonome.",
+        "Deux saisies portant le même libellé restent deux entrées distinctes dans l'historique.",
+        "TaskDefinition n'est plus une entité métier persistante du modèle final.",
+        "Une entrée finale ne dépend plus d'un entry.taskId vers une définition persistante pour être affichée, corrigée, persistée ou agrégée.",
+        "Les anciennes données TaskDefinition/taskId sont migrées sans perte silencieuse en copiant le libellé utile dans chaque entrée.",
+        "Les agrégats par tâche sont calculés à la volée depuis les libellés des entrées.",
+        "Aucune catégorie n'est obligatoire.",
+        "Le temps réel est affiché en minutes/heures ; aucun point n'est métrique principale.",
+        "La pondération éventuelle reste dans Options avancées, vaut 1 par défaut et ne modifie jamais le temps réel.",
+        "Le parcours principal converge vers Accueil / Bilan / Foyer et ne contient aucune liste de tâches actives/archivées."
       ]
     },
     "backend": {

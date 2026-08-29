@@ -25,7 +25,7 @@ L'utilisateur crée ou choisit un **foyer**. Dans ce foyer, il enregistre librem
 - le **temps réellement consacré**, saisi manuellement ou mesuré avec un chrono ;
 - la date/heure de réalisation.
 
-Le produit agrège ensuite ces entrées pour montrer combien de temps chaque membre du foyer a consacré aux tâches sur une période et sa part du temps total du foyer.
+Le produit agrège ces entrées pour répondre à la question centrale : **comment le temps consacré aux tâches du foyer se répartit-il entre les membres, et cette répartition s'équilibre-t-elle dans le temps ?**
 
 ### Règle fondamentale de mesure
 
@@ -38,7 +38,7 @@ Une **pondération facultative** peut exister uniquement comme option avancée a
 - elle vaut `1` par défaut ;
 - l'utilisateur peut ignorer complètement cette fonction ;
 - elle ne modifie jamais la durée réelle stockée ou affichée ;
-- si elle est utilisée, elle sert uniquement à une vue secondaire de **contribution pondérée** ;
+- si elle est utilisée, elle sert uniquement à une vue secondaire de contribution pondérée ;
 - le bilan principal reste le temps réel par membre et la part du temps total ;
 - l'interface ne parle jamais de « points ».
 
@@ -59,14 +59,32 @@ Aucun agent ne doit réintroduire ces concepts dans le parcours principal.
 
 Le parcours doit être aussi direct que Tricount :
 
-1. **Créer / choisir un foyer** — nom du foyer, membres locaux de démonstration, possibilité d'avoir plusieurs foyers lorsque le plan le permet.
+1. **Créer / choisir un foyer** — nom du foyer et membres ; plusieurs foyers lorsque le plan le permet.
 2. **Voir le journal du foyer** — liste chronologique des entrées déjà enregistrées.
 3. **Ajouter une entrée** — un bouton principal ouvre un formulaire simple : nom libre, personne, durée. La durée peut être saisie directement ou obtenue par chrono. La pondération n'apparaît que dans `Options avancées`.
-4. **Modifier ou supprimer une entrée** — correction réelle sans modifier rétroactivement les autres entrées.
-5. **Voir le bilan** — comparaison des temps réels des membres et de leur part du total pour la semaine ; les analyses avancées peuvent proposer séparément une vue pondérée.
+4. **Modifier ou supprimer une entrée** — correction réelle sans modifier les autres entrées.
+5. **Voir le bilan** — comparaison du temps réel des membres et de leur part du total selon quatre horizons fondamentaux : **cette semaine, ce mois, cette année, depuis le début**.
 6. **Gérer le foyer** — membres, nom, changement/création de foyer, préférences, export et confidentialité.
 
 Le chrono n'est pas un type de tâche et ne nécessite pas de tâche préexistante : l'utilisateur saisit un nom libre puis démarre le chrono. À l'arrêt, une entrée normale est créée avec la durée réellement mesurée.
+
+## Bilan et équilibre — fonctionnalité cœur
+
+Le bilan est la raison d'être de ChoreScore, pas une fonction accessoire.
+
+Pour le foyer actif, l'utilisateur doit pouvoir passer immédiatement entre :
+- **Semaine** — semaine civile courante, lundi à dimanche ;
+- **Mois** — mois civil courant ;
+- **Année** — année civile courante ;
+- **Depuis le début** — toutes les entrées du foyer depuis sa création.
+
+Pour chaque période, afficher au minimum :
+- le temps réel total du foyer ;
+- le temps réel de chaque membre ;
+- la part de chaque membre en pourcentage du temps total ;
+- une représentation visuelle simple permettant de voir immédiatement un déséquilibre.
+
+Ces quatre périodes appartiennent au **produit de base** et ne doivent pas être bloquées derrière le premium. Le premium peut ajouter des filtres personnalisés, tendances, comparaisons entre périodes, exports, foyers multiples et la vue pondérée avancée.
 
 ## Principes UX
 
@@ -91,7 +109,7 @@ Accessibilité, grandes tailles de texte, petits écrans, contrastes, erreurs et
 
 La navigation peut être adaptée par le designer mobile, mais elle doit rester centrée sur quatre concepts maximum :
 - **Journal** — entrées du foyer et action d'ajout ;
-- **Bilan** — temps par membre et périodes ;
+- **Bilan** — temps par membre, équilibre et périodes ;
 - **Foyer** — membres, création/changement de foyer ;
 - **Profil / Réglages** si nécessaire.
 
@@ -116,10 +134,9 @@ Après l'essai, le plan gratuit conserve :
 - création d'un foyer ;
 - ajout d'entrées libres ;
 - durée manuelle ou chronométrée ;
-- bilan hebdomadaire en temps réel ;
-- accès à la semaine courante du lundi au dimanche.
+- bilan en temps réel sur **semaine / mois / année / depuis le début**.
 
-Premium ajoute notamment pondération avancée facultative, périodes/analyses avancées, exports et foyers multiples. Standard : 2,99 EUR/mois pour 1 à 7 personnes. Pro : 5,99 EUR/mois à partir de 8 personnes. Standard et Pro ont les mêmes fonctionnalités ; seule la taille du foyer change le prix.
+Premium ajoute notamment pondération avancée facultative, analyses comparatives et filtres avancés, exports et foyers multiples. Standard : 2,99 EUR/mois pour 1 à 7 personnes. Pro : 5,99 EUR/mois à partir de 8 personnes. Standard et Pro ont les mêmes fonctionnalités ; seule la taille du foyer change le prix.
 
 Aucun faux achat, faux export, faux multi-foyer ou faux succès.
 
@@ -147,7 +164,7 @@ Firebase/Stripe/analytics/déploiement réels restent hors périmètre de la RC.
 Écrit uniquement dans `functions/src/**`, `functions/test/**`, `docs/security/**` et les fichiers Firebase/règles explicitement autorisés. Il garde tous les services réels désactivés.
 
 ### Auditeur indépendant
-N'édite jamais le produit. Il compare le candidat au **produit canonique ci-dessus**. Un candidat techniquement vert mais ressemblant à une todo list, imposant des catégories ou affichant des points comme métrique principale doit être rejeté.
+N'édite jamais le produit. Il compare le candidat au **produit canonique ci-dessus**. Un candidat techniquement vert mais ressemblant à une todo list, imposant des catégories, cachant les périodes cœur ou affichant des points comme métrique principale doit être rejeté.
 
 ### Directeur de livraison
 N'édite jamais le code produit. Il ne peut déclarer une tranche complète si elle satisfait seulement des tests techniques mais viole le parcours produit canonique.
@@ -169,6 +186,7 @@ L'usine ne peut s'arrêter que lorsque :
 - saisie manuelle et chrono créent réellement des entrées ;
 - modification/suppression d'entrées fonctionne ;
 - journal et bilan reflètent réellement les temps ;
+- semaine, mois, année et depuis le début fonctionnent réellement ;
 - la pondération, si présente, reste optionnelle et secondaire ;
 - persistance et isolation des foyers sont prouvées ;
 - l'interface a fait l'objet d'un audit UX produit, et pas uniquement d'un test de contraste ;
@@ -183,9 +201,10 @@ Un agent ne doit jamais :
 - imposer la création d'une définition de tâche avant l'enregistrement d'un travail effectué ;
 - afficher des points comme métrique principale ;
 - mettre la pondération dans le parcours simple par défaut ;
+- cacher semaine/mois/année/depuis le début derrière un paywall ;
 - cacher une divergence produit derrière des tests verts ;
 - affaiblir un test ou une garde pour obtenir du vert ;
 - inventer une preuve ou présenter un placeholder comme terminé ;
 - activer Firebase/Stripe/analytics réels dans la RC.
 
-**Construire le produit réellement demandé : un Tricount simple des tâches ménagères. Auditer. Intégrer. Continuer jusqu'à l'APK final conforme.**
+**Construire le produit réellement demandé : un Tricount simple des tâches ménagères, centré sur le temps et l'équilibre du foyer. Auditer. Intégrer. Continuer jusqu'à l'APK final conforme.**

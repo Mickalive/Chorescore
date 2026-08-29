@@ -50,12 +50,10 @@ jobs:
           apk="$GITHUB_WORKSPACE/android/app/build/outputs/apk/release/app-release.apk"
           test -s "$apk"
           apk_sha=$(sha256sum "$apk" | awk '{print $1}')
-          apk_size=$(stat -c%s "$apk")
           printf '%s  %s\n' "$apk_sha" "app-release.apk" > "$GITHUB_WORKSPACE/APK_SHA256.txt"
           printf '%s\n' "$source_sha" > "$GITHUB_WORKSPACE/SOURCE_SHA.txt"
           echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
           echo "apk_path=$apk" >> "$GITHUB_OUTPUT"
-          echo "apk_size=$apk_size" >> "$GITHUB_OUTPUT"
           echo "artifact_name=chorescore-phone-$source_sha" >> "$GITHUB_OUTPUT"
 
       - name: Upload phone APK artifact
@@ -70,39 +68,7 @@ jobs:
           retention-days: 30
           compression-level: 0
 
-      - name: Publish latest APK on phone-apk branch
-        if: ${{ steps.build.outputs.apk_size < 100000000 }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          APK_PATH: ${{ steps.build.outputs.apk_path }}
-          SOURCE_SHA: ${{ steps.build.outputs.source_sha }}
-        run: |
-          set -euo pipefail
-          publish_dir=$(mktemp -d)
-          git -C "$publish_dir" init
-          git -C "$publish_dir" config user.name "chorescore-phone-builder"
-          git -C "$publish_dir" config user.email "chorescore-phone-builder@users.noreply.github.com"
-          cp "$APK_PATH" "$publish_dir/app-release.apk"
-          cp "$GITHUB_WORKSPACE/APK_SHA256.txt" "$publish_dir/APK_SHA256.txt"
-          cp "$GITHUB_WORKSPACE/SOURCE_SHA.txt" "$publish_dir/SOURCE_SHA.txt"
-          cat > "$publish_dir/README.md" <<EOF
-          # ChoreScore phone APK
-
-          Latest real-device test build from accepted product source:
-
-          \`$SOURCE_SHA\`
-
-          Download \`app-release.apk\` and install it on Android.
-          EOF
-          git -C "$publish_dir" add app-release.apk APK_SHA256.txt SOURCE_SHA.txt README.md
-          git -C "$publish_dir" commit -m "phone apk: $SOURCE_SHA"
-          git -C "$publish_dir" branch -M phone-apk
-          git -C "$publish_dir" remote add origin "https://github.com/$GITHUB_REPOSITORY.git"
-          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
-          git -C "$publish_dir" -c "http.extraheader=AUTHORIZATION: basic $auth" push --force origin phone-apk
-
-      - name: Publish latest APK as GitHub Release fallback
-        if: ${{ steps.build.outputs.apk_size >= 100000000 }}
+      - name: Publish stable phone APK release
         env:
           GH_TOKEN: ${{ github.token }}
           APK_PATH: ${{ steps.build.outputs.apk_path }}

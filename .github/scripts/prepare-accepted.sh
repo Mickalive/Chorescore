@@ -44,7 +44,20 @@ final=false
 if jq -e 'all(.criteria[];.status=="complete") and (.activeCriteria|length)==0 and .pendingArtifact==null and ([.openFindings[]?|select(.mustFixBeforeRelease==true and .status=="unresolved")]|length)==0 and any(.criteria[]|select(.id=="DRC-06")|.evidence[]?;.kind=="artifact") and any(.criteria[]|select(.id=="DRC-06")|.evidence[]?;.kind=="runtime-smoke")' "$status_file" >/dev/null; then final=true; fi
 pending_artifact=$(jq -r '.pendingArtifact=="DRC-06"' "$status_file"); mobile_enabled=$(jq -r '.assignments.mobile.enabled' "$tasks_file"); backend_enabled=$(jq -r '.assignments.backend.enabled' "$tasks_file")
 while IFS= read -r ref; do case "$ref" in refs/heads/cycle/chorescore/*|refs/heads/recovery/chorescore/*) git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin ":$ref" || true;; esac; done < <(git ls-remote --heads origin | awk '{print $2}')
-while :; do runs=$(gh api "repos/$repo/actions/runs?per_page=100&page=1"); old_runs=$(jq --argjson current "$run_number" --arg current_id "$GITHUB_RUN_ID" '[.workflow_runs[]|select((.run_number<$current) and ((.id|tostring)!=$current_id))]' <<<"$runs"); [[ $(jq 'length' <<<"$old_runs") -gt 0 ]] || break; deleted_any=false; while IFS=$'\t' read -r run_id old_number status; do [[ -n "$run_id" ]] || continue; if [[ "$status" != completed ]]; then gh api -X POST "repos/$repo/actions/runs/$run_id/force-cancel" >/dev/null 2>&1 || gh api -X POST "repos/$repo/actions/runs/$run_id/cancel" >/dev/null 2>&1 || true; fi; if gh api -X DELETE "repos/$repo/actions/runs/$run_id" >/dev/null 2>&1; then echo "Deleted obsolete workflow run $run_id (#$old_number, $status)."; deleted_any=true; else echo "::warning::GitHub retained obsolete workflow run $run_id (#$old_number, $status)."; fi; done < <(jq -r '.[]|[.id,.run_number,.status]|@tsv' <<<"$old_runs"); [[ "$deleted_any" == true ]] || break; done
+# Cleanup is deliberately scoped ONLY to obsolete Product Factory runs.
+# Other workflows (notably ChoreScore Phone APK) and their artifacts must survive so humans can test real-device builds in parallel.
+while :; do
+  runs=$(gh api "repos/$repo/actions/runs?per_page=100&page=1")
+  old_runs=$(jq --argjson current "$run_number" --arg current_id "$GITHUB_RUN_ID" '[.workflow_runs[]|select(.path==".github/workflows/chorescore-factory.yml" and (.run_number<$current) and ((.id|tostring)!=$current_id))]' <<<"$runs")
+  [[ $(jq 'length' <<<"$old_runs") -gt 0 ]] || break
+  deleted_any=false
+  while IFS=$'\t' read -r run_id old_number status; do
+    [[ -n "$run_id" ]] || continue
+    if [[ "$status" != completed ]]; then gh api -X POST "repos/$repo/actions/runs/$run_id/force-cancel" >/dev/null 2>&1 || gh api -X POST "repos/$repo/actions/runs/$run_id/cancel" >/dev/null 2>&1 || true; fi
+    if gh api -X DELETE "repos/$repo/actions/runs/$run_id" >/dev/null 2>&1; then echo "Deleted obsolete Product Factory run $run_id (#$old_number, $status)."; deleted_any=true; else echo "::warning::GitHub retained obsolete Product Factory run $run_id (#$old_number, $status)."; fi
+  done < <(jq -r '.[]|[.id,.run_number,.status]|@tsv' <<<"$old_runs")
+  [[ "$deleted_any" == true ]] || break
+done
 git worktree remove --force "$worktree"; git worktree prune
 { echo "accepted_sha=$accepted_sha"; echo "final=$final"; echo "pending_artifact=$pending_artifact"; echo "mobile_enabled=$mobile_enabled"; echo "backend_enabled=$backend_enabled"; } >> "${GITHUB_OUTPUT:?}"
 echo "Clean factory state ready at $accepted_sha (cycle $cycle)."

@@ -1,21 +1,21 @@
 {
   "schemaVersion": 2,
   "milestone": "demo-rc",
-  "title": "Démo RC Android installable, locale et honnête",
-  "objective": "Une application Android cohérente, persistante, testée et réellement utilisable sans compte, secret, paiement, Metro ni réseau au runtime.",
-  "completionRule": "Tous les critères DRC sont complete, aucun finding bloquant ne reste ouvert, et DRC-06 possède artefact et runtime-smoke Android API 35.",
+  "title": "ChoreScore RC Android — registre domestique simple",
+  "objective": "Une application Android de type Tricount pour tâches ménagères : foyers, entrées libres, temps réel, chrono, journal et bilan, locale et réellement utilisable.",
+  "completionRule": "Tous les critères DRC sont complete, aucun finding bloquant ne reste ouvert, l'UX correspond au produit canonique et DRC-06 possède artefact et runtime-smoke Android API 35.",
   "criteria": [
-    {"id":"DRC-01","priority":10,"title":"Parcours cœur hors ligne","outcome":"Onboarding, tâches manuelles/chronométrées, classement, historique et profil fonctionnent de bout en bout sans placeholder ni réseau.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
-    {"id":"DRC-02","priority":20,"title":"Persistance et reprise","outcome":"Les données de démonstration survivent au redémarrage avec schéma versionné, migration sûre, hydratation explicite et reprise cohérente d'un chronomètre actif.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
-    {"id":"DRC-03","priority":30,"title":"Correction et contrôle des données","outcome":"Modifier/archiver une tâche, corriger/supprimer une entrée et annuler un chronomètre sont réels, confirmés et couverts par invariants.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
-    {"id":"DRC-04","priority":40,"title":"Fonctions premium honnêtes en démo","outcome":"Filtres et synthèses semaine/mois, foyers locaux multiples et export local produisent un vrai résultat ; aucun bouton ne simule un succès ou un achat.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
-    {"id":"DRC-05","priority":50,"title":"Qualité de parcours et accessibilité","outcome":"Les parcours critiques, erreurs, états vides, navigation, annonces accessibles et contrastes possèdent des preuves déterministes.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
-    {"id":"DRC-07","priority":60,"title":"Dépôt révisable et documentation publique","outcome":"La documentation correspond au code accepté, le dépôt public ne surestime pas sa sécurité, le control-plane est réduit à une seule factory et aucun risque critique/élevé connu ne reste ouvert.","allowedRoles":["mobile","backend"],"requiredEvidence":["documentation","audit"]},
-    {"id":"DRC-06","priority":70,"title":"Artefact Android installable","outcome":"Dès que DRC-01 à DRC-05 et DRC-07 sont complets sans finding bloquant, un APK reproductible est construit depuis lab/chorescore, conservé comme artefact, installé et parcouru sur Android API 35 sans Metro ni réseau.","allowedRoles":[],"requiredEvidence":["artifact","runtime-smoke"]}
+    {"id":"DRC-01","priority":10,"title":"Parcours cœur Tricount-like","outcome":"Créer/choisir un foyer, voir son journal, ajouter une entrée au nom libre avec personne + durée manuelle ou chrono, puis voir le temps apparaître immédiatement dans le journal et le bilan. Aucun catalogue de tâches, aucune catégorie obligatoire, aucune todo list.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
+    {"id":"DRC-02","priority":20,"title":"Persistance et reprise","outcome":"Foyers, membres, entrées et chrono actif survivent au redémarrage avec schéma versionné, migration sûre, hydratation explicite et isolation des foyers.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
+    {"id":"DRC-03","priority":30,"title":"Correction et contrôle des entrées","outcome":"Modifier et supprimer une entrée, corriger personne/nom/durée/date/options avancées et annuler un chrono sont réels, confirmés et couverts par invariants. Aucun concept d'archivage de définition de tâche n'est requis.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
+    {"id":"DRC-04","priority":40,"title":"Foyers et fonctions avancées honnêtes","outcome":"Création/changement de foyer local, membres, filtres et synthèses semaine/mois, export local et éventuelle pondération facultative dans Options avancées produisent un vrai résultat. Le temps réel reste toujours visible et principal ; aucun point abstrait.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
+    {"id":"DRC-05","priority":50,"title":"Qualité produit, UX et accessibilité","outcome":"L'interface est simple, moderne et mobile : action Ajouter évidente, journal lisible, bilan compréhensible en temps réel, peu de texte permanent, pas de batterie de boutons par ligne. Parcours critiques, erreurs, états vides, grandes tailles de texte, navigation et contrastes sont vérifiés.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
+    {"id":"DRC-07","priority":60,"title":"Dépôt révisable et documentation publique","outcome":"La documentation correspond au produit et au code acceptés, le dépôt public ne surestime pas sa sécurité et aucun risque critique/élevé connu ne reste ouvert.","allowedRoles":["mobile","backend"],"requiredEvidence":["documentation","audit"]},
+    {"id":"DRC-06","priority":70,"title":"Artefact Android installable","outcome":"Après conformité produit et technique, un APK reproductible est construit depuis lab/chorescore, conservé, installé et parcouru sur Android API 35 sans Metro ni réseau. Le smoke couvre création/choix de foyer, ajout d'une entrée libre, chrono, journal et bilan.","allowedRoles":[],"requiredEvidence":["artifact","runtime-smoke"]}
   ],
   "productionBeta": {
     "status": "out-of-scope",
-    "reason": "La démo RC n'active aucun service réel.",
+    "reason": "La RC n'active aucun service réel.",
     "humanPrerequisites": [
       "projet Firebase et environnements protégés",
       "secrets et compte Stripe de test",

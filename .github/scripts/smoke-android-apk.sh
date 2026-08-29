@@ -11,6 +11,7 @@ mkdir -p "$output_dir"
 start_log="$output_dir/activity-start.txt"
 runtime_log="$output_dir/logcat.txt"
 hierarchy="$output_dir/window.xml"
+
 stage="bootstrap"
 
 dump_ui() {
@@ -38,6 +39,7 @@ print_ui_evidence() {
   python3 - "$hierarchy" <<'PY'
 import sys
 import xml.etree.ElementTree as ET
+
 try:
     root = ET.parse(sys.argv[1]).getroot()
 except Exception as exc:
@@ -49,7 +51,7 @@ for node in root.iter("node"):
         value = node.attrib.get(key, "").strip()
         if value and value not in seen:
             seen.append(value)
-for value in seen[:160]:
+for value in seen[:120]:
     print(f"UI_EVIDENCE {value}")
 PY
 }
@@ -68,25 +70,30 @@ capture_failure() {
     adb shell pidof "$package" >"$output_dir/pid.txt" 2>/dev/null || true
     print_ui_evidence || true
     echo "--- fatal/runtime candidates ---"
-    grep -Eai 'FATAL EXCEPTION|AndroidRuntime.*FATAL|ReactNativeJS|SoLoader|UnsatisfiedLinkError|TypeError|ReferenceError|Invariant Violation|Unable to resolve' "$output_dir/failure-logcat.txt" | tail -n 160 || true
+    grep -Eai 'FATAL EXCEPTION|AndroidRuntime.*FATAL|ReactNativeJS|SoLoader|UnsatisfiedLinkError|TypeError|ReferenceError|Invariant Violation|Unable to resolve' "$output_dir/failure-logcat.txt" | tail -n 120 || true
     echo "::endgroup::"
   fi
   exit "$code"
 }
 trap capture_failure EXIT
 
+# Return bounds for the matched semantic node's nearest clickable ancestor.
+# React Native often exposes visible Text as a child of the actual Pressable;
+# tapping the child coordinates directly can hit system navigation after scroll.
 node_bounds() {
   local mode="$1" needle="$2"
   python3 - "$hierarchy" "$mode" "$needle" <<'PY'
 import re
 import sys
 import xml.etree.ElementTree as ET
+
 path, mode, needle = sys.argv[1:]
 root = ET.parse(path).getroot()
 parent = {child: node for node in root.iter() for child in node}
 
 def matches(node):
-    for value in (node.attrib.get("text", ""), node.attrib.get("content-desc", "")):
+    values = (node.attrib.get("text", ""), node.attrib.get("content-desc", ""))
+    for value in values:
         if mode == "exact" and value == needle:
             return True
         if mode == "prefix" and value.startswith(needle):
@@ -96,19 +103,19 @@ def matches(node):
     return False
 
 def bounds(node):
-    m = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", node.attrib.get("bounds", ""))
-    return m.groups() if m else None
+    match = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", node.attrib.get("bounds", ""))
+    return match.groups() if match else None
 
 for node in root.iter("node"):
     if not matches(node):
         continue
-    cur = node
-    while cur is not None:
-        parsed = bounds(cur)
-        if parsed and cur.attrib.get("clickable") == "true" and cur.attrib.get("enabled", "true") == "true":
+    current = node
+    while current is not None:
+        parsed = bounds(current)
+        if parsed and current.attrib.get("clickable") == "true" and current.attrib.get("enabled", "true") == "true":
             print(" ".join(parsed))
             raise SystemExit(0)
-        cur = parent.get(cur)
+        current = parent.get(current)
     parsed = bounds(node)
     if parsed:
         print(" ".join(parsed))
@@ -121,79 +128,31 @@ screen_height() {
   adb shell wm size 2>/dev/null | tr -d '\r' | sed -nE 's/.*Physical size: [0-9]+x([0-9]+).*/\1/p' | head -n1
 }
 
-scroll_toward_top() {
-  local height="${1:-2200}"
-  adb shell input swipe 540 700 540 "$((height - 350))" 250
-}
-
-scroll_toward_bottom() {
-  local height="${1:-2200}"
-  adb shell input swipe 540 "$((height - 450))" 540 650 300
-}
-
-reset_to_top() {
-  local height
-  height="$(screen_height)"
-  [[ -n "$height" ]] || height=2200
-  for _ in {1..7}; do
-    scroll_toward_top "$height"
-    sleep 0.25
-  done
-}
-
-# Search the complete scrollable surface deterministically: current viewport first,
-# then reset to the top and scan downward. This avoids the old one-way search bug
-# where a state appearing above the tapped task could never be observed.
-find_node_anywhere() {
-  local mode="$1" needle="$2" passes="${3:-2}" height bounds
-  height="$(screen_height)"
-  [[ -n "$height" ]] || height=2200
-
-  if dump_ui && bounds=$(node_bounds "$mode" "$needle" 2>/dev/null); then
-    printf '%s\n' "$bounds"
-    return 0
-  fi
-
-  for ((pass = 1; pass <= passes; pass++)); do
-    reset_to_top
-    for _ in {1..14}; do
-      assert_foreground "recherche de '$needle'" || return 1
-      if dump_ui && bounds=$(node_bounds "$mode" "$needle" 2>/dev/null); then
-        printf '%s\n' "$bounds"
-        return 0
-      fi
-      scroll_toward_bottom "$height"
-      sleep 0.4
-    done
-  done
-  return 1
-}
-
-wait_anywhere() {
-  local mode="$1" needle="$2" attempts="${3:-3}"
+wait_node() {
+  local mode="$1" needle="$2" attempts="${3:-30}"
   for ((attempt = 1; attempt <= attempts; attempt++)); do
     assert_foreground "attente de '$needle'" || return 1
-    if find_node_anywhere "$mode" "$needle" 1 >/dev/null 2>&1; then
+    if dump_ui && node_bounds "$mode" "$needle" >/dev/null 2>&1; then
       return 0
     fi
-    sleep 1
+    sleep 2
   done
-  echo "::error::État Android introuvable: mode=$mode valeur=$needle" >&2
+  echo "::error::Nœud Android introuvable: mode=$mode valeur=$needle" >&2
   return 1
 }
 
-tap_anywhere() {
-  local mode="$1" needle="$2" attempts="${3:-3}" bounds x1 y1 x2 y2 height center_y
+tap_node() {
+  local mode="$1" needle="$2" attempts="${3:-20}" bounds x1 y1 x2 y2 height center_y
   for ((attempt = 1; attempt <= attempts; attempt++)); do
     assert_foreground "recherche du contrôle '$needle'" || return 1
-    if bounds=$(find_node_anywhere "$mode" "$needle" 1 2>/dev/null); then
+    if dump_ui && bounds=$(node_bounds "$mode" "$needle" 2>/dev/null); then
       read -r x1 y1 x2 y2 <<<"$bounds"
       height="$(screen_height)"
-      [[ -n "$height" ]] || height=2200
       center_y=$(((y1 + y2) / 2))
-      if [[ "$center_y" -gt $((height - 160)) ]]; then
-        scroll_toward_bottom "$height"
-        sleep 0.6
+      # Keep taps away from Android's gesture/navigation area.
+      if [[ -n "$height" && "$center_y" -gt $((height - 180)) ]]; then
+        adb shell input swipe 540 "$((height - 450))" 540 "$((height / 2))" 300
+        sleep 1
         continue
       fi
       adb shell input tap "$(((x1 + x2) / 2))" "$center_y"
@@ -203,15 +162,54 @@ tap_anywhere() {
     fi
     sleep 1
   done
-  echo "::error::Contrôle Android introuvable ou non cliquable: mode=$mode valeur=$needle" >&2
+  echo "::error::Contrôle Android non cliquable: mode=$mode valeur=$needle" >&2
+  return 1
+}
+
+tap_node_with_scroll() {
+  local mode="$1" needle="$2" bounds x1 y1 x2 y2 height center_y
+  for _ in {1..12}; do
+    assert_foreground "recherche avec défilement de '$needle'" || return 1
+    if dump_ui && bounds=$(node_bounds "$mode" "$needle" 2>/dev/null); then
+      read -r x1 y1 x2 y2 <<<"$bounds"
+      height="$(screen_height)"
+      center_y=$(((y1 + y2) / 2))
+      if [[ -n "$height" && "$center_y" -gt $((height - 180)) ]]; then
+        adb shell input swipe 540 "$((height - 450))" 540 "$((height / 2))" 300
+        sleep 1
+        continue
+      fi
+      adb shell input tap "$(((x1 + x2) / 2))" "$center_y"
+      sleep 1
+      assert_foreground "clic sur '$needle'" || return 1
+      return 0
+    fi
+    adb shell input swipe 540 1800 540 650 350
+    sleep 1
+  done
+  echo "::error::Contrôle Android introuvable après défilement: $needle" >&2
+  return 1
+}
+
+wait_node_with_scroll() {
+  local mode="$1" needle="$2"
+  for _ in {1..12}; do
+    assert_foreground "attente avec défilement de '$needle'" || return 1
+    if dump_ui && node_bounds "$mode" "$needle" >/dev/null 2>&1; then
+      return 0
+    fi
+    adb shell input swipe 540 1800 540 650 350
+    sleep 1
+  done
+  echo "::error::État Android introuvable après défilement: $needle" >&2
   return 1
 }
 
 tap_onboarding_consent() {
-  if tap_anywhere exact "J’ai compris les conditions de la démonstration" 2 2>/dev/null; then
+  if tap_node_with_scroll exact "J’ai compris les conditions de la démonstration" 2>/dev/null; then
     return 0
   fi
-  tap_anywhere contains "J’ai compris et j’accepte les conditions" 2
+  tap_node_with_scroll contains "J’ai compris et j’accepte les conditions"
 }
 
 stage="install"
@@ -228,7 +226,7 @@ sleep 1
 assert_foreground "lancement initial"
 
 stage="onboarding-visible"
-wait_anywhere contains "Prendre soin du foyer, ensemble." 4
+wait_node contains "Prendre soin du foyer, ensemble." 45
 adb exec-out screencap -p >"$output_dir/01-onboarding.png"
 
 stage="accept-terms"
@@ -236,24 +234,16 @@ tap_onboarding_consent
 adb exec-out screencap -p >"$output_dir/01b-terms-accepted.png"
 
 stage="enter-app"
-tap_anywhere contains "Entrer dans la démo" 3
+tap_node_with_scroll contains "Entrer dans la démo"
 assert_foreground "sortie de l’onboarding"
 
 stage="tasks-home"
-wait_anywhere contains "Tâches du foyer" 4
+wait_node contains "Tâches du foyer" 45
 adb exec-out screencap -p >"$output_dir/02-home.png"
 
 stage="start-timer"
-for attempt in {1..3}; do
-  if tap_anywhere prefix "Démarrer le chrono de " 1 && wait_anywhere exact "Chrono en cours" 1; then
-    break
-  fi
-  if [[ "$attempt" -eq 3 ]]; then
-    echo "::error::Le chrono n'a pas pu être confirmé après trois tentatives." >&2
-    exit 1
-  fi
-  sleep 1
- done
+tap_node_with_scroll prefix "Démarrer le chrono de "
+wait_node_with_scroll exact "Chrono en cours"
 adb exec-out screencap -p >"$output_dir/03-timer-running.png"
 
 stage="restart-with-timer"
@@ -261,23 +251,23 @@ adb shell am force-stop "$package"
 adb shell am start -W -n "$package/.MainActivity" | tr -d '\r' >"$output_dir/activity-restart.txt"
 sleep 1
 assert_foreground "relance avec chrono actif"
-wait_anywhere exact "Chrono en cours" 3
+wait_node_with_scroll exact "Chrono en cours"
 
 stage="finish-timer"
-tap_anywhere prefix "Terminer le chrono de " 3
-wait_anywhere contains "Tâches saisies" 3
+tap_node_with_scroll prefix "Terminer le chrono de "
+wait_node contains "Tâches saisies"
 
 stage="history"
-tap_anywhere contains "Historique" 3
-wait_anywhere contains "Relis les saisies du foyer" 3
+tap_node contains "Historique"
+wait_node contains "Relis les saisies du foyer"
 
 stage="leaderboard"
-tap_anywhere contains "Classement" 3
-wait_anywhere exact "POINT DE REPÈRE PERSONNEL" 3
+tap_node contains "Classement"
+wait_node exact "POINT DE REPÈRE PERSONNEL"
 
 stage="profile"
-tap_anywhere contains "Profil" 3
-wait_anywhere contains "Change de membre pour explorer la démo" 3
+tap_node contains "Profil"
+wait_node contains "Change de membre pour explorer la démo"
 adb exec-out screencap -p >"$output_dir/04-profile.png"
 
 stage="runtime-audit"

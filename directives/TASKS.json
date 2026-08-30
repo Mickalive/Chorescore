@@ -1,27 +1,29 @@
 {
   "schemaVersion": 1,
   "milestone": "demo-rc",
-  "updatedBy": "human-product-spec-20260830",
+  "updatedBy": "human-product-spec-20260830-v2",
   "activeCriteria": ["DRC-01"],
   "assignments": {
     "mobile": {
       "enabled": true,
       "criterionId": "DRC-01",
-      "objective": "Construire la première tranche du produit canonique household-first. Niveau racine : sélectionner un foyer existant ou en créer un si le plan le permet. Dans le foyer sélectionné, la navigation principale est Ajouter une tâche | Score | To-do. Pour DRC-01, rendre réellement fonctionnel Ajouter une tâche et le nouveau modèle CompletedEntry/PersistentTask : une réalisation crée toujours une entrée indépendante avec libellé, membre attribué, date et durée manuelle ou chrono. Une tâche persistante est facultative et sert seulement de raccourci/catégorie analytique stable ; elle ne fusionne jamais les occurrences et n'est pas une To-do. Préserver les briques solides de persistance/chrono/isolation et migrer l'ancien modèle sans perte silencieuse.",
+      "objective": "Construire la première tranche du produit canonique household-first. Racine : foyers accessibles + création selon quota numérique du plan. Dans un foyer : Ajouter une tâche | Score | To-do. DRC-01 rend fonctionnel Ajouter une tâche avec historique complet et un modèle CompletedEntry compatible Tricount : libellé, performedByMemberId sélectionnable parmi tous les membres, beneficiaryMemberIds sélectionnable pour tout le monde ou un sous-ensemble, durée réelle manuelle ou chrono, PersistentTask facultative et date. PersistentTask sert de raccourci et créera exactement un filtre Score ; les entrées ponctuelles relèvent d'Autres. Préserver/migrer persistance, chrono et isolation sans perte silencieuse.",
       "acceptance": [
-        "L'écran racine permet de sélectionner un foyer local existant et de créer un foyer lorsque le plan l'autorise.",
-        "Après ouverture d'un foyer, les trois onglets principaux sont Ajouter une tâche | Score | To-do ; ils ne sont pas affichés au niveau global.",
-        "Ajouter une tâche propose exactement deux modes de durée : durée manuelle ou chrono.",
-        "Une réalisation crée une CompletedEntry indépendante avec libellé, membre attribué, durée réelle, date/heure et foyer.",
-        "Deux réalisations identiques restent deux CompletedEntry distinctes dans l'historique.",
-        "L'utilisateur peut laisser le libellé ponctuel, sélectionner une PersistentTask existante ou rendre le libellé persistant.",
-        "PersistentTask est un raccourci/catégorie analytique facultative, jamais une occurrence réalisée et jamais une To-do.",
-        "Une CompletedEntry sans PersistentTask reste totalement valide et sera classée sous Autres dans Score.",
-        "La pondération éventuelle reste dans Options avancées, vaut 1 par défaut et ne modifie jamais la durée réelle.",
-        "Aucune catégorie ménagère obligatoire n'est imposée.",
-        "Le modèle distingue clairement CompletedEntry, PersistentTask et future TodoItem.",
-        "Les anciennes données sont migrées ou récupérées explicitement sans corruption/perte silencieuse.",
-        "Les tests couvrent foyer sélectionné, durée manuelle, chrono, entrée persistante/non persistante, répétition d'un même libellé, persistance et isolation entre foyers."
+        "L'écran racine sélectionne les foyers et la création repose sur un quota numérique de plan, pas sur le hardcode free=1/multi=premium.",
+        "Dans le foyer les trois onglets sont Ajouter une tâche | Score | To-do.",
+        "Ajouter une tâche propose uniquement durée manuelle ou chrono.",
+        "Une CompletedEntry contient libellé, foyer, date/heure, durée réelle, performedByMemberId et beneficiaryMemberIds non vide.",
+        "Fait par sélectionne l'utilisateur connecté par défaut mais peut être changé vers n'importe quel membre du foyer sans changer l'identité connectée.",
+        "Fait pour permet Tout le monde ou n'importe quel sous-ensemble non vide des membres.",
+        "Deux réalisations identiques restent deux CompletedEntry distinctes.",
+        "PersistentTask est facultative et une PersistentTask correspondra à exactement un filtre Score.",
+        "Les libellés non persistants ne créent aucun filtre et restent classables sous Autres.",
+        "L'historique chronologique complet apparaît sous le formulaire Ajouter une tâche.",
+        "Le modèle permet le futur calcul Score : pour D fait par P pour N bénéficiaires, P reçoit +D et chaque bénéficiaire -D/N.",
+        "La pondération éventuelle reste avancée et ne modifie pas la durée réelle.",
+        "Le modèle distingue CompletedEntry, PersistentTask et TodoItem.",
+        "Les données anciennes sont migrées/récupérées sans perte silencieuse.",
+        "Tests : foyer, fait-par autre membre, fait-pour sous-ensemble/tout le monde, manuel, chrono, persistance, isolation."
       ]
     },
     "backend": {

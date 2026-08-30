@@ -6,20 +6,24 @@
 
 Une suite de tests verte ne valide pas un produit qui ne respecte pas cette constitution.
 
-## 1. Connexion et foyers
+# 1. Connexion, écran racine et foyers
 
-En production, l'utilisateur se connecte avec son propre compte : compte ChoreScore, Google ou Facebook. Son identité n'est jamais un sélecteur local modifiable dans un foyer.
+En production, l'utilisateur se connecte avec son propre compte : compte ChoreScore, Google ou Facebook. Son identité connectée est fixe : il ne peut pas changer arbitrairement « qui je suis » dans l'application.
 
-Après connexion, l'écran racine affiche uniquement :
+Après connexion, l'écran racine affiche :
 - les foyers auxquels l'utilisateur appartient ;
-- l'action `Créer un foyer` si son abonnement lui permet encore d'en créer un ;
-- l'accès discret au compte/réglages.
+- `Créer un foyer` si son quota d'abonnement le permet encore ;
+- un accès simple à `Options` pour tout le monde.
 
-**Le nombre de foyers autorisés dépend du palier d'abonnement.** Ne jamais simplifier en `gratuit = 1 / premium = plusieurs`.
+Le nombre de foyers autorisés dépend d'un quota numérique du palier d'abonnement (`householdLimit` ou équivalent). Ne jamais simplifier en `gratuit = 1 / premium = plusieurs`. Les limites/prix exacts viennent de la configuration canonique de facturation.
 
-Le modèle d'entitlement expose un quota explicite, par exemple `householdLimit`, et l'UI autorise la création tant que le nombre de foyers possédés/administrés soumis au quota reste inférieur à cette limite. Les valeurs/prix exacts des différents paliers viennent de la configuration canonique de facturation et ne doivent pas être inventés dans le code produit.
+## Options
 
-## 2. Dans un foyer : exactement 3 onglets
+Tout utilisateur dispose d'un accès `Options` pour ses réglages personnels, notifications, confidentialité, informations légales et autres préférences générales.
+
+Le payeur/propriétaire d'un foyer dispose en plus, depuis l'écran racine ou l'accès Options associé au foyer, d'un petit accès **Options du foyer** contenant les fonctions d'administration qui lui appartiennent : abonnement/quota, gestion du foyer et, selon le plan, permissions fines des membres. Cela ne doit pas devenir un quatrième onglet à l'intérieur du foyer.
+
+# 2. Dans un foyer : exactement 3 onglets
 
 1. **Ajouter une tâche**
 2. **Score**
@@ -27,165 +31,234 @@ Le modèle d'entitlement expose un quota explicite, par exemple `householdLimit`
 
 Pas d'onglet Historique, Classement, Bilan, Profil ou Foyer supplémentaire.
 
-## 3. Ajouter une tâche = saisie + historique
+# 3. Ajouter une tâche = saisie + historique complet
 
 Cet onglet est l'équivalent de la liste des dépenses Tricount.
 
-En haut : formulaire minimal pour enregistrer une réalisation :
-- libellé ;
-- durée **manuelle ou chrono**, uniquement ;
-- membre auquel la réalisation est attribuée, avec utilisateur connecté par défaut ;
+En haut : formulaire minimal pour enregistrer une réalisation.
+
+Une `CompletedEntry` contient au minimum :
+- `label` : libellé libre ;
+- `performedByMemberId` : **fait par qui** ;
+- `beneficiaryMemberIds[]` : **fait pour qui** ;
+- durée réelle ;
+- foyer ;
 - date/heure ;
-- tâche persistante facultative ;
-- `Options avancées` pour la pondération facultative.
+- `persistentTaskId` facultatif ;
+- pondération facultative avancée.
 
-Chaque réalisation crée une **CompletedEntry indépendante**. Deux vaisselles à deux moments différents = deux entrées différentes.
+## Fait par
 
-Sous le formulaire : **tout l'historique chronologique du foyer**, comme les dépenses dans Tricount. Chaque ligne affiche simplement qui, quoi, combien de temps, quand. Modifier/supprimer via interaction compacte, pas une batterie de boutons.
+Par défaut, `Fait par` sélectionne l'utilisateur connecté, mais l'utilisateur peut choisir **n'importe quel membre du foyer**. Il est donc possible d'ajouter aujourd'hui une tâche qui a en réalité été faite par quelqu'un d'autre.
 
-### Tâche persistante
+L'identité de connexion ne change pas : on distingue toujours `createdBy` / `modifiedBy` de `performedBy` si une traçabilité est nécessaire.
 
-Une `PersistentTask` est facultative. Elle sert uniquement :
-- de raccourci de saisie ;
-- de catégorie stable pour filtrer/analyser Score ;
-- éventuellement à mémoriser une pondération par défaut.
+## Fait pour
 
-Elle n'est ni une réalisation ni une To-do. Une CompletedEntry peut référencer une PersistentTask, mais reste une occurrence indépendante.
+Comme dans Tricount, une réalisation peut avoir été faite :
+- pour **tout le foyer** ;
+- ou uniquement pour **1, 2, 3... membres sélectionnés**.
 
-Les entrées sans PersistentTask restent toutes visibles dans l'historique et sont regroupées analytiquement sous **Autres**.
+Le formulaire fournit un sélecteur multiple simple. `Tout le monde` est un raccourci pratique. Il doit toujours y avoir au moins un bénéficiaire.
 
-### Temps et pondération
+Par défaut, lorsqu'aucun cas particulier n'est choisi, la saisie peut proposer `Tout le monde` afin de rester rapide.
+
+## Durée
+
+Il existe exactement deux façons de renseigner la durée :
+- **manuellement** ;
+- **chrono**.
 
 **1 minute réelle = 1 minute réelle.**
 
-La durée réelle est toujours conservée et affichée. La pondération est facultative, cachée dans Options avancées, coefficient 1 par défaut. Elle produit éventuellement des **heures pondérées**, jamais des points abstraits.
+## Historique complet
 
-## 4. Score = équivalent d'Équilibres dans Tricount
+Sous la zone d'ajout : **tout l'historique chronologique du foyer**, comme la liste des dépenses Tricount.
 
-Score **ne contient pas l'historique** : l'historique est sous Ajouter une tâche.
+Chaque entrée reste indépendante et affiche de façon compacte : tâche, durée, fait par, fait pour, date. Les membres peuvent modifier/supprimer les entrées dans le modèle de confiance par défaut.
 
-Score répond à : qui a contribué davantage ou moins, et de combien faut-il rééquilibrer ?
+# 4. PersistentTask = filtre de Score
 
-### Périodes
+Une `PersistentTask` est facultative. Elle sert à :
+- accélérer la prochaine saisie ;
+- mémoriser éventuellement une pondération par défaut ;
+- créer **exactement un filtre stable dans Score**.
+
+**Une PersistentTask = un filtre.**
+
+Les libellés libres non persistants ne créent jamais de nouveaux filtres, même s'ils se répètent. Ils restent visibles individuellement dans l'historique complet et sont tous regroupés sous le seul filtre **Autres** dans Score.
+
+Une PersistentTask n'est ni une réalisation ni une To-do.
+
+# 5. Score = statistiques + équilibres + historique filtré
+
+Score est l'équivalent fonctionnel de la vue **Équilibres** de Tricount, enrichi de statistiques.
+
+Il ne remplace pas l'historique complet sous Ajouter une tâche, mais il peut afficher **en dessous l'historique correspondant exactement au filtre et à la période sélectionnés**.
+
+## Périodes
 
 - Semaine
 - Mois
 - Année
 - Depuis le début
 
-### Filtre
+## Filtres
 
 - Toutes
-- chaque PersistentTask
+- une entrée par `PersistentTask`
 - Autres
 
-Le filtre agit sur tous les calculs de Score.
+Aucun filtre automatique créé depuis les libellés ponctuels.
 
-### Équilibre réel
+## Calcul de l'équilibre — logique Tricount
 
-Avant le graphique, afficher simplement l'écart de chaque membre à une répartition égale du temps sur la période/filtre :
+Le calcul doit tenir compte de **fait par** et **fait pour**.
 
-`balance = tempsMembre - tempsTotal / nombreDeMembres`
+Pour chaque CompletedEntry de durée réelle `D` et de bénéficiaires `B` :
+- le membre `performedBy` reçoit un crédit de `+D` ;
+- chaque bénéficiaire reçoit une charge de `-D / |B|` ;
+- si le membre qui a fait la tâche fait lui-même partie des bénéficiaires, il reçoit naturellement son crédit puis sa propre quote-part de charge.
 
-Positif = avance de temps ; négatif = retard de temps.
+Le solde réel d'un membre est la somme de ces crédits et charges sur la période/filtre.
 
-Pour deux personnes, cela permet un affichage très direct de type : `A a 2 h 15 d'avance sur B` / `B a 2 h 15 à rattraper`.
+Exemples :
+- A fait 60 min pour A+B : A = +30 min net, B = -30 min ;
+- A fait 60 min uniquement pour B : A = +60 min, B = -60 min ;
+- A fait 60 min uniquement pour A : solde net 0 pour cette entrée.
 
-Pour plusieurs personnes, afficher une représentation KISS de l'écart de chacun à la part égale ; si une formulation pair-à-pair est utilisée, elle doit rester mathématiquement cohérente et compréhensible.
+La somme de tous les soldes est zéro. À partir des soldes positifs/négatifs, l'app calcule une **proposition simple de compensation pair-à-pair**, comme Tricount : qui doit rattraper combien de temps auprès de qui.
 
-### Graphique réel
+## Statistiques réelles
 
-Un graphique en barres montre les minutes/heures réelles par membre. Chaque membre a une couleur distincte, stable et accessible.
+Afficher clairement :
+- solde/avance/retard réel de chaque membre ;
+- proposition `qui doit combien de temps à qui` ;
+- total de temps réellement effectué par chaque membre ;
+- un graphique simple en barres avec **le nom du membre directement associé à chaque barre** et les heures/minutes lisibles.
 
-### Équilibre pondéré
+**Ne pas dépendre d'une couleur permanente par membre.** Les couleurs peuvent servir à la lisibilité du graphique, mais l'identité est portée par le nom/label ; l'app doit fonctionner avec n'importe quel nombre raisonnable de membres sans palette identitaire limitée.
 
-Si la pondération est utilisée, afficher ensuite l'écart de chacun en **heures pondérées**, puis un second graphique en barres des heures pondérées. Cette section est clairement secondaire. Le réel reste toujours visible.
+## Pondération
 
-Aucun commentaire moral, conseil de couple, encouragement ou interprétation automatique.
+La pondération est une option avancée, coefficient 1 par défaut, qui ne modifie jamais la durée réelle.
 
-## 5. To-do = planning futur
+Pour l'équilibre pondéré, appliquer exactement la même logique `fait par / fait pour` mais avec `Dpondere = Dreel × coefficient`.
 
-Une `TodoItem` est une chose à faire, séparée des CompletedEntry.
+Afficher après la partie réelle :
+- soldes/compensations en heures pondérées ;
+- second graphique des heures pondérées par membre.
+
+Le temps réel reste toujours la métrique principale. Aucun point abstrait.
+
+## Historique filtré dans Score
+
+Sous les statistiques/graphes, afficher la liste des CompletedEntry qui correspondent **à la période et au filtre sélectionnés**.
+
+Donc :
+- Ajouter une tâche = historique **complet** ;
+- Score = historique **contextuel/filtré** sous les statistiques.
+
+# 6. To-do = planning futur
+
+Une `TodoItem` représente quelque chose à faire dans le futur.
 
 Elle peut être :
 - sans date précise ;
 - datée / avec deadline ;
 - assignée à un membre ;
+- faite pour tout le monde ou certains membres si pertinent ;
 - accompagnée d'une note ;
 - dotée d'un reminder/notification ;
-- synchronisable avec un calendrier quand l'intégration réelle existe.
+- synchronisable avec un calendrier lorsque l'intégration réelle existe ;
+- liée facultativement à une PersistentTask.
 
-Les membres peuvent par défaut créer/modifier/assigner les To-do pour tout le foyer, sur un modèle de confiance partagé. Des permissions fines peuvent être fournies selon l'abonnement du propriétaire du foyer.
+Les membres peuvent par défaut créer/modifier/assigner/réorganiser les To-do pour le foyer. Les permissions fines peuvent être limitées par le propriétaire selon son plan.
 
-### Marquer une To-do comme faite
+## Validation d'une To-do
 
-Chaque To-do possède une action de validation claire, par exemple un **check vert**.
+Chaque To-do possède un check de validation clair.
 
-Quand un membre marque la To-do comme faite :
-1. l'app demande **combien de temps la tâche a pris** ;
-2. l'utilisateur saisit la durée réelle ;
-3. la To-do passe à terminée ;
-4. l'app crée automatiquement une **CompletedEntry** dans le foyer, attribuée au membre qui l'a réalisée (modifiable selon les règles collaboratives) ;
-5. cette nouvelle entrée apparaît immédiatement dans l'historique sous Ajouter une tâche et entre dans tous les calculs de Score.
+Quand elle est marquée comme faite :
+1. l'app ouvre un mini-formulaire ;
+2. `Fait par` vaut par défaut le membre qui valide, mais peut être changé pour n'importe quel membre du foyer ;
+3. l'app demande la durée réelle ;
+4. `Fait pour` reprend les bénéficiaires de la To-do s'ils sont définis, sinon permet de choisir ;
+5. la To-do passe terminée ;
+6. une CompletedEntry indépendante est créée ;
+7. elle apparaît immédiatement dans l'historique complet et dans Score.
 
-Si la To-do est liée à une PersistentTask, la CompletedEntry conserve cette référence. Sinon elle est une entrée ponctuelle / Autres.
+# 7. Partage natif et viralité
 
-## 6. Trois objets distincts
+Le partage doit être **facile et contextuel dans toute l'application** via le partage natif du téléphone et les applications/réseaux disponibles.
 
-- `CompletedEntry` = réalisation passée, historisée.
-- `PersistentTask` = raccourci/catégorie analytique facultative.
-- `TodoItem` = tâche future à faire.
+Au minimum :
+- depuis Ajouter une tâche : partager une entrée ou une portion sélectionnée de l'historique ;
+- depuis Score : partager le Score courant (période + filtre), les équilibres/compensations et/ou une image/carte des graphes ;
+- depuis l'historique filtré de Score : partager cette sélection ;
+- depuis To-do : partager une To-do ou un planning utile lorsque pertinent.
 
-Ne jamais fusionner ces concepts.
+Le contenu partagé peut être présenté sous forme de **share card ChoreScore** claire, reconnaissable et visuellement attractive afin de favoriser la viralité (par exemple autour du partage de charge domestique / #ChargeMentale), sans inventer de jugement moral ou de texte culpabilisant.
 
-## 7. Collaboration et identité
+L'utilisateur choisit ce qu'il partage. Ne jamais exposer automatiquement plus d'informations personnelles que ce qui est visible/sélectionné dans le contenu partagé.
 
-L'identité connectée reste fixe. En revanche, comme Tricount, le modèle par défaut repose sur la confiance : un membre du foyer peut corriger les entrées et To-do des autres membres.
+# 8. Collaboration et identité
 
-Les permissions fines sont une fonction d'abonnement/administration du foyer, pas une raison de compliquer le fonctionnement par défaut.
+Le fonctionnement par défaut repose sur la confiance, comme Tricount : les membres peuvent saisir/corriger les réalisations et To-do pour les autres membres.
 
-## 8. Notifications / calendrier
+L'identité de connexion reste fixe. `Fait par` est une donnée de l'entrée, pas une usurpation de l'identité connectée.
+
+# 9. Notifications et calendrier
 
 Les préférences peuvent couvrir :
-- nouvelle réalisation ajoutée ;
-- modification/suppression d'une réalisation ;
+- nouvelle réalisation ;
+- modification/suppression ;
 - nouvelle To-do assignée ;
-- rappel/deadline ;
-- autres événements explicitement utiles.
+- deadline/rappel ;
+- autres événements utiles explicitement configurés.
 
-Elles sont configurables pour éviter le spam.
+Elles doivent être réglables pour éviter le spam.
 
 OAuth, push distant, calendrier, paiement et synchronisation réseau ne sont jamais simulés comme réels dans une RC locale.
 
-## 9. Design
+# 10. Design
 
 Direction : **feel-good, chaleureuse, contemporaine, énergique mais pas enfantine**.
 
-- éviter l'application dominée par le blanc ;
+- éviter le blanc dominant ;
 - fonds teintés doux ;
 - surfaces colorées légères ;
-- couleurs distinctes et stables par membre ;
-- graphes très lisibles ;
+- graphes lisibles avec noms directement visibles ;
+- ne pas lier l'identité des membres à une palette finie de couleurs ;
 - typographie nette ;
 - peu de texte ;
-- pas de cartes imbriquées partout ;
-- pas de commentaires éditoriaux sur les chiffres ;
+- partage visuellement attractif ;
+- aucun commentaire moral/relationnel automatique ;
 - accessibilité/contrastes conservés.
 
-L'ancienne palette n'est pas canonique : une nouvelle palette peut être conçue librement dans cette direction.
+# 11. Trois objets métier distincts
 
-## 10. Critères de rejet immédiat
+- `CompletedEntry` = réalisation passée, avec `performedByMemberId` + `beneficiaryMemberIds`.
+- `PersistentTask` = raccourci + **filtre Score** facultatif.
+- `TodoItem` = tâche future.
+
+Ne jamais fusionner ces concepts.
+
+# 12. Critères de rejet immédiat
 
 Rejeter tout candidat qui :
 - met Ajouter/Score/To-do au niveau global plutôt qu'à l'intérieur d'un foyer ;
-- crée un onglet Historique séparé ;
-- place l'historique sous Score au lieu de sous Ajouter une tâche ;
-- transforme Score en liste d'entrées au lieu d'un écran d'équilibre ;
-- simplifie les abonnements en `1 foyer gratuit / multi-foyers premium` ;
-- confond CompletedEntry, PersistentTask et TodoItem ;
+- ne permet pas de choisir `Fait par` parmi les membres du foyer ;
+- ne permet pas de choisir `Fait pour` parmi un ou plusieurs membres ;
+- calcule Score sans tenir compte des bénéficiaires ;
+- crée automatiquement des filtres Score depuis les libellés non persistants ;
+- dépend d'une couleur fixe par membre ;
+- supprime l'historique complet sous Ajouter une tâche ;
+- ne montre pas l'historique filtré sous Score ;
+- ne permet pas le partage contextuel du Score/historique ;
 - marque une To-do terminée sans demander le temps et créer une CompletedEntry ;
 - remplace les heures par des points ;
 - ajoute des messages moraux/relationnels ;
 - rend l'UX inutilement complexe.
 
-**Structure finale : Connexion -> Foyers -> [Ajouter une tâche + historique | Score/Équilibres | To-do].**
+**Structure finale : Connexion -> Foyers -> [Ajouter une tâche + historique complet | Score/Équilibres + stats + historique filtré | To-do].**

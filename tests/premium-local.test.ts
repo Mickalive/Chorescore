@@ -302,7 +302,7 @@ test('les tâches d’un autre foyer ne sont ni démarrables ni modifiables ici'
     ok: false,
     error: 'Cette tâche appartient à un autre foyer.',
   });
-  assert.equal(planManualEntry(state, rivageTaskId, 30).ok, false);
+  assert.equal(planManualEntry(state, rivageTaskId, 30, state.currentUserId).ok, false);
   assert.equal(
     planUpdateTask(state, rivageTaskId, { name: 'Déplacement', category: 'other', weight: 1 }).ok,
     false,

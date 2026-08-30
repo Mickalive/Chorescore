@@ -411,16 +411,27 @@ export type PlannedManualEntry = {
   task: TaskDefinition;
   durationMinutes: number;
   effectiveWeight: number;
+  performedByMemberId: string;
 };
 
 export function planManualEntry(
   state: AppState,
   taskId: string,
   durationMinutes: number,
+  performedByMemberId: string,
 ): InteractionPlan<PlannedManualEntry> {
   const error = validateManualMinutes(durationMinutes);
   if (error !== null) {
     return { ok: false, error };
+  }
+  if (performedByMemberId.length === 0) {
+    return { ok: false, error: 'Un membre doit être sélectionné pour « Fait par ».' };
+  }
+  const isMember = state.memberships.some(
+    (m) => m.householdId === state.household.id && m.userId === performedByMemberId,
+  );
+  if (!isMember) {
+    return { ok: false, error: 'Le membre sélectionné n\u2019appartient pas à ce foyer.' };
   }
   const task = state.tasks.find((candidate) => candidate.id === taskId);
   if (task === undefined) {
@@ -440,6 +451,7 @@ export function planManualEntry(
       task,
       durationMinutes,
       effectiveWeight: getEffectiveWeight(state.household.plan, task.weight),
+      performedByMemberId,
     },
   };
 }

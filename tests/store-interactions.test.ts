@@ -178,20 +178,20 @@ test('en scénario gratuit, le chrono démarre avec le poids effectif 1', () => 
 
 test('la saisie manuelle contrôle la durée avant l’existence de la tâche', () => {
   const state = createState();
-  const zeroMinutes = planManualEntry(state, 'task_inconnue', 0);
+  const zeroMinutes = planManualEntry(state, 'task_inconnue', 0, state.currentUserId);
   assert.deepEqual(zeroMinutes, {
     ok: false,
     error: 'La durée doit être un nombre entier entre 1 et 1440 minutes.',
   });
-  const excessive = planManualEntry(state, 'task_dishes', 1441);
+  const excessive = planManualEntry(state, 'task_dishes', 1441, state.currentUserId);
   assert.equal(excessive.ok, false);
-  const unknownTask = planManualEntry(state, 'task_inconnue', 30);
+  const unknownTask = planManualEntry(state, 'task_inconnue', 30, state.currentUserId);
   assert.deepEqual(unknownTask, { ok: false, error: 'Cette tâche n’existe plus.' });
 });
 
 test('la saisie manuelle valide produit une entrée prête pour l’historique', () => {
   const state = createState();
-  const plan = planManualEntry(state, 'task_dishes', 30);
+  const plan = planManualEntry(state, 'task_dishes', 30, state.currentUserId);
   assert.equal(plan.ok, true);
   if (plan.ok) {
     assert.equal(plan.value.task.id, 'task_dishes');

@@ -222,7 +222,7 @@ test('archiver une tâche la retire des propositions mais garde sa définition p
     ok: false,
     error: 'Cette tâche est archivée : elle reste consultable dans l’historique.',
   });
-  const refusedManual = planManualEntry(next, 'task_dishes', 30);
+  const refusedManual = planManualEntry(next, 'task_dishes', 30, next.currentUserId);
   assert.deepEqual(refusedManual, {
     ok: false,
     error: 'Cette tâche est archivée : elle reste consultable dans l’historique.',

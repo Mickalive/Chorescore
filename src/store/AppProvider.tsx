@@ -52,7 +52,7 @@ type AppContextValue = {
   startTimer: (taskId: string) => void;
   completeTimer: (entryId: string) => void;
   cancelTimer: (entryId: string) => void;
-  addManualEntry: (taskId: string, durationMinutes: number) => boolean;
+  addManualEntry: (taskId: string, durationMinutes: number, performedByMemberId: string) => boolean;
   editEntryDuration: (entryId: string, durationMinutes: number) => boolean;
   deleteEntry: (entryId: string) => void;
   createHousehold: (name: string) => boolean;
@@ -372,15 +372,15 @@ export function AppProvider({
   );
 
   const addManualEntry = useCallback(
-    (taskId: string, durationMinutes: number) => {
-      const plan = planManualEntry(state, taskId, durationMinutes);
+    (taskId: string, durationMinutes: number, performedByMemberId: string) => {
+      const plan = planManualEntry(state, taskId, durationMinutes, performedByMemberId);
       if (!plan.ok) {
         dispatch({ type: 'SET_NOTICE', notice: plan.error });
         return false;
       }
       const entry = appDataService.createManualEntry({
         householdId: state.household.id,
-        userId: state.currentUserId,
+        userId: plan.value.performedByMemberId,
         task: plan.value.task,
         effectiveWeight: plan.value.effectiveWeight,
         durationMinutes: plan.value.durationMinutes,

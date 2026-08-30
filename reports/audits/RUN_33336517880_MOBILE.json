@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "cycle": "33336517880",
+  "role": "mobile",
+  "round": 1,
+  "decision": "accept",
+  "summary": "Repair DRC-01 vérifié : Fait par est désormais un sélecteur modifiable listant tous les householdMembers (SegmentedControl), défaut = currentUserId, valeur stockée dans performedByMemberId et utilisée dans handleSubmit via planManualEntry/AppProvider. Validation performedBy + membership, reset après succès, 195/195 tests verts (6 nouveaux AC16), export Android demo réussi, régression nulle. Le blocage unique du cycle 33328400903 est levé, DRC-01 peut passer complete.",
+  "findings": [
+    {
+      "path": "src/components/ManualEntryModal.tsx",
+      "problem": "Vérification DRC-01 #3 Fait par : sélecteur désormais présent et conforme — aucun défaut bloquant.",
+      "evidence": "L23-31 props householdMembers:User[], currentUserId:string, onSubmit(minutes, performedByMemberId); L34 performedByMemberId useState(currentUserId); L44-50 useEffect reset to currentUserId on task null; L69-73 validatePerformedBy puis L75 onSubmit(parsed, performedByMemberId); L123-137 SegmentedControl accessibilityLabel='Sélectionner le membre qui a réalisé la tâche' options=householdMembers.map -> value/onChange, wrap. Lecture directe du fichier.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise — implémentation conservée.",
+      "verification": "Ouvrir Ajouter une tâche en demo (3 membres Noa/Camille/Sam) : Fait par affiche 3 segments, défaut Noa (=currentUserId). Changer vers Camille -> soumettre 30 -> planManualEntry(task_dishes,30,'user_camille') ok true et performedByMemberId='user_camille'. Vérifié par tests DRC-01-AC16 6/6 verts."
+    },
+    {
+      "path": "src/store/appReducer.ts",
+      "problem": "Plan métier Fait par : validation membership et stockage corrects — aucun défaut bloquant.",
+      "evidence": "L417-456 planManualEntry(state, taskId, durationMinutes, performedByMemberId) : validateManualMinutes, check performedByMemberId.length===0 -> 'Un membre doit être sélectionné pour « Fait par ».', isMember = memberships.some(m.householdId===state.household.id && m.userId===performedByMemberId) -> sinon 'Le membre sélectionné n’appartient pas à ce foyer.', retour value {task, durationMinutes, effectiveWeight, performedByMemberId}. AppProvider L374-394 addManualEntry passe plan.value.performedByMemberId à appDataService.createManualEntry userId.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise.",
+      "verification": "Tests drc01 AC16: planManualEntry avec currentUserId ok, autre membre ok, '' rejette, 'user_intrus' rejette, outsider autre foyer rejette, deux saisies distinctes portent IDs distincts. npm run check 195/195."
+    },
+    {
+      "path": "app/(tabs)/index.tsx",
+      "problem": "Masquage conditionnel du sélecteur quand householdMembers.length===1 : divergence cosmétique mineure, non bloquante pour DRC-01 (cas mono-membre sans choix réel).",
+      "evidence": "L123-137 {householdMembers.length > 1 ? <SegmentedControl .../> : null} — si 1 membre, aucun sélecteur affiché mais valeur par défaut currentUserId reste utilisée via AppProvider. Demo a 3 membres donc sélecteur toujours visible en pratique.",
+      "mustFix": false,
+      "requiredFix": "Optionnel hors DRC-01 : afficher sélecteur même à 1 membre ou conserver le repli actuel ; ne pas bloquer l'intégration.",
+      "verification": "Créer foyer mono-membre (via createHousehold) et ouvrir ManualEntryModal : pas de Fait par visible mais soumission réussit avec currentUserId. Non bloquant pour acceptance #3 qui vise le choix parmi les membres quand plusieurs."
+    },
+    {
+      "path": "app/(tabs)/score.tsx",
+      "problem": "Score et To-do restent placeholders (conforme à la tranche DRC-01, travail DRC-03/DRC-04 à venir) — non bloquant pour ce critère.",
+      "evidence": "Lecture app/(tabs)/score.tsx et todo.tsx : écrans accessibles sans implémentation balances/compensations ni Todo->CompletedEntry, déjà signalé en mustFix:false au cycle 33328400903.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction pour DRC-01. Sera traité en DRC-03 (Score Tricount) et DRC-04 (To-do conversion).",
+      "verification": "Navigation demo : onglets Ajouter une tâche | Score | To-do accessibles sans réseau, pas de régression."
+    }
+  ],
+  "checks": [
+    "npm run check — typecheck 0 error + 195/195 tests pass (incl. drc01.test.ts 6 nouveaux AC16 performedBy: currentUser ok, other member ok, intrus rejette, vide rejette, outsider foyer rejette, distinct IDs)",
+    "EXPO_PUBLIC_DATA_MODE=demo npx expo export --platform android — success, 1288 modules, 2.9MB hbc bundle, dist/metadata.json présent",
+    "diff HEAD vs candidate — 8 fichiers: app/(tabs)/index.tsx householdMembers + prop drilling, src/components/ManualEntryModal.tsx SegmentedControl + validatePerformedBy, src/store/AppProvider.tsx addManualEntry(taskId, minutes, performedByMemberId) -> planManualEntry + createManualEntry userId=performedByMemberId, src/store/appReducer.ts planManualEntry 4e param + membership validation",
+    "grep Fait par wiring — householdMembers filter memberships householdId, currentUserId prop, SegmentedControl options householdMembers.name, value performedByMemberId, onChange setPerformedByMemberId, submit uses selected value not static performer",
+    "mutation proof performedBy — validatePerformedBy('') -> error, planManualEntry('', state) rejected, unknown member rejected, cross-household member rejected, valid member accepted et persisted",
+    "isolation et balances non-régressés — drc01 AC11 Tricount calculs + AC15 isolation/persistence 189 tests historiques toujours verts, 195 total"
+  ]
+}

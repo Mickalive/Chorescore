@@ -60,6 +60,13 @@ export default function TasksScreen() {
     (task) => task.householdId === state.household.id && !task.active,
   ).length;
 
+  // DRC-01 : les membres du foyer servent au sélecteur « Fait par ».
+  const householdMembers = state.users.filter((user) =>
+    state.memberships.some(
+      (m) => m.householdId === state.household.id && m.userId === user.id,
+    ),
+  );
+
   // DRC-03 : l'archivage est réel mais jamais silencieux — confirmation
   // explicite avant de retirer la tâche des propositions.
   const confirmArchive = (task: TaskDefinition) => {
@@ -177,8 +184,12 @@ export default function TasksScreen() {
       />
       <ManualEntryModal
         task={manualTask}
+        householdMembers={householdMembers}
+        currentUserId={state.currentUserId}
         onClose={() => setManualTask(null)}
-        onSubmit={(minutes) => (manualTask === null ? false : addManualEntry(manualTask.id, minutes))}
+        onSubmit={(minutes, performedByMemberId) =>
+          manualTask === null ? false : addManualEntry(manualTask.id, minutes, performedByMemberId)
+        }
       />
     </Screen>
   );

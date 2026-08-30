@@ -16,6 +16,12 @@ import {
   type DurableState,
   type DurableStateV3,
 } from '../src/store/persistence.js';
+import {
+  createInitialState,
+  planManualEntry,
+} from '../src/store/appReducer.js';
+import type { AppState } from '../src/store/appReducer.js';
+import { createDemoSnapshot } from '../src/data/demoData.js';
 import type { CompletedEntry, Membership, PersistentTask, TodoItem, User } from '../src/domain/types.js';
 
 const NOW = new Date(2026, 7, 26, 12, 0, 0);
@@ -882,4 +888,87 @@ test('DRC-01-AC15 : le validateur V3 rejette un CompletedEntry sans bénéficiai
     consent: { termsAccepted: true, termsVersion: 'demo-v1', acceptedAt: '2026-08-14T00:00:00.000Z', analyticsOptIn: false },
   };
   assert.equal(isDurableStateV3(invalid), false, 'Beneficiaries vides = refusé');
+});
+
+/* ------------------------------------------------------------------ */
+/* Acceptance 16 : Fait par sélecteur — planManualEntry                 */
+/* ------------------------------------------------------------------ */
+
+function createState(): AppState {
+  return createInitialState(createDemoSnapshot(NOW));
+}
+
+test('DRC-01-AC16 : planManualEntry accepte performedByMemberId = utilisateur connecté par défaut', () => {
+  const state = createState();
+  const plan = planManualEntry(state, 'task_dishes', 30, state.currentUserId);
+  assert.equal(plan.ok, true);
+  if (plan.ok) {
+    assert.equal(plan.value.performedByMemberId, state.currentUserId);
+  }
+});
+
+test('DRC-01-AC16 : planManualEntry accepte performedByMemberId = autre membre du foyer', () => {
+  const state = createState();
+  const otherMember = state.users.find((u) => u.id !== state.currentUserId);
+  assert.ok(otherMember, 'Il doit exister au moins un autre membre');
+  const plan = planManualEntry(state, 'task_dishes', 30, otherMember!.id);
+  assert.equal(plan.ok, true);
+  if (plan.ok) {
+    assert.equal(plan.value.performedByMemberId, otherMember!.id);
+  }
+});
+
+test('DRC-01-AC16 : planManualEntry rejette performedByMemberId = membre inconnu', () => {
+  const state = createState();
+  const plan = planManualEntry(state, 'task_dishes', 30, 'user_intrus');
+  assert.equal(plan.ok, false);
+  if (!plan.ok) {
+    assert.ok(plan.error.includes('membre'));
+  }
+});
+
+test('DRC-01-AC16 : planManualEntry rejette performedByMemberId vide', () => {
+  const state = createState();
+  const plan = planManualEntry(state, 'task_dishes', 30, '');
+  assert.equal(plan.ok, false);
+  if (!plan.ok) {
+    assert.ok(plan.error.includes('Fait par'));
+  }
+});
+
+test('DRC-01-AC16 : planManualEntry rejette performedByMemberId d\u0027un autre foyer', () => {
+  const state: AppState = {
+    ...createState(),
+    memberships: [
+      { householdId: 'h1', userId: 'user_noa', role: 'owner', joinedAt: '2026-08-14T00:00:00.000Z' },
+      { householdId: 'h1', userId: 'user_camille', role: 'member', joinedAt: '2026-08-14T00:00:00.000Z' },
+      { householdId: 'other_household', userId: 'user_outsider', role: 'member', joinedAt: '2026-08-14T00:00:00.000Z' },
+    ],
+    users: [
+      ...createState().users,
+      { id: 'user_outsider', name: 'Outsider', initials: 'OU', color: '#999' },
+    ],
+  };
+  const plan = planManualEntry(state, 'task_dishes', 30, 'user_outsider');
+  assert.equal(plan.ok, false);
+  if (!plan.ok) {
+    assert.ok(plan.error.includes('foyer'));
+  }
+});
+
+test('DRC-01-AC16 : deux saisies avec performeurs différents portent performedByMemberId distincts', () => {
+  const state = createState();
+  const otherMember = state.users.find((u) => u.id !== state.currentUserId);
+  assert.ok(otherMember);
+
+  const planCurrent = planManualEntry(state, 'task_dishes', 30, state.currentUserId);
+  const planOther = planManualEntry(state, 'task_dishes', 45, otherMember!.id);
+
+  assert.equal(planCurrent.ok, true);
+  assert.equal(planOther.ok, true);
+  if (planCurrent.ok && planOther.ok) {
+    assert.notEqual(planCurrent.value.performedByMemberId, planOther.value.performedByMemberId);
+    assert.equal(planCurrent.value.performedByMemberId, state.currentUserId);
+    assert.equal(planOther.value.performedByMemberId, otherMember!.id);
+  }
 });

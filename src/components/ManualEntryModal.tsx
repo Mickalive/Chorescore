@@ -11,21 +11,27 @@ import {
 } from 'react-native';
 import type { ErrorAnnouncement } from '../domain/formFeedback';
 import { computeErrorAnnouncement } from '../domain/formFeedback';
-import type { TaskDefinition } from '../domain/types';
-import { validateManualMinutes } from '../domain/validation';
+import type { TaskDefinition, User } from '../domain/types';
+import { validateManualMinutes, validatePerformedBy } from '../domain/validation';
 import { AppButton } from './AppButton';
+import { SegmentedControl } from './SegmentedControl';
 import { COLORS, RADIUS, SPACING } from './theme';
 
 export function ManualEntryModal({
   task,
+  householdMembers,
+  currentUserId,
   onClose,
   onSubmit,
 }: {
   task: TaskDefinition | null;
+  householdMembers: User[];
+  currentUserId: string;
   onClose: () => void;
-  onSubmit: (minutes: number) => boolean;
+  onSubmit: (minutes: number, performedByMemberId: string) => boolean;
 }) {
   const [minutes, setMinutes] = useState('');
+  const [performedByMemberId, setPerformedByMemberId] = useState(currentUserId);
   const [errorAnnouncement, setErrorAnnouncement] = useState<ErrorAnnouncement | null>(null);
   const minutesInputRef = useRef<TextInput>(null);
   // Miroir de visibilité consulté par `onShow` : si la modale est fermée
@@ -38,9 +44,10 @@ export function ManualEntryModal({
   useEffect(() => {
     if (task === null) {
       setMinutes('');
+      setPerformedByMemberId(currentUserId);
       setErrorAnnouncement(null);
     }
-  }, [task]);
+  }, [task, currentUserId]);
 
   // Annonce impérative pour VoiceOver : `accessibilityLiveRegion` est ignoré
   // sur iOS. Même motif que TaskFormModal ; sur Android la région live
@@ -54,13 +61,18 @@ export function ManualEntryModal({
 
   const submit = () => {
     const parsedMinutes = Number(minutes);
-    const error = validateManualMinutes(parsedMinutes);
-    if (error !== null) {
-      setErrorAnnouncement(computeErrorAnnouncement(errorAnnouncement, error));
+    const durationError = validateManualMinutes(parsedMinutes);
+    if (durationError !== null) {
+      setErrorAnnouncement(computeErrorAnnouncement(errorAnnouncement, durationError));
+      return;
+    }
+    const performerError = validatePerformedBy(performedByMemberId);
+    if (performerError !== null) {
+      setErrorAnnouncement(computeErrorAnnouncement(errorAnnouncement, performerError));
       return;
     }
     setErrorAnnouncement(null);
-    if (onSubmit(parsedMinutes)) {
+    if (onSubmit(parsedMinutes, performedByMemberId)) {
       onClose();
     }
   };
@@ -108,6 +120,21 @@ export function ManualEntryModal({
               <Text style={styles.errorText}>{errorAnnouncement.message}</Text>
             </View>
           )}
+          {householdMembers.length > 1 ? (
+            <>
+              <Text style={styles.label}>Fait par</Text>
+              <SegmentedControl
+                accessibilityLabel="Sélectionner le membre qui a réalisé la tâche"
+                options={householdMembers.map((member) => ({
+                  value: member.id,
+                  label: member.name,
+                }))}
+                value={performedByMemberId}
+                onChange={setPerformedByMemberId}
+                wrap
+              />
+            </>
+          ) : null}
           <View style={styles.actions}>
             <AppButton label="Annuler" variant="ghost" onPress={onClose} style={styles.action} />
             <AppButton label="Enregistrer" onPress={submit} style={styles.action} />

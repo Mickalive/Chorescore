@@ -4,10 +4,10 @@
 
 `demo-rc` — application Android locale, persistante, honnête et révisable.
 
-## État au cycle 33284625489
+## État au cycle 33295415490
 
 - **DRC-01 reste `in_progress`** — le candidat mobile est indisponible
-  (candidate-unavailable) pour le troisième cycle consécutif. Aucun delta
+  (candidate-unavailable) pour le quatrième cycle consécutif. Aucun delta
   produit n'a été appliqué. Le code source conserve toujours l'ancien modèle
   todo-list avec `TaskDefinition`, `entry.taskId`, 4 onglets
   (`Tâches | Classement | Historique | Profil`) au lieu de 3
@@ -19,19 +19,18 @@
   unresolved.
 - **DRC-06 reste `pending`** — dépend de DRC-01 à DRC-05 complets.
 - **DRC-07 reste `complete`** — documentation backend acceptée.
-- **Stagnation = 3** — troisième cycle sans progrès sur la tâche active
-  (candidat mobile indisponible).
+- **Stagnation = 4** — quatrième cycle sans progrès sur la tâche active
+  (candidat mobile indisponible — panne fournisseur).
 
 ## Prochaine action
 
 Le cycle suivant doit :
 1. Produire un candidat mobile qui implémente la refonte Tricount-like ;
-2. Supprimer `TaskDefinition` comme entité métier persistante ;
-3. Supprimer `entry.taskId` comme dépendance obligatoire ;
+2. Remplacer `TaskDefinition` par `CompletedEntry` dans les types ;
+3. Ajouter `Household[]` (multi-foyers) au modèle ;
 4. Créer la navigation `Ajouter une tâche | Score | To-do` (3 onglets) ;
-5. Implémenter le bilan temps réel avec les 4 périodes ;
-6. Migrer les anciennes données sans perte silencieuse ;
-7. Préserver les briques techniques utiles (persistance, isolation, chrono).
+5. Ajouter `Period = 'week' | 'month' | 'year' | 'all'` ;
+6. Préserver persistance, isolation et chrono existants.
 
 ## Constats ouverts
 

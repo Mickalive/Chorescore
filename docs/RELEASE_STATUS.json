@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "milestone": "demo-rc",
   "governanceVersion": "2026-08-30-product-reset",
-  "lastCycle": "33284625489",
+  "lastCycle": "33295415490",
   "activeCriteria": ["DRC-01"],
-  "stalledCycles": 3,
-  "progressSummary": "Cycle 33284625489 : candidat mobile indisponible (candidate-unavailable) pour le 3e cycle consécutif. Aucun delta produit appliqué. Le code source conserve l'ancien modèle todo-list (TaskDefinition, entry.taskId, 4 onglets). Les 4 open findings produit-reset restent unresolved. DRC-02 et DRC-07 restent complete. DRC-01 reste in_progress, DRC-03/04/05 restent pending. Stagnation = 3.",
+  "stalledCycles": 4,
+  "progressSummary": "Cycle 33295415490 : candidat mobile indisponible (candidate-unavailable) pour le 4e cycle consécutif. Aucun delta produit appliqué. Le code source conserve l'ancien modèle todo-list (TaskDefinition, entry.taskId, 4 onglets). Les 4 open findings produit-reset restent unresolved. DRC-02 et DRC-07 restent complete. DRC-01 reste in_progress, DRC-03/04/05 restent pending. Stagnation = 4 (panne fournisseur).",
   "blocker": "PRODUCT-RESET-20260830",
   "criteria": [
     {

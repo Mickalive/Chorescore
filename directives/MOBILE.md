@@ -26,8 +26,9 @@ Le code conserve l'ancien modèle :
 - Navigation 4 onglets (`Tâches | Classement | Historique | Profil`)
 - Pas de `CompletedEntry` avec performedByMemberId / beneficiaryMemberIds
 
-**Stagnation = 3** (trois cycles consécutifs sans progrès). Le candidat
-doit produire une refonte complète du modèle et de la navigation.
+**Stagnation = 4** (quatre cycles consécutifs sans progrès — panne
+fournisseur). Le candidat doit produire la tranche 1 de la refonte :
+types CompletedEntry + Household multi-foyer + navigation 3 onglets.
 
 ## Niveau global : foyers
 

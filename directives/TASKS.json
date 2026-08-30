@@ -1,35 +1,33 @@
 {
   "schemaVersion": 1,
   "milestone": "demo-rc",
-  "updatedBy": "director-33278810674",
+  "updatedBy": "human-product-spec-20260830",
   "activeCriteria": ["DRC-01"],
   "assignments": {
     "mobile": {
       "enabled": true,
       "criterionId": "DRC-01",
-      "objective": "Refondre ChoreScore comme un Tricount des tâches ménagères. Le candidat précédent est indisponible ; le même objectif reste prioritaire. La source de vérité doit être un registre d'entrées autonomes par foyer. Supprimer l'entité métier persistante TaskDefinition et toute dépendance obligatoire entry.taskId vers une définition. Chaque entrée porte son libellé libre, sa personne, sa durée réelle, son foyer et sa date. Deux actions identiques restent deux entrées distinctes ; les agrégations par libellé sont calculées à la volée depuis l'historique. Réduire la navigation à 3 onglets : Accueil | Bilan | Foyer. Implémenter le bilan temps réel avec les 4 périodes (semaine/mois/année/depuis le début). Préserver et adapter persistance, isolation, chrono et export avec migration sûre de l'ancien schéma.",
+      "objective": "Construire la première tranche du produit canonique household-first. Niveau racine : sélectionner un foyer existant ou en créer un si le plan le permet. Dans le foyer sélectionné, la navigation principale est Ajouter une tâche | Score | To-do. Pour DRC-01, rendre réellement fonctionnel Ajouter une tâche et le nouveau modèle CompletedEntry/PersistentTask : une réalisation crée toujours une entrée indépendante avec libellé, membre attribué, date et durée manuelle ou chrono. Une tâche persistante est facultative et sert seulement de raccourci/catégorie analytique stable ; elle ne fusionne jamais les occurrences et n'est pas une To-do. Préserver les briques solides de persistance/chrono/isolation et migrer l'ancien modèle sans perte silencieuse.",
       "acceptance": [
-        "Créer ou choisir un foyer local et ses membres fonctionne réellement.",
-        "Ajouter crée immédiatement une entrée autonome avec libellé libre, personne et durée réelle.",
-        "Le chrono part d'un libellé libre et crée à l'arrêt une entrée autonome.",
-        "Deux saisies portant le même libellé restent deux entrées distinctes dans l'historique.",
-        "TaskDefinition n'est plus une entité métier persistante du modèle final.",
-        "Une entrée finale ne dépend plus d'un entry.taskId vers une définition persistante pour être affichée, corrigée, persistée ou agrégée.",
-        "Les anciennes données TaskDefinition/taskId sont migrées sans perte silencieuse en copiant le libellé utile dans chaque entrée.",
-        "Les agrégats par tâche sont calculés à la volée depuis les libellés des entrées.",
-        "Aucune catégorie n'est obligatoire.",
-        "Le temps réel est affiché en minutes/heures ; aucun point n'est métrique principale.",
-        "La pondération éventuelle reste dans Options avancées, vaut 1 par défaut et ne modifie jamais le temps réel.",
-        "La navigation est réduite à 3 onglets : Accueil | Bilan | Foyer.",
-        "Bilan propose les 4 périodes : semaine/mois/année/depuis le début.",
-        "Bilan affiche temps total du foyer, temps par personne, part en %, graphe Personnes et graphe Tâches avec minutes/heures.",
-        "La liste chronologique des entrées individuelles de la période apparaît sous les graphes."
+        "L'écran racine permet de sélectionner un foyer local existant et de créer un foyer lorsque le plan l'autorise.",
+        "Après ouverture d'un foyer, les trois onglets principaux sont Ajouter une tâche | Score | To-do ; ils ne sont pas affichés au niveau global.",
+        "Ajouter une tâche propose exactement deux modes de durée : durée manuelle ou chrono.",
+        "Une réalisation crée une CompletedEntry indépendante avec libellé, membre attribué, durée réelle, date/heure et foyer.",
+        "Deux réalisations identiques restent deux CompletedEntry distinctes dans l'historique.",
+        "L'utilisateur peut laisser le libellé ponctuel, sélectionner une PersistentTask existante ou rendre le libellé persistant.",
+        "PersistentTask est un raccourci/catégorie analytique facultative, jamais une occurrence réalisée et jamais une To-do.",
+        "Une CompletedEntry sans PersistentTask reste totalement valide et sera classée sous Autres dans Score.",
+        "La pondération éventuelle reste dans Options avancées, vaut 1 par défaut et ne modifie jamais la durée réelle.",
+        "Aucune catégorie ménagère obligatoire n'est imposée.",
+        "Le modèle distingue clairement CompletedEntry, PersistentTask et future TodoItem.",
+        "Les anciennes données sont migrées ou récupérées explicitement sans corruption/perte silencieuse.",
+        "Les tests couvrent foyer sélectionné, durée manuelle, chrono, entrée persistante/non persistante, répétition d'un même libellé, persistance et isolation entre foyers."
       ]
     },
     "backend": {
       "enabled": false,
       "criterionId": "DRC-07",
-      "objective": "Backend inchangé pendant la refonte locale du produit mobile.",
+      "objective": "Backend/services externes inchangés pendant cette tranche locale. Ne simuler aucun OAuth, push, calendrier ou paiement comme réel.",
       "acceptance": []
     }
   }

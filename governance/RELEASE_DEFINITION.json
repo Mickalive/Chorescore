@@ -1,27 +1,29 @@
 {
   "schemaVersion": 2,
   "milestone": "demo-rc",
-  "title": "ChoreScore RC Android — registre domestique simple",
-  "objective": "Une application Android de type Tricount pour tâches ménagères : foyers, entrées libres, temps réel, chrono et un Bilan unique fusionnant historique et répartition.",
-  "completionRule": "Tous les critères DRC sont complete, aucun finding bloquant ne reste ouvert, l'UX respecte KISS et DRC-06 possède artefact et runtime-smoke Android API 35.",
+  "title": "ChoreScore RC Android — foyers, Score et To-do",
+  "objective": "Une application Android simple : connexion, sélection d'un foyer, puis Ajouter une tâche / Score / To-do. Les réalisations sont historisées comme des entrées indépendantes, Score fusionne historique et métriques, To-do planifie le futur.",
+  "completionRule": "Tous les critères DRC sont complete, aucun finding bloquant ne reste ouvert, l'UX respecte KISS et la hiérarchie foyers -> Ajouter/Score/To-do, puis DRC-06 possède artefact et runtime-smoke Android API 35.",
   "criteria": [
-    {"id":"DRC-01","priority":10,"title":"Parcours cœur Tricount-like","outcome":"Créer/choisir un foyer, ajouter directement une entrée au nom libre avec personne + durée manuelle ou chrono et voir l'entrée apparaître immédiatement. Aucun catalogue de tâches, aucune catégorie obligatoire, aucune todo list.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
-    {"id":"DRC-02","priority":20,"title":"Persistance et reprise","outcome":"Foyers, membres, entrées et chrono actif survivent au redémarrage avec schéma versionné, migration sûre, hydratation explicite et isolation des foyers.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
-    {"id":"DRC-03","priority":30,"title":"Correction et contrôle des entrées","outcome":"Modifier et supprimer une entrée, corriger personne/nom/durée/date/options avancées et annuler un chrono sont réels et couverts. Aucun archivage de définition de tâche n'est requis.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
-    {"id":"DRC-04","priority":40,"title":"Bilan unique et foyers","outcome":"La navigation principale reste limitée à Accueil, Bilan et Foyer. Historique et Classement sont fusionnés dans Bilan. Bilan propose semaine/mois/année/depuis le début puis Personnes/Tâches. Vue Personnes : temps + part du total + graphe. Vue Tâches : regroupement par nom libre + minutes/heures + graphe. La liste chronologique des entrées de la période apparaît sous les graphes. Création/changement de foyer et membres fonctionnent réellement.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
-    {"id":"DRC-05","priority":50,"title":"Qualité produit, UX et accessibilité","outcome":"L'interface respecte KISS : peu d'écrans, Ajouter évident, graphes simples avec minutes/heures lisibles, pas de batterie de boutons, pas de cartes inutiles, pas de texte éditorial ou moral. Grandes tailles de texte, navigation, erreurs, états vides et contrastes sont vérifiés.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
-    {"id":"DRC-07","priority":60,"title":"Dépôt révisable et documentation publique","outcome":"La documentation correspond au produit et au code acceptés, le dépôt public ne surestime pas sa sécurité et aucun risque critique/élevé connu ne reste ouvert.","allowedRoles":["mobile","backend"],"requiredEvidence":["documentation","audit"]},
-    {"id":"DRC-06","priority":70,"title":"Artefact Android installable","outcome":"Après conformité produit et technique, un APK reproductible est construit depuis lab/chorescore, conservé, installé et parcouru sur Android API 35 sans Metro ni réseau. Le smoke couvre foyer, ajout libre, chrono, Accueil, Bilan fusionné, périodes, graphes Personnes/Tâches et liste d'entrées.","allowedRoles":[],"requiredEvidence":["artifact","runtime-smoke"]}
+    {"id":"DRC-01","priority":10,"title":"Foyers et ajout d'une réalisation","outcome":"Après sélection d'un foyer, l'onglet Ajouter une tâche permet de créer une entrée indépendante avec libellé, membre attribué et durée manuelle ou chrono. Une tâche persistante peut être associée/créée facultativement sans fusionner les occurrences. Les entrées non persistantes restent autonomes et relèvent d'Autres dans les analyses.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
+    {"id":"DRC-02","priority":20,"title":"Persistance, migration et isolation","outcome":"Foyers, membres, CompletedEntry, PersistentTask, TodoItem et chrono actif survivent au redémarrage avec schéma versionné, migration sûre et isolation stricte entre foyers.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
+    {"id":"DRC-03","priority":30,"title":"Contrôle collaboratif des données","outcome":"Dans le modèle de confiance par défaut, les membres du foyer peuvent ajouter/modifier/supprimer des entrées et gérer les To-do pour les autres sans changer leur propre identité connectée. Les opérations sont réelles, confirmées et cohérentes. Les permissions fines premium restent une frontière explicite si non implémentées dans la RC.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
+    {"id":"DRC-04","priority":40,"title":"Score unifié","outcome":"Score fusionne historique et métriques. Il propose semaine/mois/année/depuis le début, filtre Toutes/tâches persistantes/Autres, avance-retard réel par rapport à la part égale, graphique réel par membre, puis avance-retard pondéré et graphique pondéré lorsque la pondération est disponible. Les entrées individuelles filtrées apparaissent sous les graphes.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
+    {"id":"DRC-05","priority":50,"title":"To-do, UX et accessibilité","outcome":"Dans un foyer, la navigation principale est exactement Ajouter une tâche / Score / To-do. To-do gère localement planning, attribution, deadline et rappel configurable ; les frontières calendrier/notifications sont honnêtes si les intégrations réelles sont absentes. L'interface respecte KISS, est feel-good, peu blanche, accessible, sans texte moral ou éditorial parasite.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
+    {"id":"DRC-07","priority":60,"title":"Dépôt révisable et frontières production","outcome":"Documentation et architecture reflètent CompletedEntry/PersistentTask/TodoItem, identité réelle future, notifications/calendrier et permissions sans simuler des services externes non configurés. Aucun risque critique/élevé connu ne reste ouvert.","allowedRoles":["mobile","backend"],"requiredEvidence":["documentation","audit"]},
+    {"id":"DRC-06","priority":70,"title":"Artefact Android installable","outcome":"Après conformité produit et technique, un APK reproductible est construit depuis lab/chorescore, installé et parcouru sur Android API 35. Le smoke couvre sélecteur de foyer, Ajouter une tâche, durée manuelle, chrono, Score réel/pondéré et historique, ainsi que To-do local.","allowedRoles":[],"requiredEvidence":["artifact","runtime-smoke"]}
   ],
   "productionBeta": {
     "status": "out-of-scope",
-    "reason": "La RC n'active aucun service réel.",
+    "reason": "OAuth réel, push distant, calendrier distant, paiement et synchronisation multi-device ne sont activés qu'avec leurs environnements réels et secrets correctement configurés.",
     "humanPrerequisites": [
-      "projet Firebase et environnements protégés",
-      "secrets et compte Stripe de test",
-      "tests émulateur Firestore/Storage et revue des règles",
+      "fournisseurs OAuth et secrets protégés",
+      "backend/synchronisation réelle et règles d'autorisation",
+      "notifications push et consentements",
+      "intégration calendrier réelle",
+      "Stripe/environnements de paiement",
       "validation juridique confidentialité/conditions",
-      "revue humaine sécurité et test d'intrusion avant données réelles"
+      "revue sécurité avant données réelles"
     ]
   }
 }

@@ -1,27 +1,30 @@
 {
   "schemaVersion": 2,
   "milestone": "demo-rc",
-  "title": "ChoreScore RC Android — registre domestique simple",
-  "objective": "Une application Android de type Tricount pour tâches ménagères : foyers, entrées libres, temps réel, chrono et un Bilan unique fusionnant historique et répartition.",
-  "completionRule": "Tous les critères DRC sont complete, aucun finding bloquant ne reste ouvert, l'UX respecte KISS et DRC-06 possède artefact et runtime-smoke Android API 35.",
+  "title": "ChoreScore RC Android — households, history, Score and To-do",
+  "objective": "Application Android Tricount-like du temps domestique : foyers, réalisations fait-par/fait-pour, historique complet, Score équilibres/statistiques, historique filtré et To-do.",
+  "completionRule": "Tous les critères DRC sont complete, aucun finding bloquant ne reste ouvert, l'UX respecte la constitution puis DRC-06 possède artefact et runtime-smoke Android API 35.",
   "criteria": [
-    {"id":"DRC-01","priority":10,"title":"Parcours cœur Tricount-like","outcome":"Créer/choisir un foyer, ajouter directement une entrée au nom libre avec personne + durée manuelle ou chrono et voir l'entrée apparaître immédiatement. Aucun catalogue de tâches, aucune catégorie obligatoire, aucune todo list.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
-    {"id":"DRC-02","priority":20,"title":"Persistance et reprise","outcome":"Foyers, membres, entrées et chrono actif survivent au redémarrage avec schéma versionné, migration sûre, hydratation explicite et isolation des foyers.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
-    {"id":"DRC-03","priority":30,"title":"Correction et contrôle des entrées","outcome":"Modifier et supprimer une entrée, corriger personne/nom/durée/date/options avancées et annuler un chrono sont réels et couverts. Aucun archivage de définition de tâche n'est requis.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
-    {"id":"DRC-04","priority":40,"title":"Bilan unique et foyers","outcome":"La navigation principale reste limitée à Accueil, Bilan et Foyer. Historique et Classement sont fusionnés dans Bilan. Bilan propose semaine/mois/année/depuis le début puis Personnes/Tâches. Vue Personnes : temps + part du total + graphe. Vue Tâches : regroupement par nom libre + minutes/heures + graphe. La liste chronologique des entrées de la période apparaît sous les graphes. Création/changement de foyer et membres fonctionnent réellement.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
-    {"id":"DRC-05","priority":50,"title":"Qualité produit, UX et accessibilité","outcome":"L'interface respecte KISS : peu d'écrans, Ajouter évident, graphes simples avec minutes/heures lisibles, pas de batterie de boutons, pas de cartes inutiles, pas de texte éditorial ou moral. Grandes tailles de texte, navigation, erreurs, états vides et contrastes sont vérifiés.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
-    {"id":"DRC-07","priority":60,"title":"Dépôt révisable et documentation publique","outcome":"La documentation correspond au produit et au code acceptés, le dépôt public ne surestime pas sa sécurité et aucun risque critique/élevé connu ne reste ouvert.","allowedRoles":["mobile","backend"],"requiredEvidence":["documentation","audit"]},
-    {"id":"DRC-06","priority":70,"title":"Artefact Android installable","outcome":"Après conformité produit et technique, un APK reproductible est construit depuis lab/chorescore, conservé, installé et parcouru sur Android API 35 sans Metro ni réseau. Le smoke couvre foyer, ajout libre, chrono, Accueil, Bilan fusionné, périodes, graphes Personnes/Tâches et liste d'entrées.","allowedRoles":[],"requiredEvidence":["artifact","runtime-smoke"]}
+    {"id":"DRC-01","priority":10,"title":"Foyers et réalisations Tricount-like","outcome":"L'écran racine affiche les foyers et respecte un quota d'abonnement numérique. Dans Ajouter une tâche, une CompletedEntry accepte libellé, Fait par n'importe quel membre du foyer, Fait pour tout le monde ou un sous-ensemble non vide, durée manuelle ou chrono, PersistentTask facultative et date. Tout l'historique chronologique du foyer apparaît sous la saisie.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
+    {"id":"DRC-02","priority":20,"title":"Persistance, migration et isolation","outcome":"Foyers, membres, CompletedEntry avec performedBy/beneficiaries, PersistentTask, TodoItem et chrono survivent au redémarrage avec schéma versionné, migration sûre et isolation stricte.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
+    {"id":"DRC-03","priority":30,"title":"Collaboration et options foyer","outcome":"Les membres peuvent ajouter/modifier/supprimer des entrées et gérer les To-do pour les autres sans changer leur identité connectée. Tous ont Options ; le payeur/propriétaire dispose en plus des options d'administration, quota/abonnement et permissions selon plan, sans créer un quatrième onglet dans le foyer.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
+    {"id":"DRC-04","priority":40,"title":"Score statistiques et équilibres","outcome":"Score propose semaine/mois/année/depuis le début et filtres Toutes/une entrée par PersistentTask/Autres. Une PersistentTask crée exactement un filtre ; les libellés ponctuels n'en créent aucun. Pour chaque entrée D faite par P pour N bénéficiaires, P reçoit +D et chaque bénéficiaire -D/N ; les soldes servent à proposer qui doit rattraper combien auprès de qui. Score affiche temps effectué + graphes avec noms, section pondérée équivalente, puis historique exactement filtré par période/tâche. L'historique complet reste sous Ajouter.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
+    {"id":"DRC-05","priority":50,"title":"To-do, partage, UX et accessibilité","outcome":"La navigation du foyer est exactement Ajouter une tâche / Score / To-do. Une To-do peut être datée ou non, assignée, avoir bénéficiaires, deadline/reminder ; son check demande fait-par + durée + fait-pour puis crée une CompletedEntry. Ajouter/Score/To-do permettent un partage natif contextuel des entrées, historiques filtrés, scores/graphes ou planning. L'UX est KISS, feel-good, peu blanche, accessible, sans dépendre d'une couleur identitaire fixe par membre ni afficher de texte moral parasite.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
+    {"id":"DRC-07","priority":60,"title":"Dépôt révisable et frontières production","outcome":"Documentation/architecture reflètent fait-par/fait-pour, settlement de temps, PersistentTask=filtre, partage natif, quotas, identité future, notifications/calendrier et permissions sans simuler des services externes non configurés. Aucun risque critique/élevé connu ne reste ouvert.","allowedRoles":["mobile","backend"],"requiredEvidence":["documentation","audit"]},
+    {"id":"DRC-06","priority":70,"title":"Artefact Android installable","outcome":"APK reproductible construit depuis lab/chorescore, installé et parcouru sur Android API 35. Smoke : foyer, ajout fait-par/fait-pour manuel+chrono, historique complet, filtres PersistentTask/Autres, Score balances/graphes réel+pondéré+historique filtré, To-do convertie en CompletedEntry et partage natif déclenchable.","allowedRoles":[],"requiredEvidence":["artifact","runtime-smoke"]}
   ],
   "productionBeta": {
     "status": "out-of-scope",
-    "reason": "La RC n'active aucun service réel.",
+    "reason": "OAuth réel, push distant, calendrier distant, paiement et synchronisation multi-device ne sont activés qu'avec leurs environnements réels et secrets correctement configurés.",
     "humanPrerequisites": [
-      "projet Firebase et environnements protégés",
-      "secrets et compte Stripe de test",
-      "tests émulateur Firestore/Storage et revue des règles",
+      "grille canonique des paliers d'abonnement et quotas de foyers",
+      "fournisseurs OAuth et secrets protégés",
+      "backend/synchronisation réelle et règles d'autorisation",
+      "notifications push et consentements",
+      "intégration calendrier réelle",
+      "Stripe/environnements de paiement",
       "validation juridique confidentialité/conditions",
-      "revue humaine sécurité et test d'intrusion avant données réelles"
+      "revue sécurité avant données réelles"
     ]
   }
 }

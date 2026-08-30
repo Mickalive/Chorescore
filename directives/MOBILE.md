@@ -6,15 +6,13 @@ Sélecteur machine : `directives/TASKS.json`
 
 ## Source de vérité
 
-Lire d'abord `MAIN_PROMPT.md` et `docs/product-decisions.md` depuis `main`. La RC précédente est rejetée comme produit.
+Lire d'abord `MAIN_PROMPT.md`, `governance/RELEASE_DEFINITION.json` et `docs/product-decisions.md` depuis `main`.
 
 ## Niveau global : foyers
 
-Après connexion en production : écran listant les foyers accessibles.
+Écran racine = foyers accessibles + création selon **quota numérique de plan** (`householdLimit` ou équivalent) + accès Options. Ne jamais hardcoder `gratuit=1 / premium=plusieurs`.
 
-La création d'un foyer dépend d'un **quota numérique d'abonnement** (`householdLimit` ou équivalent). Il existe plusieurs paliers selon le nombre de foyers. **Ne jamais coder la règle `gratuit = 1 foyer / premium = plusieurs`.**
-
-La RC locale peut utiliser une entitlement/config locale honnête, mais les valeurs/prix des paliers non présents dans la configuration canonique ne doivent pas être inventés.
+Tous les utilisateurs ont Options ; les options d'administration du foyer/quota/permissions sont réservées au payeur/propriétaire selon le plan, sans créer d'onglet foyer supplémentaire.
 
 ## Dans un foyer : exactement 3 onglets
 
@@ -22,56 +20,71 @@ La RC locale peut utiliser une entitlement/config locale honnête, mais les vale
 2. **Score**
 3. **To-do**
 
-## DRC-01 — Ajouter une tâche + historique
+## DRC-01 — Ajouter une tâche + historique complet
 
-L'onglet Ajouter une tâche est l'équivalent de la vue dépenses Tricount.
-
-En haut : formulaire court pour créer une `CompletedEntry` :
+Une `CompletedEntry` doit porter :
 - libellé ;
-- membre attribué ;
-- durée réelle **manuelle ou chrono uniquement** ;
+- `performedByMemberId` ;
+- `beneficiaryMemberIds[]` non vide ;
+- durée réelle ;
 - date/heure ;
-- `PersistentTask` facultative ;
-- pondération facultative dans Options avancées.
+- foyer ;
+- `persistentTaskId` facultatif ;
+- pondération facultative.
 
-Chaque réalisation est une entrée indépendante.
+### Fait par
 
-**Sous le formulaire, afficher tout l'historique chronologique du foyer.** L'historique n'est pas sous Score et n'a pas d'onglet séparé.
+Par défaut utilisateur connecté, mais l'utilisateur doit pouvoir sélectionner **n'importe quel membre du foyer** comme personne ayant réellement effectué la tâche. Cela ne change jamais l'identité connectée/createdBy.
 
-## Objets métier
+### Fait pour
 
-- `CompletedEntry` : réalisation passée historisée.
-- `PersistentTask` : raccourci/catégorie analytique facultative.
-- `TodoItem` : tâche future.
+Permettre `Tout le monde` ou n'importe quel sous-ensemble de 1..N membres. La sélection doit être simple et rapide.
 
-Ne jamais les fusionner.
+### Durée
 
-Les CompletedEntry sans PersistentTask restent visibles dans l'historique et relèvent de `Autres` dans Score.
+Exactement deux modes : durée manuelle ou chrono. Le chrono crée une CompletedEntry avec les mêmes champs métier.
 
-## Préparer Score correctement
+### Historique
 
-Score sera l'équivalent d'Équilibres dans Tricount, pas une liste historique : périodes semaine/mois/année/depuis le début, filtre PersistentTask/Autres, avance-retard réel, graphique réel, puis pondéré si utilisé.
+Sous le formulaire : **historique chronologique complet du foyer**. Chaque entrée affiche au minimum libellé, durée, fait par, fait pour, date et reste modifiable/supprimable selon le modèle collaboratif.
 
-Ne placer aucune liste d'historique sous Score.
+## PersistentTask
 
-## Préparer To-do correctement
+Une PersistentTask est facultative. **Une PersistentTask = exactement un filtre Score.**
 
-TodoItem peut être datée ou non, assignée et avoir deadline/reminder. Lorsqu'elle est cochée comme faite, le flux final devra demander le temps passé puis créer une CompletedEntry. Ne prendre aucune décision de modèle qui empêche cette conversion.
+Elle sert de raccourci/catégorie stable et éventuellement de pondération par défaut. Les libellés ponctuels ne deviennent pas des filtres et relèvent de `Autres` dans Score.
+
+## Préparer Score sans l'implémenter de travers
+
+Le modèle doit permettre le settlement Tricount-like : pour une entrée de durée D faite par P pour N bénéficiaires, P reçoit +D et chaque bénéficiaire -D/N. Cette logique devra fonctionner en réel et pondéré.
+
+Score aura les périodes semaine/mois/année/depuis le début, filtres Toutes/PersistentTask/Autres, balances/compensations, graphes avec noms directement visibles et **sans dépendance à une couleur identitaire fixe par membre**, puis historique filtré par période + filtre.
+
+L'historique complet reste sous Ajouter une tâche ; l'historique de Score est contextuel/filtré.
+
+## Préparer To-do
+
+TodoItem peut être datée ou non, assignée, avoir bénéficiaires, deadline/reminder et PersistentTask facultative. Lors du check terminé, le flux final demandera fait-par + durée + fait-pour puis créera une CompletedEntry.
+
+## Partage
+
+Prévoir le partage natif contextuel sans bloquer DRC-01 : modèle/UI doivent permettre à terme de partager une entrée, une portion d'historique, un Score/graphique filtré ou une To-do. Ne pas enfermer les données dans des composants impossibles à rendre en share card.
 
 ## UX
 
-KISS et feel-good : peu de blanc dominant, fonds teintés, couleurs membres distinctes, peu de texte, aucune interprétation morale des chiffres.
+KISS, feel-good, fonds teintés, peu de blanc, noms/valeurs lisibles, aucune interprétation morale automatique.
 
 ## Preuves DRC-01 attendues
 
-- écran foyers et règle de création basée sur quota numérique de plan ;
-- absence de hardcode `free=1/multi=premium` ;
+- écran foyers avec quota de plan non hardcodé ;
 - hiérarchie foyer -> Ajouter une tâche | Score | To-do ;
-- CompletedEntry manuelle ;
-- CompletedEntry par chrono ;
+- CompletedEntry manuelle et chrono ;
+- Fait par = n'importe quel membre du foyer ;
+- Fait pour = tout le monde ou sous-ensemble non vide ;
 - deux réalisations identiques restent distinctes ;
-- PersistentTask facultative ;
-- historique complet sous Ajouter une tâche ;
-- aucune liste historique sous Score ;
+- PersistentTask facultative et 1:1 avec futur filtre Score ;
+- libellé ponctuel valide et classable sous Autres ;
+- historique complet sous Ajouter ;
+- modèle compatible avec settlement fait-par/fait-pour ;
 - durée réelle intacte avec pondération ;
 - migration/persistance/isolation sans perte silencieuse.

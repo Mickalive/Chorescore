@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "milestone": "demo-rc",
   "governanceVersion": "2026-08-30-product-reset",
-  "lastCycle": "33318451586",
+  "lastCycle": "33328400903",
   "activeCriteria": ["DRC-01"],
   "stalledCycles": 0,
-  "progressSummary": "Cycle 33318451586 : candidat mobile intégré et accepté (audit accept, 0 mustFix, 189 tests). Modèle canonique V3 livré : CompletedEntry (performedByMemberId + beneficiaryMemberIds), PersistentTask, TodoItem, calculateBalances Tricount à somme nulle, householdLimit numérique, migration V2→V3 sans perte, isolation foyer. Stagnation réinitialisée à 0. Les 3 findings non-bloquants (mustFix:false) documentent les gaps UI restants : navigation 4 onglets au lieu de 3, householdLimit non câblé comme quota, writer V2 dans AppProvider. DRC-01 reste in_progress (RELEASE_DEFINITION exige navigation interne). PRODUCT-RESET-CORE partiellement résolu (modèle remplacé, UI restante). DRC-02/07 restent complete. DRC-03/04/05 restent pending.",
-  "blocker": null,
+  "progressSummary": "Cycle 33328400903 : candidat mobile DRC-01 tranche 2 produit mais rejeté par audit (repair, 1 mustFix). Le candidat a livré les 3 onglets canoniques, householdLimit quota, historique complet V3, writer V3 et isolation foyer (189 tests, export Android), mais le champ Fait par reste statique (non modifiable parmi les membres du foyer), violant MAIN_PROMPT §3. Le candidat n'a pas été intégré. Le réparateur Fait par est la première tâche du prochain cycle. DRC-01 reste in_progress. DRC-02/07 restent complete. DRC-03/04/05 restent pending. Stagnation = 0.",
+  "blocker": "Fait par non modifiable — champ statique au lieu de sélecteur de membres du foyer",
   "criteria": [
     {
       "id": "DRC-01",
@@ -75,8 +75,8 @@
       "severity": "critical",
       "mustFixBeforeRelease": true,
       "status": "unresolved",
-      "requiredFix": "Compléter le parcours UI : remplacer les 4 onglets par Ajouter une tâche | Score | To-do, implémenter le formulaire (libellé, Fait par modifiable parmi membres du foyer, Fait pour Tout le monde ou sous-ensemble non vide, durée manuelle ou chrono), afficher l'historique chronologique complet sous le formulaire, et brancher le writer V3 dans AppProvider.",
-      "resolvedPart": "Modèle canonique V3 (CompletedEntry, PersistentTask, TodoItem, calculateBalances, householdLimit numérique, migration V2→V3, isolation foyer) accepté par audit avec 189 tests — cycle 33318451586."
+      "requiredFix": "Rendre Fait par modifiable : remplacer l'affichage statique du performer par un sélecteur (chips/SegmentedControl/Picker) listant tous les membres du foyer, défaut = currentUserId, valeur stockée dans performedByMemberId, utilisée dans handleSubmit et validée par planAddCompletedEntry. La sélection doit survivre à la création et se réinitialiser après succès. Mettre à jour le test d'intégration UI si présent. Les 3 onglets canoniques et le quota householdLimit sont désormais en place mais le formulaire reste invalide tant que Fait par n'est pas modifiable.",
+      "resolvedPart": "Modèle canonique V3 (CompletedEntry, PersistentTask, TodoItem, calculateBalances, householdLimit numérique, migration V2→V3, isolation foyer) accepté par audit avec 189 tests — cycle 33318451586. Navigation 3 onglets, quota householdLimit et historique complet livrés — audit cycle 33328400903 (repair)."
     },
     {
       "id": "PRODUCT-RESET-DATA",

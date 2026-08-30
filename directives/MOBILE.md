@@ -1,6 +1,6 @@
 # Tâche active — Ingénieur produit mobile
 
-Assignment-Id: DRC-01 (tranche 2 — câblage UI)
+Assignment-Id: DRC-01 (repair — Fait par sélecteur)
 Autorité de poste : `governance/roles/MOBILE_PRODUCT_ENGINEER.md`
 Sélecteur machine : `directives/TASKS.json`
 
@@ -10,93 +10,70 @@ Lire d'abord `MAIN_PROMPT.md`, `governance/RELEASE_DEFINITION.json` et `docs/pro
 
 ## État du cycle précédent
 
-Le candidat cycle 33318451586 a été accepté (audit accept, 0 mustFix, 189 tests). Le modèle canonique V3 est livré :
+Le candidat cycle 33328400903 a été rejeté (audit repair, 1 mustFix).
+Le candidat précédent cycle 33318451586 avait accepté le modèle V3
+(189 tests). Le code dans lab/chorescore conserve le modèle V3 accepté
+avec les 3 onglets, householdLimit, historique complet et writer V3
+déjà câblés. Le seul blocage est le champ Fait par.
 
-- **CompletedEntry** : libellé, performedByMemberId, beneficiaryMemberIds, durée manuelle|chrono, date, foyer, persistentTaskId facultatif, pondération — `src/domain/types.ts`
-- **PersistentTask** : raccourci + futur filtre Score — `src/domain/types.ts`
-- **TodoItem** : tâche future avec bénéficiaires — `src/domain/types.ts`
-- **calculateBalances** : logique Tricount fait-par/fait-pour, compensations pair-à-pair — `src/domain/scoring.ts`
-- **householdLimit** numérique dans `getEntitlements` (free=1, trial=3, standard=5, pro=10) — `src/domain/entitlements.ts`
-- **Migration V2→V3** sans perte silencieuse — `src/store/persistence.ts`
-- **189 tests** dont drc01.test.ts, persistence suite, isolation foyer
+### Ce qui est en place (depuis cycle 33318451586 + candidat 33328400903)
 
-### Gaps restants (3 findings non-bloquants)
+- **Modèle canonique V3** : CompletedEntry, PersistentTask, TodoItem,
+  calculateBalances, householdLimit, migration V2→V3 — accepté
+- **Navigation 3 onglets** : Ajouter une tâche | Score | To-do
+- **Quota householdLimit** : source de vérité (pas le booléen)
+- **Historique complet V3** sous le formulaire
+- **Writer V3** branché (createSequentialWriterV3/toDurableStateV3)
+- **189 tests** et export Android
 
-1. **Navigation** : `app/(tabs)/_layout.tsx` affiche encore 4 onglets (Tâches, Classement, Historique, Profil) au lieu de 3
-2. **Quota** : `src/store/appReducer.ts` `planCreateHousehold` utilise `canUseMultipleHouseholds` booléen au lieu de `householdLimit`
-3. **Writer** : `src/store/AppProvider.tsx` `toDurableState` crée un DurableState V2 ; pas d'UI pour saisir des CompletedEntry
+### Blocage unique
+
+**Fait par statique** : `app/(tabs)/index.tsx` affiche
+`{performer?.name ?? '—'}` sans sélecteur. L'utilisateur ne peut pas
+choisir un autre membre du foyer comme réalisateur. Cela viole
+MAIN_PROMPT §3 et l'acceptance #3 de DRC-01.
 
 ## Finding prioritaire
 
-**PRODUCT-RESET-CORE** (critical, DRC-01) — partie UI restante :
-Compléter le parcours UI : 3 onglets, formulaire Ajouter une tâche,
-historique complet, writer V3.
+**PRODUCT-RESET-CORE** (critical, DRC-01) — Fait par non modifiable.
 
-## Tâche bornée : DRC-01 tranche 2 — câblage UI
+## Tâche bornée : DRC-01 repair — rendre Fait par modifiable
 
-### 1. Navigation 3 onglets
+### 1. Sélecteur Fait par
 
-Remplacer `app/(tabs)/_layout.tsx` :
-- **Ajouter une tâche** (formulaire + historique complet)
-- **Score** (peut être un placeholder vide pour l'instant)
-- **To-do** (peut être un placeholder vide pour l'instant)
+Dans `app/(tabs)/index.tsx` :
+- Remplacer l'affichage statique `{performer?.name ?? '—'}` par un
+  sélecteur interactif (chips, SegmentedControl ou Picker) listant
+  **tous les `householdMembers`** ;
+- Défaut = `currentUserId` (utilisateur connecté) ;
+- La valeur sélectionnée est stockée dans l'état local `performedByMemberId` ;
+- Après soumission réussie, réinitialiser à `currentUserId`.
 
-Conserver l'écran racine foyers hors tabs.
+### 2. Intégration handleSubmit
 
-### 2. Formulaire Ajouter une tâche
+- `handleSubmit` utilise `performedByMemberId` (pas `performer.id` fixe) ;
+- Valider via `planAddCompletedEntry` (déjà prêt) ;
+- La CompletedEntry créée a `performedByMemberId` correspondant à la
+  sélection.
 
-Dans l'onglet Ajouter une tâche :
-- Libellé libre (text input)
-- **Fait par** : défaut = utilisateur connecté, dropdown modifiable vers tout membre du foyer
-- **Fait pour** : radio "Tout le monde" ou sélecteur multiple de membres (au moins 1 requis)
-- **Durée** : deux modes — saisie manuelle (minutes) ou chrono (timer)
-- **PersistentTask** : dropdown optionnel (créer ou choisir une existante)
-- Bouton enregistrer → crée une CompletedEntry via le store
+### 3. Tests
 
-### 3. Historique complet
+- Ajouter/mettre à jour un test d'intégration UI qui valide :
+  - `validatePerformedBy` est appelé avec la bonne valeur ;
+  - La capacité de choisir un autre membre que le connecté ;
+  - La sélection est utilisée dans la CompletedEntry créée.
 
-Sous le formulaire : liste chronologique de toutes les CompletedEntry du foyer.
-Chaque entrée affiche : libellé, durée, fait par, fait pour, date.
-Modifiable/supprimable (modèle de confiance).
+### 4. Préserver
 
-### 4. Writer V3
+- Les 189 tests existants restent verts ;
+- Les 3 onglets Ajouter une tâche | Score | To-do restent fonctionnels ;
+- L'export Android réussit.
 
-Brancher `saveDurableStateV3` dans AppProvider au lieu de `toDurableState`.
-L'état AppState doit inclure `completedEntries`, `persistentTasks`, `todoItems`.
+## Preuves attendues
 
-### 5. HouseholdLimit comme source quota
-
-Dans `appReducer.ts` `planCreateHousehold` :
-- Comparer `households.length < householdLimit` au lieu du booléen
-- Garder `MAX_LOCAL_HOUSEHOLDS` comme garde-fou technique
-- Tester : free=1 bloque, trial=3, standard=5, pro=10
-
-## Préparer Score (sans l'implémenter de travers)
-
-Le modèle doit permettre le settlement Tricount-like. Score aura les
-périodes semaine/mois/année/depuis le début, filtres Toutes/PersistentTask/
-Autres, balances/compensations, graphes avec noms directement visibles
-sans dépendance couleur identitaire, puis historique filtré.
-
-## Préparer To-do
-
-TodoItem peut être datée ou non, assignée, avoir bénéficiaires,
-deadline/reminder et PersistentTask facultative. Lors du check terminé,
-le flux final demandera fait-par + durée + fait-pour puis créera une
-CompletedEntry.
-
-## UX
-
-KISS, feel-good, fonds teintés, peu de blanc, noms/valeurs lisibles,
-aucune interprétation morale automatique.
-
-## Preuves DRC-01 tranche 2 attendues
-
-- écran foyers avec quota householdLimit non hardcodé
-- dans le foyer : exactement 3 onglets Ajouter une tâche | Score | To-do
-- formulaire Ajouter une tâche avec Fait par/Fait pour/chrono/PersistentTask
-- historique complet sous le formulaire
-- writer V3 branché, persistance V3 fonctionnelle
-- deux réalisations identiques → deux IDs distincts
-- isolation par householdId préservée
-- npm run check vert, 189+ tests, export android succès
+- `app/(tabs)/index.tsx` contient un sélecteur Fait par interactif ;
+- `handleSubmit` utilise `performedByMemberId` de l'état ;
+- Test d'intégration validant la sélection d'un autre membre ;
+- npm run check vert, 189+ tests, export android succès ;
+- Deux créations avec différents performeurs → CompletedEntry avec
+  performedByMemberId distincts.

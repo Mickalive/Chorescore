@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "cycle": "33328400903",
+  "decision": "continue",
+  "reason": "Candidat mobile DRC-01 tranche 2 produit mais rejeté par audit (repair, 1 mustFix). Le candidat a livré les 3 onglets canoniques, householdLimit quota, historique complet V3, writer V3 et isolation foyer (189 tests, export Android), mais le champ Fait par reste statique — non modifiable parmi les membres du foyer — violant MAIN_PROMPT §3 et l'acceptance #3 de DRC-01. Le candidat n'a pas été intégré (shell status not-integrated). Le réparateur Fait par est la première tâche du prochain cycle. DRC-01 reste in_progress. DRC-02/07 restent complete. DRC-03/04/05 restent pending. Stagnation = 0.",
+  "activeCriteria": ["DRC-01"],
+  "stalledCycles": 0,
+  "progressEvidence": [
+    "Candidat mobile DRC-01 tranche 2 produit (cycle 33328400903) — 3 onglets canoniques, householdLimit quota, historique complet V3, writer V3, isolation foyer, 189 tests, export Android",
+    "Audit mobile independent : repair (1 mustFix — Fait par statique), 3 mustFix:false (duration unit, Score placeholder, To-do placeholder)",
+    "Candidat non intégré — shell status not-integrated, baseSha inchangée",
+    "Modèle canonique V3 toujours accepté (189 tests, audit RUN_33318451586) — preuve fraîche pour DRC-01 modèle",
+    "DRC-02 complete (persistance/migration validées), DRC-07 complete (documentation backend)",
+    "Aucune régression détectée — les 189 tests restent verts"
+  ],
+  "next": {
+    "mobile": "Activé — DRC-01 repair : rendre Fait par modifiable parmi les membres du foyer (chips/SegmentedControl/Picker), défaut = currentUserId, valeur dans performedByMemberId, handleSubmit utilise la sélection, tests UI mis à jour",
+    "backend": "Désactivé — DRC-07 complete",
+    "audit": "Lane audit inactive ce cycle (candidat rejeté, pas de nouvelle intégration)"
+  },
+  "findingsUpdate": [
+    {
+      "id": "PRODUCT-RESET-CORE",
+      "status": "unresolved",
+      "note": "Modèle V3 et navigation 3 onglets acceptés (189 tests). Fait par statique = blocage unique. requiredFix mis à jour pour cibler le sélecteur de membres."
+    },
+    {
+      "id": "PRODUCT-RESET-DATA",
+      "status": "unresolved",
+      "note": "Inchangé — dépend de DRC-03 (Score + journal filtré)"
+    },
+    {
+      "id": "PRODUCT-RESET-BALANCE",
+      "status": "unresolved",
+      "note": "Inchangé — dépend de DRC-04 (bilan temps réel 4 périodes)"
+    },
+    {
+      "id": "PRODUCT-RESET-UX",
+      "status": "unresolved",
+      "note": "Inchangé — dépend de DRC-05 (refonte interface)"
+    }
+  ],
+  "humanActions": []
+}

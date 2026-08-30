@@ -4,10 +4,10 @@
 
 `demo-rc` — application Android locale, persistante, honnête et révisable.
 
-## État au cycle 33284222129
+## État au cycle 33284625489
 
 - **DRC-01 reste `in_progress`** — le candidat mobile est indisponible
-  (candidate-unavailable) pour le deuxième cycle consécutif. Aucun delta
+  (candidate-unavailable) pour le troisième cycle consécutif. Aucun delta
   produit n'a été appliqué. Le code source conserve toujours l'ancien modèle
   todo-list avec `TaskDefinition`, `entry.taskId`, 4 onglets
   (`Tâches | Classement | Historique | Profil`) au lieu de 3
@@ -19,7 +19,7 @@
   unresolved.
 - **DRC-06 reste `pending`** — dépend de DRC-01 à DRC-05 complets.
 - **DRC-07 reste `complete`** — documentation backend acceptée.
-- **Stagnation = 2** — deuxième cycle sans progrès sur la tâche active
+- **Stagnation = 3** — troisième cycle sans progrès sur la tâche active
   (candidat mobile indisponible).
 
 ## Prochaine action

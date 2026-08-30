@@ -18,6 +18,17 @@ nom + personne + durée réelle, manuelle ou chrono.
 Ce finding est la première tâche bornée de ce cycle. Le candidat doit
 le résoudre avant toute autre implémentation.
 
+## État du code source
+
+Le code conserve l'ancien modèle :
+- `TaskDefinition` entité métier persistante (`src/domain/types.ts`)
+- `entry.taskId` dépendance obligatoire vers une définition
+- Navigation 4 onglets (`Tâches | Classement | Historique | Profil`)
+- Pas de `CompletedEntry` avec performedByMemberId / beneficiaryMemberIds
+
+**Stagnation = 3** (trois cycles consécutifs sans progrès). Le candidat
+doit produire une refonte complète du modèle et de la navigation.
+
 ## Niveau global : foyers
 
 Écran racine = foyers accessibles + création selon **quota numérique de plan** (`householdLimit` ou équivalent) + accès Options. Ne jamais hardcoder `gratuit=1 / premium=plusieurs`.

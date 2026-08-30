@@ -1,30 +1,26 @@
 {
   "schemaVersion": 1,
   "milestone": "demo-rc",
-  "updatedBy": "director-run-33295415490",
+  "updatedBy": "director-run-33318451586",
   "activeCriteria": ["DRC-01"],
   "assignments": {
     "mobile": {
       "enabled": true,
       "criterionId": "DRC-01",
-      "objective": "Construire la première tranche du produit canonique household-first. Racine : foyers accessibles + création selon quota numérique du plan. Dans un foyer : Ajouter une tâche | Score | To-do. DRC-01 rend fonctionnel Ajouter une tâche avec historique complet et un modèle CompletedEntry compatible Tricount : libellé, performedByMemberId sélectionnable parmi tous les membres, beneficiaryMemberIds sélectionnable pour tout le monde ou un sous-ensemble, durée réelle manuelle ou chrono, PersistentTask facultative et date. PersistentTask sert de raccourci et créera exactement un filtre Score ; les entrées ponctuelles relèvent d'Autres. Préserver/migrer persistance, chrono et isolation sans perte silencieuse.",
+      "objective": "Tranche 2 DRC-01 — câblage UI. Le modèle canonique V3 (CompletedEntry, PersistentTask, TodoItem, calculateBalances Tricount, householdLimit, migration V2→V3) est accepté par audit et testé (189 tests). Il faut maintenant câbler l'interface utilisateur : remplacer les 4 onglets actuels (Tâches, Classement, Historique, Profil) par les 3 onglets canoniques (Ajouter une tâche, Score, To-do) à l'intérieur du foyer, implémenter le formulaire Ajouter une tâche avec Fait par/Fait pour/chrono, afficher l'historique complet sous le formulaire, faire de householdLimit la source de vérité du quota foyer, et brancher le writer V3 dans AppProvider.",
       "acceptance": [
-        "L'écran racine sélectionne les foyers et la création repose sur un quota numérique de plan, pas sur le hardcode free=1/multi=premium.",
         "Dans le foyer les trois onglets sont Ajouter une tâche | Score | To-do.",
-        "Ajouter une tâche propose uniquement durée manuelle ou chrono.",
-        "Une CompletedEntry contient libellé, foyer, date/heure, durée réelle, performedByMemberId et beneficiaryMemberIds non vide.",
-        "Fait par sélectionne l'utilisateur connecté par défaut mais peut être changé vers n'importe quel membre du foyer sans changer l'identité connectée.",
-        "Fait pour permet Tout le monde ou n'importe quel sous-ensemble non vide des membres.",
-        "Deux réalisations identiques restent deux CompletedEntry distinctes.",
-        "PersistentTask est facultative et une PersistentTask correspondra à exactement un filtre Score.",
-        "Les libellés non persistants ne créent aucun filtre et restent classables sous Autres.",
+        "L'écran racine sélectionne les foyers et la création repose sur householdLimit (pas le booléen canUseMultipleHouseholds).",
+        "Le formulaire Ajouter une tâche propose : libellé libre, Fait par (défaut utilisateur connecté, modifiable vers tout membre du foyer), Fait pour (Tout le monde ou sous-ensemble non vide), durée manuelle ou chrono.",
         "L'historique chronologique complet apparaît sous le formulaire Ajouter une tâche.",
-        "Le modèle permet le futur calcul Score : pour D fait par P pour N bénéficiaires, P reçoit +D et chaque bénéficiaire -D/N.",
-        "La pondération éventuelle reste avancée et ne modifie pas la durée réelle.",
-        "Le modèle distingue CompletedEntry, PersistentTask et TodoItem.",
-        "Les données anciennes sont migrées/récupérées sans perte silencieuse.",
-        "Tests : foyer, fait-par autre membre, fait-pour sous-ensemble/tout le monde, manuel, chrono, persistance, isolation."
-      ]
+        "AppProvider utilise writer V3 (saveDurableStateV3) au lieu de toDurableState V2.",
+        "Deux réalisations identiques créent deux CompletedEntry distinctes (IDs différents).",
+        "Persistance V3 fonctionne : création, rechargement, isolation par householdId.",
+        "npm run check vert et EXPO_PUBLIC_DATA_MODE=demo npx expo export --platform android succès.",
+        "Les 189 tests existants restent verts (aucune régression).",
+        "Les screens Ajouter une tâche, Score et To-do sont accessibles en demo sans réseau."
+      ],
+      "firstTask": "PRODUCT-RESET-CORE : compléter le parcours UI — remplacer les 4 tabs par les 3 tabs canoniques et câbler le formulaire Ajouter une tâche avec Fait par/Fait pour/chrono + historique complet."
     },
     "backend": {
       "enabled": false,

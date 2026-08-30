@@ -2,17 +2,18 @@
   "schemaVersion": 1,
   "milestone": "demo-rc",
   "governanceVersion": "2026-08-30-product-reset",
-  "lastCycle": "33295415490",
+  "lastCycle": "33318451586",
   "activeCriteria": ["DRC-01"],
-  "stalledCycles": 4,
-  "progressSummary": "Cycle 33295415490 : candidat mobile indisponible (candidate-unavailable) pour le 4e cycle consécutif. Aucun delta produit appliqué. Le code source conserve l'ancien modèle todo-list (TaskDefinition, entry.taskId, 4 onglets). Les 4 open findings produit-reset restent unresolved. DRC-02 et DRC-07 restent complete. DRC-01 reste in_progress, DRC-03/04/05 restent pending. Stagnation = 4 (panne fournisseur).",
-  "blocker": "PRODUCT-RESET-20260830",
+  "stalledCycles": 0,
+  "progressSummary": "Cycle 33318451586 : candidat mobile intégré et accepté (audit accept, 0 mustFix, 189 tests). Modèle canonique V3 livré : CompletedEntry (performedByMemberId + beneficiaryMemberIds), PersistentTask, TodoItem, calculateBalances Tricount à somme nulle, householdLimit numérique, migration V2→V3 sans perte, isolation foyer. Stagnation réinitialisée à 0. Les 3 findings non-bloquants (mustFix:false) documentent les gaps UI restants : navigation 4 onglets au lieu de 3, householdLimit non câblé comme quota, writer V2 dans AppProvider. DRC-01 reste in_progress (RELEASE_DEFINITION exige navigation interne). PRODUCT-RESET-CORE partiellement résolu (modèle remplacé, UI restante). DRC-02/07 restent complete. DRC-03/04/05 restent pending.",
+  "blocker": null,
   "criteria": [
     {
       "id": "DRC-01",
       "status": "in_progress",
       "evidence": [
-        {"kind":"tests","reference":"Historique : ancien parcours technique testé avant reset produit (71+ puis 164 tests). Ces preuves restent utiles aux briques réutilisées mais ne certifient plus le parcours canonique.","cycle":"pre-reset"},
+        {"kind":"tests","reference":"189 tests verts incluant drc01.test.ts (20+ acceptances DRC-01), persistence suite, isolation foyer — cycle 33318451586","cycle":"33318451586"},
+        {"kind":"audit","reference":"reports/audits/RUN_33318451586_MOBILE.json — decision accept, 0 mustFix, modèle CompletedEntry/PersistentTask/TodoItem, calculateBalances, householdLimit, migration V2→V3","cycle":"33318451586"},
         {"kind":"product-reset","reference":"Revue humaine 2026-08-30 : ancien parcours rejeté ; nouvelle exigence = foyer + journal + entrée libre nom/personne/durée manuelle ou chrono, sans catalogue ni catégorie obligatoire.","cycle":"human-product-reset-20260830"}
       ]
     },
@@ -74,7 +75,8 @@
       "severity": "critical",
       "mustFixBeforeRelease": true,
       "status": "unresolved",
-      "requiredFix": "Remplacer le modèle et le parcours todo/listes de TaskDefinition par un registre Tricount-like : créer/choisir un foyer puis enregistrer directement une entrée libre nom + personne + durée réelle, manuelle ou chrono."
+      "requiredFix": "Compléter le parcours UI : remplacer les 4 onglets par Ajouter une tâche | Score | To-do, implémenter le formulaire (libellé, Fait par modifiable parmi membres du foyer, Fait pour Tout le monde ou sous-ensemble non vide, durée manuelle ou chrono), afficher l'historique chronologique complet sous le formulaire, et brancher le writer V3 dans AppProvider.",
+      "resolvedPart": "Modèle canonique V3 (CompletedEntry, PersistentTask, TodoItem, calculateBalances, householdLimit numérique, migration V2→V3, isolation foyer) accepté par audit avec 189 tests — cycle 33318451586."
     },
     {
       "id": "PRODUCT-RESET-DATA",

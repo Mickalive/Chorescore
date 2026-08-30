@@ -8,8 +8,11 @@ Auditer séparément chaque poste codeur activé dans `directives/TASKS.json`.
 
 ## Statut
 
-**Lane audit inactive.** Le candidat mobile est indisponible
-(candidate-unavailable) pour le quatrième cycle consécutif. Aucun
-candidat n'a été produit, donc aucun audit n'est requis. La lane
-audit sera réactivée dès qu'un candidat mobile sera disponible et
-sera transmis à l'auditeur pour évaluation.
+**Lane audit inactive.** Le candidat mobile cycle 33318451586 a été
+intégré par le shell de confiance et l'audit indépendant a été produit
+(RUN_33318451586_MOBILE.json, decision `accept`, 0 `mustFix`). Le modèle
+canonique V3 est accepté.
+
+La lane audit sera réactivée dès qu'un nouveau candidat mobile sera
+produit pour le câblage UI (DRC-01 tranche 2) et transmis à l'auditeur
+pour évaluation.

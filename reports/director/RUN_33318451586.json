@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "cycle": "33318451586",
+  "decision": "continue",
+  "reason": "DRC-01 tranche modèle acceptée (189 tests, CompletedEntry/PersistentTask/TodoItem, calculateBalances Tricount, householdLimit numérique, migration V2→V3, isolation foyer) — progrès réel après 4 cycles de stagnation. La navigation 3 onglets, le formulaire Ajouter une tâche (Fait par/Fait pour/chrono) et l'historique complet sous le formulaire restent à câbler (3 findings non-bloquants mustFix:false). DRC-01 n'est pas complete car la RELEASE_DEFINITION exige la navigation interne Ajouter une tâche | Score | To-do. PRODUCT-RESET-CORE est partiellement résolu (modèle remplacé, UI restante). DRC-03/04/05 restent pending. La stagnation est réinitialisée à 0.",
+  "activeCriteria": ["DRC-01"],
+  "stalledCycles": 0,
+  "progressEvidence": [
+    "DRC-01 tranche modèle acceptée par audit indépendant (RUN_33318451586_MOBILE.json, decision accept, 0 mustFix)",
+    "189 tests verts incluant 20+ acceptances DRC-01 (drc01.test.ts), persistence suite et isolation foyer",
+    "CompletedEntry avec performedByMemberId + beneficiaryMemberIds (Tout le monde ou sous-ensemble), durée manuelle|chrono, PersistentTask facultative et pondération figée — modèle canonique Tricount validé",
+    "calculateBalances : P reçoit +D, chaque bénéficiaire -D×weight/N, somme nulle, compensations pair-à-pair déterministes — mutation proof",
+    "householdLimit numérique exposé dans getEntitlements (free=1, trial=3, standard=5, pro=10) — pas encore utilisé comme source de vérité quota (finding non-bloquant)",
+    "Migration V2→V3 sans perte silencieuse (loadDurableState auto-migre, isDurableStateV3 valide, quarantaine sans crash) — DRC-02 extension préservée",
+    "Ancien blocage quarantaine corrigé : isHousehold n'exige plus householdLimit",
+    "Le code source conserve toujours la navigation 4 onglets et le writer V2 dans AppProvider — gaps documentés pour tranche suivante",
+    "Les open findings PRODUCT-RESET-DATA/BALANCE/UX restent unresolved (DRC-03/04/05 pending)"
+  ],
+  "next": {
+    "mobile": "Activé — DRC-01 tranche 2 : câblage UI (3 onglets, formulaire Fait par/Fait pour/chrono, historique complet, writer V3, householdLimit comme source quota)",
+    "backend": "Désactivé — DRC-07 complete",
+    "audit": "Lane audit inactive ce cycle (candidat intégré par shell de confiance, audit déjà produit)"
+  },
+  "findingsUpdate": [
+    {
+      "id": "PRODUCT-RESET-CORE",
+      "status": "unresolved",
+      "note": "Modèle remplacé (CompletedEntry, PersistentTask, TodoItem, calculateBalances) — preuve acceptée. UI restante : navigation 3 onglets, formulaire, historique. requiredFix mis à jour."
+    },
+    {
+      "id": "PRODUCT-RESET-DATA",
+      "status": "unresolved",
+      "note": "Inchangé — dépend de DRC-03 (Score + journal filtré)"
+    },
+    {
+      "id": "PRODUCT-RESET-BALANCE",
+      "status": "unresolved",
+      "note": "Inchangé — dépend de DRC-04 (bilan temps réel 4 périodes)"
+    },
+    {
+      "id": "PRODUCT-RESET-UX",
+      "status": "unresolved",
+      "note": "Inchangé — dépend de DRC-05 (refonte interface)"
+    }
+  ],
+  "humanActions": []
+}

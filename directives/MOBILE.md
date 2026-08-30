@@ -1,6 +1,6 @@
 # Tâche active — Ingénieur produit mobile
 
-Assignment-Id: DRC-01
+Assignment-Id: DRC-01 (tranche 2 — câblage UI)
 Autorité de poste : `governance/roles/MOBILE_PRODUCT_ENGINEER.md`
 Sélecteur machine : `directives/TASKS.json`
 
@@ -8,105 +8,95 @@ Sélecteur machine : `directives/TASKS.json`
 
 Lire d'abord `MAIN_PROMPT.md`, `governance/RELEASE_DEFINITION.json` et `docs/product-decisions.md` depuis `main`.
 
+## État du cycle précédent
+
+Le candidat cycle 33318451586 a été accepté (audit accept, 0 mustFix, 189 tests). Le modèle canonique V3 est livré :
+
+- **CompletedEntry** : libellé, performedByMemberId, beneficiaryMemberIds, durée manuelle|chrono, date, foyer, persistentTaskId facultatif, pondération — `src/domain/types.ts`
+- **PersistentTask** : raccourci + futur filtre Score — `src/domain/types.ts`
+- **TodoItem** : tâche future avec bénéficiaires — `src/domain/types.ts`
+- **calculateBalances** : logique Tricount fait-par/fait-pour, compensations pair-à-pair — `src/domain/scoring.ts`
+- **householdLimit** numérique dans `getEntitlements` (free=1, trial=3, standard=5, pro=10) — `src/domain/entitlements.ts`
+- **Migration V2→V3** sans perte silencieuse — `src/store/persistence.ts`
+- **189 tests** dont drc01.test.ts, persistence suite, isolation foyer
+
+### Gaps restants (3 findings non-bloquants)
+
+1. **Navigation** : `app/(tabs)/_layout.tsx` affiche encore 4 onglets (Tâches, Classement, Historique, Profil) au lieu de 3
+2. **Quota** : `src/store/appReducer.ts` `planCreateHousehold` utilise `canUseMultipleHouseholds` booléen au lieu de `householdLimit`
+3. **Writer** : `src/store/AppProvider.tsx` `toDurableState` crée un DurableState V2 ; pas d'UI pour saisir des CompletedEntry
+
 ## Finding prioritaire
 
-**PRODUCT-RESET-CORE** (critical, DRC-01) : Remplacer le modèle et le
-parcours todo/listes de TaskDefinition par un registre Tricount-like :
-créer/choisir un foyer puis enregistrer directement une entrée libre
-nom + personne + durée réelle, manuelle ou chrono.
+**PRODUCT-RESET-CORE** (critical, DRC-01) — partie UI restante :
+Compléter le parcours UI : 3 onglets, formulaire Ajouter une tâche,
+historique complet, writer V3.
 
-Ce finding est la première tâche bornée de ce cycle. Le candidat doit
-le résoudre avant toute autre implémentation.
+## Tâche bornée : DRC-01 tranche 2 — câblage UI
 
-## État du code source
+### 1. Navigation 3 onglets
 
-Le code conserve l'ancien modèle :
-- `TaskDefinition` entité métier persistante (`src/domain/types.ts`)
-- `entry.taskId` dépendance obligatoire vers une définition
-- Navigation 4 onglets (`Tâches | Classement | Historique | Profil`)
-- Pas de `CompletedEntry` avec performedByMemberId / beneficiaryMemberIds
+Remplacer `app/(tabs)/_layout.tsx` :
+- **Ajouter une tâche** (formulaire + historique complet)
+- **Score** (peut être un placeholder vide pour l'instant)
+- **To-do** (peut être un placeholder vide pour l'instant)
 
-**Stagnation = 4** (quatre cycles consécutifs sans progrès — panne
-fournisseur). Le candidat doit produire la tranche 1 de la refonte :
-types CompletedEntry + Household multi-foyer + navigation 3 onglets.
+Conserver l'écran racine foyers hors tabs.
 
-## Niveau global : foyers
+### 2. Formulaire Ajouter une tâche
 
-Écran racine = foyers accessibles + création selon **quota numérique de plan** (`householdLimit` ou équivalent) + accès Options. Ne jamais hardcoder `gratuit=1 / premium=plusieurs`.
+Dans l'onglet Ajouter une tâche :
+- Libellé libre (text input)
+- **Fait par** : défaut = utilisateur connecté, dropdown modifiable vers tout membre du foyer
+- **Fait pour** : radio "Tout le monde" ou sélecteur multiple de membres (au moins 1 requis)
+- **Durée** : deux modes — saisie manuelle (minutes) ou chrono (timer)
+- **PersistentTask** : dropdown optionnel (créer ou choisir une existante)
+- Bouton enregistrer → crée une CompletedEntry via le store
 
-Tous les utilisateurs ont Options ; les options d'administration du foyer/quota/permissions sont réservées au payeur/propriétaire selon le plan, sans créer d'onglet foyer supplémentaire.
+### 3. Historique complet
 
-## Dans un foyer : exactement 3 onglets
+Sous le formulaire : liste chronologique de toutes les CompletedEntry du foyer.
+Chaque entrée affiche : libellé, durée, fait par, fait pour, date.
+Modifiable/supprimable (modèle de confiance).
 
-1. **Ajouter une tâche**
-2. **Score**
-3. **To-do**
+### 4. Writer V3
 
-## DRC-01 — Ajouter une tâche + historique complet
+Brancher `saveDurableStateV3` dans AppProvider au lieu de `toDurableState`.
+L'état AppState doit inclure `completedEntries`, `persistentTasks`, `todoItems`.
 
-Une `CompletedEntry` doit porter :
-- libellé ;
-- `performedByMemberId` ;
-- `beneficiaryMemberIds[]` non vide ;
-- durée réelle ;
-- date/heure ;
-- foyer ;
-- `persistentTaskId` facultatif ;
-- pondération facultative.
+### 5. HouseholdLimit comme source quota
 
-### Fait par
+Dans `appReducer.ts` `planCreateHousehold` :
+- Comparer `households.length < householdLimit` au lieu du booléen
+- Garder `MAX_LOCAL_HOUSEHOLDS` comme garde-fou technique
+- Tester : free=1 bloque, trial=3, standard=5, pro=10
 
-Par défaut utilisateur connecté, mais l'utilisateur doit pouvoir sélectionner **n'importe quel membre du foyer** comme personne ayant réellement effectué la tâche. Cela ne change jamais l'identité connectée/createdBy.
+## Préparer Score (sans l'implémenter de travers)
 
-### Fait pour
-
-Permettre `Tout le monde` ou n'importe quel sous-ensemble de 1..N membres. La sélection doit être simple et rapide.
-
-### Durée
-
-Exactement deux modes : durée manuelle ou chrono. Le chrono crée une CompletedEntry avec les mêmes champs métier.
-
-### Historique
-
-Sous le formulaire : **historique chronologique complet du foyer**. Chaque entrée affiche au minimum libellé, durée, fait par, fait pour, date et reste modifiable/supprimable selon le modèle collaboratif.
-
-## PersistentTask
-
-Une PersistentTask est facultative. **Une PersistentTask = exactement un filtre Score.**
-
-Elle sert de raccourci/catégorie stable et éventuellement de pondération par défaut. Les libellés ponctuels ne deviennent pas des filtres et relèvent de `Autres` dans Score.
-
-## Préparer Score sans l'implémenter de travers
-
-Le modèle doit permettre le settlement Tricount-like : pour une entrée de durée D faite par P pour N bénéficiaires, P reçoit +D et chaque bénéficiaire -D/N. Cette logique devra fonctionner en réel et pondéré.
-
-Score aura les périodes semaine/mois/année/depuis le début, filtres Toutes/PersistentTask/Autres, balances/compensations, graphes avec noms directement visibles et **sans dépendance à une couleur identitaire fixe par membre**, puis historique filtré par période + filtre.
-
-L'historique complet reste sous Ajouter une tâche ; l'historique de Score est contextuel/filtré.
+Le modèle doit permettre le settlement Tricount-like. Score aura les
+périodes semaine/mois/année/depuis le début, filtres Toutes/PersistentTask/
+Autres, balances/compensations, graphes avec noms directement visibles
+sans dépendance couleur identitaire, puis historique filtré.
 
 ## Préparer To-do
 
-TodoItem peut être datée ou non, assignée, avoir bénéficiaires, deadline/reminder et PersistentTask facultative. Lors du check terminé, le flux final demandera fait-par + durée + fait-pour puis créera une CompletedEntry.
-
-## Partage
-
-Prévoir le partage natif contextuel sans bloquer DRC-01 : modèle/UI doivent permettre à terme de partager une entrée, une portion d'historique, un Score/graphique filtré ou une To-do. Ne pas enfermer les données dans des composants impossibles à rendre en share card.
+TodoItem peut être datée ou non, assignée, avoir bénéficiaires,
+deadline/reminder et PersistentTask facultative. Lors du check terminé,
+le flux final demandera fait-par + durée + fait-pour puis créera une
+CompletedEntry.
 
 ## UX
 
-KISS, feel-good, fonds teintés, peu de blanc, noms/valeurs lisibles, aucune interprétation morale automatique.
+KISS, feel-good, fonds teintés, peu de blanc, noms/valeurs lisibles,
+aucune interprétation morale automatique.
 
-## Preuves DRC-01 attendues
+## Preuves DRC-01 tranche 2 attendues
 
-- écran foyers avec quota de plan non hardcodé ;
-- hiérarchie foyer -> Ajouter une tâche | Score | To-do ;
-- CompletedEntry manuelle et chrono ;
-- Fait par = n'importe quel membre du foyer ;
-- Fait pour = tout le monde ou sous-ensemble non vide ;
-- deux réalisations identiques restent distinctes ;
-- PersistentTask facultative et 1:1 avec futur filtre Score ;
-- libellé ponctuel valide et classable sous Autres ;
-- historique complet sous Ajouter ;
-- modèle compatible avec settlement fait-par/fait-pour ;
-- durée réelle intacte avec pondération ;
-- migration/persistance/isolation sans perte silencieuse.
+- écran foyers avec quota householdLimit non hardcodé
+- dans le foyer : exactement 3 onglets Ajouter une tâche | Score | To-do
+- formulaire Ajouter une tâche avec Fait par/Fait pour/chrono/PersistentTask
+- historique complet sous le formulaire
+- writer V3 branché, persistance V3 fonctionnelle
+- deux réalisations identiques → deux IDs distincts
+- isolation par householdId préservée
+- npm run check vert, 189+ tests, export android succès

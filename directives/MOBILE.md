@@ -6,76 +6,101 @@ Sélecteur machine : `directives/TASKS.json`
 
 ## Contexte
 
-La RC précédente est rejetée comme produit : elle a dérivé vers une liste de
-tâches prédéfinies et une interface trop éditoriale. Le cycle 33278810674 a
-échoué (candidat indisponible). Le même objectif reste prioritaire.
+La RC précédente est rejetée comme produit. La nouvelle constitution humaine est la source de vérité : ChoreScore est household-first et distingue strictement réalisation historique, tâche persistante facultative et future To-do.
 
-## Objectif de cette tranche
+## Hiérarchie produit obligatoire
 
-Construire le cœur **Tricount-like** de ChoreScore :
+### Niveau global
 
-- créer ou choisir un foyer local et ses membres ;
-- afficher un journal chronologique des entrées de ce foyer ;
-- `Ajouter une entrée` avec **libellé libre**, **personne**, **durée réelle** ;
-- permettre saisie manuelle ou chrono ;
-- le chrono terminé produit une entrée autonome ;
-- aucune catégorie obligatoire ;
-- aucune métrique de points dans l'interface.
+Après connexion en production : écran de **sélection des foyers**.
 
-## Exigence de modèle — bloquante
+Pour la RC locale, conserver une représentation locale honnête de ce niveau sans prétendre qu'un OAuth ou backend inexistant est réel.
 
-**Supprimer l'entité métier persistante `TaskDefinition`.**
+L'utilisateur choisit un foyer existant ou en crée un lorsque le plan le permet. Gratuit : un foyer ; foyers multiples : premium.
 
-Une action domestique enregistrée est une entrée autonome, comme une dépense
-dans Tricount. Chaque entrée doit porter directement le libellé nécessaire à
-son affichage et à ses agrégations.
+### Dans un foyer
 
-Le modèle final ne doit plus dépendre de `entry.taskId` vers une définition
-de tâche pour afficher, corriger, persister ou agréger une entrée.
+Les trois onglets principaux sont exactement :
 
-Si le schéma actuel contient `tasks[]`, `TaskDefinition` ou `entry.taskId`,
-fournir une migration sûre qui transforme les anciennes données en entrées
-autonomes en copiant le nom utile dans chaque entrée. Pas de perte silencieuse.
+1. **Ajouter une tâche**
+2. **Score**
+3. **To-do**
 
-Deux saisies `Vaisselle` à deux dates différentes sont deux entrées distinctes.
-Le regroupement `Vaisselle = X minutes` dans les graphes est calculé à la
-volée depuis ces entrées ; il ne crée jamais un objet tâche.
+Ne pas remplacer cela par `Accueil | Bilan | Foyer`. Ne pas créer d'onglets séparés Historique/Classement/Bilan.
 
-Une suggestion de libellé récent peut être dérivée de l'historique pour
-accélérer la saisie, mais ne doit pas devenir une entité administrable.
+## Tranche DRC-01 — Ajouter une tâche
 
-## Navigation — 3 onglets
+Implémenter le nouveau modèle :
 
-Navigation cible : **Accueil | Bilan | Foyer** (3 onglets maximum).
+### CompletedEntry
 
-- **Accueil** : foyer actif, bouton Ajouter, chrono en cours, dernières
-  entrées.
-- **Bilan** : Historique et Classement fusionnés. Périodes : semaine/mois/
-  année/depuis le début. Vues Personnes et Tâches. Graphes avec minutes/heures.
-  Liste chronologique des entrées sous les graphes.
-- **Foyer** : membres, nom, créer/changer de foyer, réglages.
+Chaque réalisation crée une entrée indépendante contenant au minimum :
+- foyer ;
+- membre auquel le travail est attribué ;
+- libellé ;
+- durée réelle ;
+- date/heure ;
+- référence PersistentTask facultative ;
+- pondération facultative/figée si utilisée.
 
-Supprimer les onglets `Classement` et `Historique` séparés. Supprimer tout
-texte qui interprète ou commente les chiffres/personnes.
+Deux réalisations du même travail restent toujours deux entrées distinctes.
+
+### Durée
+
+Seulement deux modes :
+- durée manuelle ;
+- chrono.
+
+Le chrono produit une CompletedEntry à l'arrêt.
+
+### PersistentTask
+
+L'utilisateur peut lors de l'ajout :
+- laisser le libellé ponctuel ;
+- sélectionner une PersistentTask existante ;
+- rendre le nouveau libellé persistant.
+
+PersistentTask sert uniquement à accélérer la saisie et à fournir une catégorie analytique stable pour Score. Elle n'est pas une réalisation et n'est pas une To-do.
+
+Les CompletedEntry sans PersistentTask sont classées sous `Autres` dans les analyses de Score mais restent visibles individuellement dans l'historique.
+
+### Pondération
+
+Option avancée uniquement. Coefficient 1 par défaut. La durée réelle reste inchangée et affichée.
+
+## Préparer les frontières futures sans les simuler
+
+Le modèle final doit distinguer :
+- `CompletedEntry` ;
+- `PersistentTask` ;
+- `TodoItem`.
+
+DRC-01 n'a pas à implémenter toutes les fonctions To-do/Score, mais aucune décision de modèle ne doit empêcher les critères suivants.
+
+Ne pas simuler comme réel : OAuth, push distant, calendrier, paiement, synchronisation réseau.
+
+## UX
+
+KISS. Dans l'onglet Ajouter une tâche : formulaire court, peu de texte, aucune catégorie ménagère obligatoire, aucune batterie de boutons, aucun commentaire moral.
+
+Direction visuelle : feel-good, chaleureuse, contemporaine ; fonds teintés plutôt qu'une domination de blanc ; couleurs membres harmonieuses et distinctes ; accessibilité conservée.
 
 ## Compatibilité
 
-Réutiliser persistance, chrono, isolation des foyers et validation lorsque
-pertinent, mais ne pas conserver une mauvaise abstraction uniquement pour
-minimiser le diff.
+Réutiliser persistance, chrono, isolation des foyers et validation lorsque pertinent. Migrer l'ancien schéma vers CompletedEntry/PersistentTask sans perte silencieuse. Ne pas conserver l'ancien modèle simplement pour minimiser le diff.
 
 ## Preuves attendues
 
 Tests déterministes couvrant au minimum :
-- foyer créé/choisi ;
-- entrée libre manuelle autonome ;
-- chrono avec libellé libre ;
-- deux entrées portant le même libellé restent deux entrées distinctes ;
-- agrégation par libellé calculée depuis les entrées ;
-- aucune dépendance métier à `TaskDefinition` / `entry.taskId` ;
-- migration de l'ancien schéma sans perte silencieuse ;
+- sélection/création locale de foyer selon plan ;
+- hiérarchie foyer -> Ajouter une tâche | Score | To-do ;
+- CompletedEntry manuelle ;
+- CompletedEntry via chrono ;
+- deux réalisations identiques restent distinctes ;
+- entrée ponctuelle sans PersistentTask ;
+- sélection/création d'une PersistentTask facultative ;
+- aucune fusion entre CompletedEntry, PersistentTask et TodoItem ;
+- durée réelle intacte même avec pondération ;
+- migration sans perte silencieuse ;
 - persistance après reprise ;
-- isolation entre foyers ;
-- navigation 3 onglets (Accueil/Bilan/Foyer) ;
-- bilan avec les 4 périodes ;
-- graphes Personnes et Tâches avec minutes/heures.
+- isolation entre foyers.

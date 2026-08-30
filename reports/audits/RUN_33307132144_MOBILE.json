@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "cycle": "33307132144",
+  "role": "mobile",
+  "round": 1,
+  "decision": "repair",
+  "summary": "DRC-01 tranche modèle Tricount validée : CompletedEntry/PersistentTask/TodoItem, performedBy/beneficiary, durée manuelle|chrono, pondération figée, filtre Autres, calcul fait-par/fait-pour à somme nulle et isolation. Delta sans régression sur checks déterministes. Un correctif bloquant requis avant intégration : isHousehold refuse les foyers legacy sans householdLimit, provoquant quarantaine au lieu de migration transparente, contraire à l'exigence sans perte silencieuse.",
+  "findings": [
+    {
+      "path": "src/store/persistence.ts",
+      "problem": "isHousehold exige householdLimit présent (null ou integer). Les documents persistés acceptés (v2) sans ce champ, issus de l'arbre accepté, sont désormais considérés invalid-shape et partent en quarantaine au lieu d'être migrés transparentement. Contrevient à l'acceptance 'données anciennes migrées/récupérées sans perte silencieuse'.",
+      "evidence": "diff candidate vs /home/runner/work/_temp/accepted-mobile/src/store/persistence.ts : ajout hasValidLimit = (value.householdLimit === null || number) && (value.maxMembers ...). Ancien validateur n'exigeait que maxMembers. Construction manuelle d'un DurableState v2 sans householdLimit (delete household.householdLimit) -> isDurableState() == false, parseEnvelope -> {outcome:'invalid', reason:'invalid-shape'}, loadDurableState -> {status:'recovered', quarantined:true}. Tests existants passent car createDemoSnapshot ajoute désormais householdLimit, masquant la régression.",
+      "mustFix": true,
+      "requiredFix": "Rendre householdLimit optionnel pour compatibilité ascendante : accepter undefined comme null dans isHousehold (ex: (value.householdLimit === undefined || value.householdLimit === null || integer)) et, si présent undefined, normaliser à null lors de parseEnvelope/migrate. Alternative : ajouter migration v2->v2 qui injecte householdLimit = maxMembers ou null si absent, sans bump schemaVersion, avec test dédié.",
+      "verification": "Créer un DurableState valide de l'arbre accepté sans householdLimit (JSON.stringify sans la clé), appeler parseEnvelope et isDurableState depuis src/store/persistence.ts : attendu outcome:'valid' (ou migrated). Vérifier loadDurableState avec MemoryStorage seedé par cet ancien JSON restaure status:'restored' sans quarantaine, households[0].householdLimit == null."
+    },
+    {
+      "path": "app/(tabs)/_layout.tsx",
+      "problem": "Navigation interne toujours à 4 onglets (Tâches, Classement, Historique, Profil) au lieu des 3 exigés 'Ajouter une tâche | Score | To-do' à l'intérieur du foyer. L'acceptance DRC-01 liste explicitement ce découpage.",
+      "evidence": "Lecture app/(tabs)/_layout.tsx : 4 Tabs.Screen name=\"index\" title='Tâches', \"leaderboard\", \"history\", \"profile\". Aucune modification dans le diff candidat. MAIN_PROMPT §2 et TASKS.json acceptance #2 exigent exactement 3 onglets internes. L'arbre accepté est identique, donc manquement hérité non aggravé par le delta mais toujours ouvert.",
+      "mustFix": false,
+      "requiredFix": "Dans une tranche DRC-01 suivante, remplacer les Tabs par : Ajouter une tâche (form + historique complet), Score (équilibres + historique filtré), To-do. Conserver l'écran racine foyers hors tabs. Mettre à jour les tests tab-flows et screen-states.",
+      "verification": "Après refonte, npm run check et navigation manuelle : l'écran racine liste les foyers, l'entrée dans un foyer affiche exactement 3 tabs avec les titres canoniques, et chaque tab est accessible en demo sans réseau."
+    },
+    {
+      "path": "src/store/appReducer.ts",
+      "problem": "householdLimit ajouté au type et valorisé à la création, mais la création de foyer reste gated par le booléen canUseMultipleHouseholds et MAX_LOCAL_HOUSEHOLDS=4, sans exploitation du quota numérique householdLimit. L'acceptance 'quota numérique, pas hardcode free=1/multi=premium' n'est que partiellement honorée.",
+      "evidence": "src/domain/entitlements.ts : free canUseMultipleHouseholds=false, standard/pro true + maxMembers 7/null. src/store/appReducer.ts planCreateHousehold : if (!canUseMultipleHouseholds) error, if (households.length >=4) error. householdLimit est écrit (createLocalHousehold, SET_PLAN) mais jamais lu pour autoriser/refuser la création. DemoData ajoute householdLimit:null mais sans sémantique.",
+      "mustFix": false,
+      "requiredFix": "Faire de householdLimit la source de vérité du quota : getEntitlements doit exposer householdLimit numérique (ex: free=1, standard=3, pro=null) et planCreateHousehold doit vérifier households.length < householdLimit (null = illimité) au lieu du booléen. Documenter la grille canonique et adapter les tests entitlements/premium-local.",
+      "verification": "Tests : en plan free, households.length==1 bloque création ; en standard, limite numérique respectée ; householdLimit null permet >4 foyers jusqu'à MAX_LOCAL_HOUSEHOLDS garde-fou si souhaité. Vérifier appReducer et persistence n'écrasent pas la limite."
+    },
+    {
+      "path": "src/domain/completedEntries.ts",
+      "problem": "Modèle CompletedEntry canonique correct mais non encore intégré à la persistance durable (DurableState) ni à l'UI Ajouter une tâche. Le calcul Tricount et les filtres sont implémentés et testés, mais les entrées ne seront pas durables ni saisissables tant que DurableState ne les stocke pas.",
+      "evidence": "src/store/persistence.ts DurableState type ne contient pas completedEntries/persistentTasks/todoItems ; seul TaskEntry legacy est persisté. src/domain/completedEntries.ts expose computeBalances, getScoreFilterLabel correctement testés (212 tests). Aucun écran n'utilise CompletedEntry. Diff ne touche pas AppProvider/demoService pour persister le nouveau modèle.",
+      "mustFix": false,
+      "requiredFix": "Prochaine tranche DRC-01/02 : étendre DurableState (ou nouveau champ versionné) pour CompletedEntry[], PersistentTask[], TodoItem[], ajouter migration v2->v3 qui conserve TaskEntry legacy ou convertit, et brancher une UI Ajouter une tâche avec sélecteurs Fait par (défaut connecté, modifiable) et Fait pour (Tout le monde / sous-ensemble).",
+      "verification": "Après extension, créer deux CompletedEntry identiques (même label/performedBy/durée) vérifier deux IDs distincts, persister via saveDurableState, recharger via loadDurableState et vérifier restauration + isolation par householdId + chrono reprise non régressive. npm run check doit rester vert."
+    }
+  ],
+  "checks": [
+    "npm run typecheck (tsc --noEmit) — pass",
+    "npm test (212/212 pass, completedEntries.test.ts 39 tests inclus) — pass",
+    "EXPO_PUBLIC_DATA_MODE=demo npx expo export --platform android — success (1288 modules, 2.8MB hbc, dist/metadata.json)",
+    "npm audit --omit=dev --audit-level=high — 11 moderate, 0 high (threshold pass)",
+    "npm --prefix functions audit --omit=dev --audit-level=high — 7 moderate, 0 high",
+    "diff -r candidate vs /home/runner/work/_temp/accepted-mobile — 7 fichiers modifiés, CompletedEntry model et validation ajoutés sans perte de tests legacy",
+    "mutation proof sum-zero Tricount (3 fixtures) — computeBalances invariants vérifiés, weighted vs réel séparés",
+    "persistence suite 31 tests — pass mais legacy householdLimit gap reproduit manuellement (construction DurableState sans householdLimit -> invalid-shape)",
+    "isolation foyer vérifiée en tests (computeBalances ignore other householdId, Historique et classement filtrés par householdId)"
+  ]
+}

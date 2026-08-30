@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "cycle": "33328400903",
+  "role": "mobile",
+  "round": 1,
+  "decision": "repair",
+  "summary": "DRC-01 tranche 2 câblage UI partiellement livré : 3 onglets canoniques (Ajouter une tâche | Score | To-do) présents dans le foyer, quota householdLimit numérique utilisé comme source de vérité (app/index et planCreateHousehold), historique complet V3 sous le formulaire, writer V3 branché (createSequentialWriterV3/toDurableStateV3), persistence V3 et isolation foyer opérationnelles, 189 tests verts et export Android réussi. Bloquant : le formulaire Ajouter une tâche n'expose pas Fait par comme sélecteur modifiable parmi les membres du foyer (affiche statiquement l'utilisateur connecté), violant l'acceptance #3 et MAIN_PROMPT §3 qui exigent choix libre de performedByMemberId. Repair requis avant que DRC-01 puisse passer complete.",
+  "findings": [
+    {
+      "path": "app/(tabs)/index.tsx",
+      "problem": "Le champ Fait par n'est pas modifiable : l'UI affiche statiquement le performer courant au lieu de permettre le choix de n'importe quel membre du foyer, contrairement à l'acceptance DRC-01 tranche 2 et MAIN_PROMPT §3.",
+      "evidence": "Lecture app/(tabs)/index.tsx L214-216: const performer = householdMembers.find(m=>m.id===state.currentUserId) ?? householdMembers[0]; L353-356: <Text>Fait par</Text><View><Text>{performer?.name ?? '—'}</Text></View> — aucun Pressable/SegmentedControl/chips pour performer. L244-273 handleSubmit utilise performer.id fixe. grep performer → 0 selecteur. Comparé à Fait pour qui a MemberChip + toggleEveryone/toggleBeneficiary (L220-240). Tests drc01 AC5 exigent validatePerformedBy et capacité à choisir autre membre.",
+      "mustFix": true,
+      "requiredFix": "Rendre Fait par modifiable : exposer un sélecteur (chips/SegmentedControl/Picker) listant householdMembers, défaut = currentUserId, valeur stockée dans state performedByMemberId, utilisée dans handleSubmit et validée par planAddCompletedEntry (déjà prêt). La sélection doit survivre à la création et être réinitialisée après succès. Mettre à jour le test d'intégration UI si présent.",
+      "verification": "Ouvrir Ajouter une tâche en démo : Fait par propose tous les membres du foyer, défaut = utilisateur connecté, changement vers un autre membre crée bien CompletedEntry avec performedByMemberId correspondant (vérifier via selectVisibleEntries et persistence V3 après reload). npm run check reste vert."
+    },
+    {
+      "path": "app/(tabs)/index.tsx",
+      "problem": "Unité de durée ambiguë et absence de bornes visibles : le champ manuel affiche placeholder 'secondes' et parseFloat sans validation 1..1440 min ni message, alors que le domaine utilise durationSeconds avec contrainte métier et validation validateManualMinutes attend des minutes entières 1..1440.",
+      "evidence": "L387-394: <TextInput placeholder=\"secondes\" keyboardType=\"numeric\" value={manualSeconds} onChangeText={setManualSeconds} /> ; L262-268: parsed=parseFloat(manualSeconds); if (!finite||<=0) alert('Saisis un nombre de secondes valide.'); Aucune borne haute, aucun contrôle d'entier, aucun usage de validateManualMinutes. L259-261 chrono.stop() retourne secondes, cohérent mais UI ne précise pas l'unité réelle (spec: 1 min réelle = 1 min, manuel ou chrono).",
+      "mustFix": false,
+      "requiredFix": "Clarifier l'unité (minutes ou secondes) et brancher validation existante : si secondes, afficher aide 'en secondes' + validation >0 et <=86400 avec entier ; si minutes, convertir en secondes (×60) et utiliser validateManualMinutes/validatePerformedBy. Afficher erreur inline comme pour labelError.",
+      "verification": "Saisir 0, -1, 0.5, 1500, texte → messages d'erreur inline ; saisir 60 → entrée persistée avec durationSeconds=60 (ou 3600 si minutes) ; chrono démarre/arrête → duration >=1s. Vérifier via planAddCompletedEntry et persistence."
+    },
+    {
+      "path": "app/(tabs)/score.tsx",
+      "problem": "Onglet Score placeholder sans statistiques/équilibres Tricount ni historique filtré : conforme à l'acceptance minimale tranche 2 (écran accessible) mais ne couvre pas encore MAIN_PROMPT §5 et DRC-03.",
+      "evidence": "Lecture app/(tabs)/score.tsx : ScreenHeader + NoticeBanner + View placeholder 'Score — bientôt' sans appel à calculateBalances/calculateCompensations, sans filtres Toutes/PersistentTask/Autres, sans périodes, sans graphe. C'est volontaire pour tranche 2 (TASKS acceptance: 'Les screens Ajouter une tâche, Score et To-do sont accessibles en demo sans réseau.') mais reste du travail DRC-03.",
+      "mustFix": false,
+      "requiredFix": "Tranche DRC-03 : implémenter Score avec périodes semaine/mois/année/depuis le début, filtres Toutes/1 par PersistentTask/Autres, calcul fait-par/fait-pour à somme nulle, compensations pair-à-pair, temps réellement effectué + graphe noms/valeurs sans couleur identité, pondéré secondaire, historique contextuel filtré et partage système.",
+      "verification": "Après DRC-03, naviguer Score : changer période/filtre → soldes et compensations recalculés, graphe affiche noms+heures, historique filtré correspond à la sélection, partage ouvre share sheet système. Tests scoring et tab-flows verts."
+    },
+    {
+      "path": "app/(tabs)/todo.tsx",
+      "problem": "Onglet To-do placeholder sans création/assignation ni conversion en CompletedEntry : conforme à l'acceptance minimale tranche 2 mais ne couvre pas MAIN_PROMPT §6 et DRC-04.",
+      "evidence": "Lecture app/(tabs)/todo.tsx : même pattern placeholder que Score, aucun TodoItem form, aucun planCompleteTodo. AppState todoItems existe et reducer gère ADD_TODO/COMPLETE_TODO mais aucune UI ne l'alimente.",
+      "mustFix": false,
+      "requiredFix": "Tranche DRC-04 : implémenter To-do (sans date/datée, assignée, fait pour, note, deadline/reminder), check validation ouvrant mini-formulaire Fait par/durée/fait pour créant atomiquement CompletedEntry, terminant la TodoItem et mettant à jour historique+Score. Brancher isolation foyer et permissions.",
+      "verification": "Créer Todo, cocher → modale Fait par/durée/fait pour → CompletedEntry créée avec même foyer, Todo completedAt rempli, historique complet et Score mis à jour. Persistance V3 reload OK, npm run check vert."
+    }
+  ],
+  "checks": [
+    "npm run check — 189/189 pass (189 tests dont drc01.test.ts 20+ acceptances DRC-01, persistence, isolation foyer)",
+    "EXPO_PUBLIC_DATA_MODE=demo npx expo export --platform android — success, 1275 modules, 2.8MB hbc bundle, dist/metadata.json présent",
+    "diff -r /home/runner/work/_temp/accepted-mobile vs candidate — tabs _layout 4→3, app/(tabs)/index refondu formulaire + historique, history/leaderboard/profile en Redirect, app/index householdLimit quota, src/store/AppProvider writer V3, src/store/appReducer householdLimit + addCompletedEntry/deleteCompletedEntry + selectVisibleEntries, src/store/persistence V3 envelope",
+    "grep tabs — app/(tabs)/_layout.tsx contient exactement 3 Tabs.Screen : index 'Ajouter une tâche', score 'Score', todo 'To-do'",
+    "grep householdLimit — app/index.tsx canCreateMore = households.length < entitlements.householdLimit et affichage quota X/Y ; src/store/appReducer planCreateHousehold vérifie households.length >= entitlements.householdLimit (pas canUseMultipleHouseholds) ; src/domain/entitlements householdLimit numeric 1/3/5/10 validé par drc01 AC1",
+    "grep writer V3 — src/store/AppProvider toDurableStateV3 + createSequentialWriterV3 + writeDurable(toDurableStateV3) + isV3 v3Data handling ; persistence serializeEnvelopeV3/parseEnvelope V3 + migrateV2ToV3",
+    "grep Fait par — app/(tabs)/index.tsx static performer display sans sélecteur (finding mustFix), Fait pour avec MemberChip Tout le monde + sous-ensemble, chrono useChrono hook + manuel TextInput secondes",
+    "mutation proof isolation — selectVisibleEntries filtre householdId + tri completedAt desc, planAddCompletedEntry valide performedBy/beneficiaries membres du foyer, isDurableStateV3 rejette bénéficiaire inconnu et beneficiaries vide (drc01 AC15)",
+    "mutation proof balances — calculateBalances Tricount somme nulle vérifié via drc01 AC11 : A 60min pour A+B => +1800/-1800, A pour B => +3600/-3600, A pour A => 0, multi-entrées + compensations"
+  ]
+}

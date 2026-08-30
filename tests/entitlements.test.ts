@@ -23,7 +23,7 @@ test('le gratuit reste utilisable en temps brut avec 30 jours visibles', () => {
 test('Standard et Pro ont les mêmes fonctions, mais Standard recommande sept membres au maximum', () => {
   const standard = getEntitlements('standard');
   const pro = getEntitlements('pro');
-  assert.deepEqual({ ...standard, maxMembers: null }, pro);
+  assert.deepEqual({ ...standard, maxMembers: null, householdLimit: pro.householdLimit }, pro);
   assert.equal(standard.canViewMonthlyLeaderboard, true);
   assert.equal(standard.maxMembers, 7);
   assert.equal(pro.maxMembers, null);

@@ -161,12 +161,14 @@ export function AppProvider({
       dispatch({ type: 'HYDRATION_FAILED', message: HYDRATION_ERROR_MESSAGE });
       return;
     }
+    // DRC-01 : support V2 (legacy) et V3 (canonical) state shapes.
+    const isV3 = 'persistentTasks' in restored;
     const base: AppSnapshot = {
       users: restored.users,
       household,
       memberships: restored.memberships,
-      tasks: restored.tasks,
-      entries: restored.entries,
+      tasks: isV3 ? [] : (restored as { tasks: AppSnapshot['tasks'] }).tasks,
+      entries: isV3 ? [] : (restored as { entries: AppSnapshot['entries'] }).entries,
       currentUserId: restored.currentUserId,
     };
     // Reprise déterministe des chronos interrompus, horloge de référence passée

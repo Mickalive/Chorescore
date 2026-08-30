@@ -1,12 +1,15 @@
 import { isValidWeight } from '../domain/scoring';
 import type {
   AppSnapshot,
+  CompletedEntry,
   ConsentState,
   Household,
   Membership,
+  PersistentTask,
   TaskCategory,
   TaskDefinition,
   TaskEntry,
+  TodoItem,
   User,
 } from '../domain/types';
 
@@ -72,12 +75,14 @@ export type RecoveryReason = 'invalid-json' | 'invalid-shape' | 'unknown-version
 
 export type ParsedEnvelope =
   | { outcome: 'valid'; envelope: EnvelopeV2; migratedFrom?: 1 }
+  | { outcome: 'valid-v3'; envelope: EnvelopeV3; migratedFrom?: 2 }
   | { outcome: 'invalid'; reason: Extract<RecoveryReason, 'invalid-json' | 'invalid-shape'> }
   | { outcome: 'unknown-version'; schemaVersion: number };
 
 export type LoadOutcome =
   | { status: 'first-launch' }
   | { status: 'restored'; state: DurableState; savedAt: string; migratedFrom?: 1 }
+  | { status: 'restored-v3'; state: DurableStateV3; savedAt: string; migratedFrom?: 2 }
   | { status: 'recovered'; reason: RecoveryReason; quarantined: boolean }
   | { status: 'unavailable'; cause: unknown };
 
@@ -132,6 +137,236 @@ export function serializeEnvelope(state: DurableState, savedAt: string): string 
   return serializeStable(buildEnvelope(state, savedAt));
 }
 
+/* ------------------------------------------------------------------ */
+/* Schéma V3 : modèle canonique CompletedEntry (DRC-01)                */
+/* ------------------------------------------------------------------ */
+
+export const SCHEMA_VERSION_V3 = 3;
+
+/**
+ * Tranche durable V3 : le modèle canonique remplace TaskDefinition par
+ * PersistentTask et TaskEntry par CompletedEntry. Les trois objets métier
+ * (CompletedEntry, PersistentTask, TodoItem) sont distincts.
+ */
+export type DurableStateV3 = {
+  users: User[];
+  households: Household[];
+  memberships: Membership[];
+  persistentTasks: PersistentTask[];
+  completedEntries: CompletedEntry[];
+  todoItems: TodoItem[];
+  currentUserId: string;
+  currentHouseholdId: string;
+  onboardingComplete: boolean;
+  consent: ConsentState;
+};
+
+export type EnvelopeV3 = {
+  schemaVersion: 3;
+  savedAt: string;
+  state: DurableStateV3;
+};
+
+/**
+ * Migration V2 -> V3 : TaskDefinition devient PersistentTask, TaskEntry
+ * completed devient CompletedEntry avec performedByMemberId et
+ * beneficiaryMemberIds. Les entrées in_progress sont abandonnées (chrono
+ * non terminé = aucune réalisation).
+ */
+export function migrateV2ToV3(v2: DurableState): DurableStateV3 {
+  const persistentTasks: PersistentTask[] = v2.tasks.map((task) => ({
+    id: task.id,
+    householdId: task.householdId,
+    name: task.name,
+    defaultWeight: task.weight,
+    createdAt: task.createdAt,
+  }));
+
+  const completedEntries: CompletedEntry[] = v2.entries
+    .filter((entry): entry is TaskEntry & { status: 'completed'; completedAt: string } =>
+      entry.status === 'completed' && entry.completedAt !== null,
+    )
+    .map((entry) => {
+      const taskName =
+        v2.tasks.find((t) => t.id === entry.taskId)?.name ?? 'Tâche migrée';
+      return {
+        id: entry.id,
+        label: taskName,
+        householdId: entry.householdId,
+        performedByMemberId: entry.userId,
+        beneficiaryMemberIds: [entry.userId],
+        durationSeconds: entry.durationSeconds,
+        completedAt: entry.completedAt,
+        persistentTaskId: entry.taskId,
+        weight: 1,
+      };
+    });
+
+  return {
+    users: v2.users,
+    households: v2.households,
+    memberships: v2.memberships,
+    persistentTasks,
+    completedEntries,
+    todoItems: [],
+    currentUserId: v2.currentUserId,
+    currentHouseholdId: v2.currentHouseholdId,
+    onboardingComplete: v2.onboardingComplete,
+    consent: v2.consent,
+  };
+}
+
+export function buildEnvelopeV3(state: DurableStateV3, savedAt: string): EnvelopeV3 {
+  return { schemaVersion: SCHEMA_VERSION_V3, savedAt, state };
+}
+
+export function serializeEnvelopeV3(state: DurableStateV3, savedAt: string): string {
+  return serializeStable(buildEnvelopeV3(state, savedAt));
+}
+
+/* ------------------------------------------------------------------ */
+/* Validation structurelle V3                                          */
+/* ------------------------------------------------------------------ */
+
+function isCompletedEntry(value: unknown): value is CompletedEntry {
+  if (!isRecord(value)) return false;
+  return (
+    isNonEmptyString(value.id) &&
+    isNonEmptyString(value.label) &&
+    isNonEmptyString(value.householdId) &&
+    isNonEmptyString(value.performedByMemberId) &&
+    Array.isArray(value.beneficiaryMemberIds) &&
+    value.beneficiaryMemberIds.length > 0 &&
+    value.beneficiaryMemberIds.every((id: unknown) => isNonEmptyString(id)) &&
+    typeof value.durationSeconds === 'number' &&
+    Number.isFinite(value.durationSeconds) &&
+    value.durationSeconds > 0 &&
+    isIsoDate(value.completedAt) &&
+    (value.persistentTaskId === null || isNonEmptyString(value.persistentTaskId)) &&
+    typeof value.weight === 'number' &&
+    Number.isFinite(value.weight) &&
+    value.weight >= 0
+  );
+}
+
+function isPersistentTask(value: unknown): value is PersistentTask {
+  if (!isRecord(value)) return false;
+  return (
+    isNonEmptyString(value.id) &&
+    isNonEmptyString(value.householdId) &&
+    isNonEmptyString(value.name) &&
+    typeof value.defaultWeight === 'number' &&
+    isIsoDate(value.createdAt)
+  );
+}
+
+function isTodoItem(value: unknown): value is TodoItem {
+  if (!isRecord(value)) return false;
+  return (
+    isNonEmptyString(value.id) &&
+    isNonEmptyString(value.householdId) &&
+    isNonEmptyString(value.label) &&
+    (value.assigneeMemberId === null || isNonEmptyString(value.assigneeMemberId)) &&
+    Array.isArray(value.beneficiaryMemberIds) &&
+    value.beneficiaryMemberIds.every((id: unknown) => isNonEmptyString(id)) &&
+    (value.dueDate === null || isIsoDate(value.dueDate)) &&
+    typeof value.note === 'string' &&
+    (value.persistentTaskId === null || isNonEmptyString(value.persistentTaskId)) &&
+    isIsoDate(value.createdAt) &&
+    (value.completedAt === null || isIsoDate(value.completedAt))
+  );
+}
+
+/**
+ * Validateur V3 : modèle canonique avec CompletedEntry, PersistentTask et
+ * TodoItem. L'intégrité référentielle vérifie les foyers, membres et
+ * cohérence des beneficiarieMemberIds.
+ */
+export function isDurableStateV3(value: unknown): value is DurableStateV3 {
+  if (!isRecord(value)) return false;
+  if (!Array.isArray(value.users) || !value.users.every(isUser)) return false;
+  if (
+    !Array.isArray(value.households) ||
+    value.households.length === 0 ||
+    !value.households.every(isHousehold)
+  ) {
+    return false;
+  }
+  if (!Array.isArray(value.memberships) || !value.memberships.every(isMembership)) return false;
+  if (!Array.isArray(value.persistentTasks) || !value.persistentTasks.every(isPersistentTask)) {
+    return false;
+  }
+  if (
+    !Array.isArray(value.completedEntries) ||
+    !value.completedEntries.every(isCompletedEntry)
+  ) {
+    return false;
+  }
+  if (!Array.isArray(value.todoItems) || !value.todoItems.every(isTodoItem)) {
+    return false;
+  }
+  if (!isNonEmptyString(value.currentHouseholdId)) return false;
+  if (!isNonEmptyString(value.currentUserId)) return false;
+  if (typeof value.onboardingComplete !== 'boolean') return false;
+  if (!isConsent(value.consent)) return false;
+
+  const householdIds = new Set<string>();
+  for (const household of value.households) {
+    if (householdIds.has(household.id)) return false;
+    householdIds.add(household.id);
+  }
+  if (!householdIds.has(value.currentHouseholdId)) return false;
+
+  const userIds = new Set<string>();
+  for (const user of value.users) {
+    if (userIds.has(user.id)) return false;
+    userIds.add(user.id);
+  }
+  if (!userIds.has(value.currentUserId)) return false;
+
+  const membershipPairs = new Set<string>();
+  for (const membership of value.memberships) {
+    if (!householdIds.has(membership.householdId) || !userIds.has(membership.userId)) {
+      return false;
+    }
+    const key = `${membership.householdId}\u0000${membership.userId}`;
+    if (membershipPairs.has(key)) return false;
+    membershipPairs.add(key);
+  }
+  if (!membershipPairs.has(`${value.currentHouseholdId}\u0000${value.currentUserId}`)) {
+    return false;
+  }
+
+  // PersistentTasks must belong to a known household
+  for (const pt of value.persistentTasks) {
+    if (!householdIds.has(pt.householdId)) return false;
+  }
+
+  // CompletedEntries must belong to a known household with valid members
+  for (const entry of value.completedEntries) {
+    if (!householdIds.has(entry.householdId)) return false;
+    if (!membershipPairs.has(`${entry.householdId}\u0000${entry.performedByMemberId}`)) return false;
+    for (const beneficiaryId of entry.beneficiaryMemberIds) {
+      if (!membershipPairs.has(`${entry.householdId}\u0000${beneficiaryId}`)) return false;
+    }
+    // If linked to a persistent task, it must exist in the same household
+    if (entry.persistentTaskId !== null) {
+      const pt = value.persistentTasks.find((t) => t.id === entry.persistentTaskId);
+      if (pt === undefined || pt.householdId !== entry.householdId) return false;
+    }
+  }
+
+  // TodoItems must belong to a known household with valid members
+  for (const todo of value.todoItems) {
+    if (!householdIds.has(todo.householdId)) return false;
+    if (todo.assigneeMemberId !== null) {
+      if (!membershipPairs.has(`${todo.householdId}\u0000${todo.assigneeMemberId}`)) return false;
+    }
+  }
+
+  return true;
+}
+
 /**
  * Migration explicite v1 -> v2 : le foyer unique devient une collection d'un
  * élément et le foyer actif est identifié par son identifiant. Aucune donnée
@@ -161,7 +396,7 @@ export function parseEnvelope(raw: string): ParsedEnvelope {
   if (typeof version !== 'number' || !Number.isInteger(version)) {
     return { outcome: 'invalid', reason: 'invalid-shape' };
   }
-  if (version > SCHEMA_VERSION) {
+  if (version > SCHEMA_VERSION_V3) {
     return { outcome: 'unknown-version', schemaVersion: version };
   }
   if (version === 1) {
@@ -188,10 +423,20 @@ export function parseEnvelope(raw: string): ParsedEnvelope {
     // Aucune version historique n'existe sous 1 : charge non authentique.
     return { outcome: 'invalid', reason: 'invalid-shape' };
   }
-  if (!isDurableState(record.state)) {
-    return { outcome: 'invalid', reason: 'invalid-shape' };
+  if (version === 2) {
+    if (!isDurableState(record.state)) {
+      return { outcome: 'invalid', reason: 'invalid-shape' };
+    }
+    const envelope = buildEnvelope(record.state, record.savedAt as string);
+    return { outcome: 'valid', envelope };
   }
-  return { outcome: 'valid', envelope: record as unknown as EnvelopeV2 };
+  if (version === 3) {
+    if (!isDurableStateV3(record.state)) {
+      return { outcome: 'invalid', reason: 'invalid-shape' };
+    }
+    return { outcome: 'valid-v3', envelope: record as unknown as EnvelopeV3 };
+  }
+  return { outcome: 'invalid', reason: 'invalid-shape' };
 }
 
 /* ------------------------------------------------------------------ */
@@ -492,6 +737,20 @@ export async function loadDurableState(storage: KeyValueStorage): Promise<LoadOu
   const parsed = parseEnvelope(raw);
   switch (parsed.outcome) {
     case 'valid': {
+      // Auto-migrate V2 → V3 : the canonical model replaces the legacy model.
+      // V1 migrations already returned 'valid' with migratedFrom=1 and stay as
+      // DurableState; only pure V2 (schemaVersion 2, no prior migration) gets
+      // promoted to V3.
+      if (parsed.envelope.schemaVersion === 2 && !parsed.migratedFrom) {
+        const v3 = migrateV2ToV3(parsed.envelope.state);
+        const restored: LoadOutcome = {
+          status: 'restored-v3',
+          state: v3,
+          savedAt: parsed.envelope.savedAt,
+          migratedFrom: 2,
+        };
+        return restored;
+      }
       const restored: LoadOutcome = {
         status: 'restored',
         state: parsed.envelope.state,
@@ -499,6 +758,17 @@ export async function loadDurableState(storage: KeyValueStorage): Promise<LoadOu
       };
       if (parsed.migratedFrom === 1) {
         restored.migratedFrom = 1;
+      }
+      return restored;
+    }
+    case 'valid-v3': {
+      const restored: LoadOutcome = {
+        status: 'restored-v3',
+        state: parsed.envelope.state,
+        savedAt: parsed.envelope.savedAt,
+      };
+      if (parsed.migratedFrom === 2) {
+        restored.migratedFrom = 2;
       }
       return restored;
     }
@@ -527,6 +797,25 @@ export async function saveDurableState(
   }
 }
 
+/** Sauvegarde V3 du modèle canonique CompletedEntry. */
+export async function saveDurableStateV3(
+  storage: KeyValueStorage,
+  state: DurableStateV3,
+  savedAt: string,
+): Promise<SaveOutcome> {
+  const serialized = serializeEnvelopeV3(state, savedAt);
+  const bytes = utf8ByteLength(serialized);
+  if (bytes > MAX_SERIALIZED_BYTES) {
+    return { ok: false, error: 'oversized' };
+  }
+  try {
+    await storage.setItem(STORAGE_KEY, serialized);
+    return { ok: true, bytes };
+  } catch {
+    return { ok: false, error: 'write-failed' };
+  }
+}
+
 /**
  * Sérialise les écritures : les sauvegardes qui se chevauchent s'exécutent dans
  * l'ordre d'appel et la dernière gagne, sans entrelacement.
@@ -535,6 +824,19 @@ export function createSequentialWriter(storage: KeyValueStorage) {
   let tail: Promise<unknown> = Promise.resolve();
   return (state: DurableState, savedAt: string): Promise<SaveOutcome> => {
     const run = tail.then(() => saveDurableState(storage, state, savedAt));
+    tail = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  };
+}
+
+/** Writer V3 pour le modèle canonique. */
+export function createSequentialWriterV3(storage: KeyValueStorage) {
+  let tail: Promise<unknown> = Promise.resolve();
+  return (state: DurableStateV3, savedAt: string): Promise<SaveOutcome> => {
+    const run = tail.then(() => saveDurableStateV3(storage, state, savedAt));
     tail = run.then(
       () => undefined,
       () => undefined,

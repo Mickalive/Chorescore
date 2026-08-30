@@ -45,3 +45,32 @@ export function validateManualMinutes(value: number): string | null {
   }
   return null;
 }
+
+/* ------------------------------------------------------------------ */
+/* CompletedEntry validation (DRC-01)                                  */
+/* ------------------------------------------------------------------ */
+
+export function validateCompletedEntryLabel(label: string): string | null {
+  const normalized = normalizeTaskName(label);
+  if (normalized.length < 1) {
+    return 'Le libellé ne peut pas être vide.';
+  }
+  if (normalized.length > 100) {
+    return 'Le libellé ne peut pas dépasser 100 caractères.';
+  }
+  return null;
+}
+
+export function validateBeneficiaryIds(ids: string[]): string | null {
+  if (ids.length === 0) {
+    return 'Au moins un bénéficiaire doit être sélectionné.';
+  }
+  return null;
+}
+
+export function validatePerformedBy(memberId: string): string | null {
+  if (typeof memberId !== 'string' || memberId.length === 0) {
+    return 'Un membre doit être sélectionné pour « Fait par ».';
+  }
+  return null;
+}

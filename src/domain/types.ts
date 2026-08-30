@@ -82,3 +82,55 @@ export type PremiumFeature =
   | 'advanced_history'
   | 'export_pdf'
   | 'multiple_households';
+
+/* ------------------------------------------------------------------ */
+/* V2 canonical model (DRC-01)                                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Réalisation passée : libellé libre, fait par qui, fait pour qui, durée
+ * réelle, date, foyer, tâche persistante facultative et coefficient de
+ * pondération avancé. Le modèle est compatible Tricount : pour D fait par P
+ * pour N bénéficiaires, P reçoit +D et chaque bénéficiaire -D/N.
+ */
+export type CompletedEntry = {
+  id: string;
+  label: string;
+  householdId: string;
+  performedByMemberId: string;
+  beneficiaryMemberIds: string[];
+  durationSeconds: number;
+  completedAt: string;
+  persistentTaskId: string | null;
+  weight: number;
+};
+
+/**
+ * Tâche persistante facultative : raccourci de saisie et exactement un filtre
+ * Score. Les libellés ponctuels ne deviennent jamais des PersistentTask ;
+#  ils relèvent du filtre « Autres » dans Score.
+ */
+export type PersistentTask = {
+  id: string;
+  householdId: string;
+  name: string;
+  defaultWeight: number;
+  createdAt: string;
+};
+
+/**
+ * Tâche future : peut être datée, assignée, avoir des bénéficiaires et une
+ * note. Le check terminé créera une CompletedEntry.
+ */
+export type TodoItem = {
+  id: string;
+  householdId: string;
+  label: string;
+  assigneeMemberId: string | null;
+  beneficiaryMemberIds: string[];
+  dueDate: string | null;
+  note: string;
+  persistentTaskId: string | null;
+  createdAt: string;
+  completedAt: string | null;
+};

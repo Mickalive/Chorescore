@@ -7,11 +7,13 @@ export type Entitlements = {
   canViewAdvancedHistory: boolean;
   canExportPdf: boolean;
   canUseMultipleHouseholds: boolean;
+  /** Quota numérique de foyers autorisés : ne jamais simplifier en booléen. */
+  householdLimit: number;
   historyDays: number | null;
   maxMembers: number | null;
 };
 
-const PREMIUM_ENTITLEMENTS: Omit<Entitlements, 'maxMembers'> = {
+const PREMIUM_ENTITLEMENTS: Omit<Entitlements, 'maxMembers' | 'householdLimit'> = {
   useWeights: true,
   canCustomizeWeights: true,
   canViewMonthlyLeaderboard: true,
@@ -30,6 +32,7 @@ export function getEntitlements(plan: PlanScenario): Entitlements {
       canViewAdvancedHistory: false,
       canExportPdf: false,
       canUseMultipleHouseholds: false,
+      householdLimit: 1,
       historyDays: 30,
       maxMembers: null,
     };
@@ -38,6 +41,7 @@ export function getEntitlements(plan: PlanScenario): Entitlements {
   return {
     ...PREMIUM_ENTITLEMENTS,
     maxMembers: plan === 'standard' ? 7 : null,
+    householdLimit: plan === 'trial' ? 3 : plan === 'standard' ? 5 : 10,
   };
 }
 

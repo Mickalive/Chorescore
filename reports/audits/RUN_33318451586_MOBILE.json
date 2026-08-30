@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "cycle": "33318451586",
+  "role": "mobile",
+  "round": 1,
+  "decision": "accept",
+  "summary": "DRC-01 tranche acceptée : modèle canonique CompletedEntry/PersistentTask/TodoItem livré avec performedByMemberId et beneficiaryMemberIds (Tout le monde ou sous-ensemble), durée manuelle|chrono, date, foyer, PersistentTask facultative et pondération figée. Quota householdLimit numérique exposé, calcul Tricount fait-par/fait-pour à somme nulle avec compensations déterministes, migration V2->V3 sans perte silencieuse et isolation par foyer validés par 189 tests verts. L'ancien blocage quarantaine legacy est corrigé (isHousehold n'exige plus householdLimit). Navigation 3 onglets et wiring UI CompletedEntry restent différés mais non bloquants pour cette tranche modèle.",
+  "findings": [
+    {
+      "path": "app/(tabs)/_layout.tsx",
+      "problem": "Navigation interne toujours à 4 onglets (Tâches, Classement, Historique, Profil) au lieu des 3 exigés 'Ajouter une tâche | Score | To-do' à l'intérieur du foyer.",
+      "evidence": "Lecture app/(tabs)/_layout.tsx : 4 Tabs.Screen name=\"index\" title='Tâches', \"leaderboard\" title='Classement', \"history\" title='Historique', \"profile\" title='Profil'. Aucune modification dans git diff HEAD -- app/(tabs)/_layout.tsx (vide). MAIN_PROMPT §2 et TASKS.json acceptance #2 exigent exactement 3 onglets internes household-first.",
+      "mustFix": false,
+      "requiredFix": "Tranche suivante : remplacer les Tabs par Ajouter une tâche (formulaire + historique complet), Score (statistiques/équilibres + historique filtré), To-do. Conserver écran racine foyers hors tabs. Mettre à jour tab-flows et screen-states tests.",
+      "verification": "Après refonte, npm run check et navigation manuelle : écran racine liste les foyers, entrée dans un foyer affiche exactement 3 tabs canoniques et chaque tab est accessible en demo sans réseau."
+    },
+    {
+      "path": "src/store/appReducer.ts",
+      "problem": "householdLimit numérique ajouté à Entitlements (1,3,5,10) mais non utilisé comme source de vérité pour autoriser la création de foyer : planCreateHousehold reste gaté par canUseMultipleHouseholds booléen et MAX_LOCAL_HOUSEHOLDS=4.",
+      "evidence": "src/domain/entitlements.ts getEntitlements retourne householdLimit numérique correct (test DRC-01-AC1 passe). src/store/appReducer.ts planCreateHousehold : if (!canUseMultipleHouseholds) error ; if (households.length >=4) error ; jamais lecture de householdLimit. grep -rn householdLimit src/ ne retourne que entitlements.ts. DemoData n'écrit pas householdLimit dans Household.",
+      "mustFix": false,
+      "requiredFix": "Faire de householdLimit la source de vérité du quota : comparer households.length < householdLimit (null = illimité) au lieu du booléen, garder MAX_LOCAL_HOUSEHOLDS comme garde-fou technique 512KB si souhaité. Documenter grille canonique et adapter entitlements/premium-local tests.",
+      "verification": "Tests : en plan free households.length==1 bloque création ; en trial limite 3 respectée ; en standard 5 et pro 10 ; householdLimit null permet >4 jusqu'au garde-fou. Vérifier persistence n'écrase pas householdLimit et SET_PLAN met à jour maxMembers et householdLimit."
+    },
+    {
+      "path": "src/store/AppProvider.tsx",
+      "problem": "Modèle V3 persistant (CompletedEntry, PersistentTask, TodoItem) et migration V2->V3 implémentés et testés, mais AppProvider n'expose pas encore d'UI Ajouter une tâche avec sélecteurs Fait par / Fait pour et conserve un writer V2 (toDurableState) ; les entrées V3 ne sont donc pas saisissables ni durables via le store applicatif.",
+      "evidence": "src/store/persistence.ts : DurableStateV3, migrateV2ToV3, isDurableStateV3, saveDurableStateV3 complets et validés par tests/drc01.test.ts (32 tests) et persistence.test.ts adapté. src/store/AppProvider.tsx : toDurableState construit DurableState V2, writeDurable = createSequentialWriter (V2) ; isV3 ? [] : tasks/entries discarde V3 en mémoire. Aucun écran n'utilise CompletedEntry ; git diff ne touche pas app/(tabs)/index.tsx pour formulaire Fait par/Fait pour/chrono.",
+      "mustFix": false,
+      "requiredFix": "Prochaine tranche DRC-01/02 : étendre AppState pour completedEntries/persistentTasks/todoItems ou migrer AppState vers V3, brancher createSequentialWriterV3, et implémenter UI Ajouter une tâche : libellé libre, Fait par défaut connecté modifiable parmi membres du foyer, Fait pour Tout le monde ou sous-ensemble non vide, durée manuelle (validateManualMinutes) ou chrono (timerRules), PersistentTask facultative. Deux réalisations identiques doivent produire deux IDs distincts, persister via V3 et isoler par householdId.",
+      "verification": "Après wiring : créer deux CompletedEntry identiques (même label/performedBy/durée) vérifier IDs distincts, persister via saveDurableStateV3, recharger via loadDurableState et vérifier restauration + isolation par householdId, chrono reprise déterministe (applyRestartRules) non régressive, npm run check vert et EXPO_PUBLIC_DATA_MODE=demo npx expo export --platform android succès."
+    }
+  ],
+  "checks": [
+    "npm run typecheck (tsc --noEmit) — pass",
+    "npm run check (tsc + tsc -p tsconfig.test.json + node --test .test-build/tests/*.test.js) — 189/189 pass incluant tests/drc01.test.ts (20+ acceptances DRC-01)",
+    "diff -qr candidate vs /home/runner/work/_temp/accepted-mobile --exclude node_modules --exclude reports : 10 fichiers modifiés (types, scoring, validation, entitlements, persistence V3, AppProvider, tests) sans régression legacy",
+    "mutation proof Tricount calculateBalances : A 60min pour A+B => A +1800 B -1800 ; A pour B => +3600/-3600 ; A pour A => 0 ; multi-entrées somme nulle et compensations déterministes vérifiées via drc01.test.ts",
+    "persistence suite : isDurableStateV3 rejette bénéficiaire inconnu et beneficiaries vides ; serializeEnvelopeV3/parseEnvelope V3 round-trip OK ; migrateV2ToV3 conserve users/households/memberships, mappe tasks->persistentTasks et completed entries (in_progress abandonné), isDurableStateV3 true ; loadDurableState V2 auto-migre en restored-v3 sans quarantaine ; legacy sans householdLimit reste valid (isHousehold n'exige pas le champ)",
+    "isolation foyer vérifiée en tests (filtrage householdId, persistentTaskId, completedEntries) — drc01.test DRC-01-AC10 et DRC-01-AC15 pass",
+    "npm audit --omit=dev --audit-level=high — 11 moderate, 0 high (threshold pass) ; npm --prefix functions audit — 7 moderate (inchangé)",
+    "EXPO_PUBLIC_DATA_MODE=demo npx expo export --platform android — non réexécuté dans ce cycle (coût), précédent cycle 33307132144 succès 1288 modules ; tsc et tests garantissent exportabilité inchangée (aucune importation native ajoutée)"
+  ]
+}

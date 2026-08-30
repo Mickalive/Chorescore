@@ -8,9 +8,8 @@ Auditer séparément chaque poste codeur activé dans `directives/TASKS.json`.
 
 ## Statut
 
-**Aucune lane audit active.** Les deux codeurs sont désactivés. Tous les
-critères DRC-01 à DRC-05 et DRC-07 sont `complete`. DRC-06 source-readiness
-est acceptée (audit RUN_33111958796_MOBILE.json, decision `accept`, 0
-`mustFix`, delta zéro). Le shell de confiance construit, atteste et publie
-l'APK release. Aucun audit supplémentaire requis tant que le shell ne demande
-pas une nouvelle lane.
+**Lane audit inactive.** Le candidat mobile est indisponible
+(candidate-unavailable) pour le deuxième cycle consécutif. Aucun
+candidat n'a été produit, donc aucun audit n'est requis. La lane
+audit sera réactivée dès qu'un candidat mobile sera disponible et
+sera transmis à l'auditeur pour évaluation.

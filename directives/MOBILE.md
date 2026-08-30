@@ -8,6 +8,16 @@ Sélecteur machine : `directives/TASKS.json`
 
 Lire d'abord `MAIN_PROMPT.md`, `governance/RELEASE_DEFINITION.json` et `docs/product-decisions.md` depuis `main`.
 
+## Finding prioritaire
+
+**PRODUCT-RESET-CORE** (critical, DRC-01) : Remplacer le modèle et le
+parcours todo/listes de TaskDefinition par un registre Tricount-like :
+créer/choisir un foyer puis enregistrer directement une entrée libre
+nom + personne + durée réelle, manuelle ou chrono.
+
+Ce finding est la première tâche bornée de ce cycle. Le candidat doit
+le résoudre avant toute autre implémentation.
+
 ## Niveau global : foyers
 
 Écran racine = foyers accessibles + création selon **quota numérique de plan** (`householdLimit` ou équivalent) + accès Options. Ne jamais hardcoder `gratuit=1 / premium=plusieurs`.

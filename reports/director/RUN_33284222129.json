@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "cycle": "33284222129",
+  "decision": "continue",
+  "reason": "Le candidat mobile est indisponible (candidate-unavailable, échec du job). Aucun delta produit n'a été appliqué. Le code source conserve toujours l'ancien modèle todo-list avec TaskDefinition et entry.taskId, 4 onglets (Tâches|Classement|Historique|Profil) au lieu de 3 (Ajouter une tâche|Score|To-do), et aucune des 4 findings produit-reset n'est résolue. Stagnation = 2. Le travail DRC-01 reste nécessaire : refonte du modèle et du parcours en Tricount-like.",
+  "activeCriteria": ["DRC-01"],
+  "progressEvidence": [
+    "Aucun progrès ce cycle — candidat mobile indisponible, aucun delta appliqué",
+    "Le code source conserve l'ancien modèle : TaskDefinition entité métier persistante, entry.taskId obligatoire, 4 onglets au lieu de 3",
+    "Les 4 open findings produit-reset (PRODUCT-RESET-CORE, PRODUCT-RESET-DATA, PRODUCT-RESET-BALANCE, PRODUCT-RESET-UX) restent unresolved",
+    "DRC-02 reste complete (persistance/migration validées avant reset produit)",
+    "DRC-07 reste complete (documentation backend acceptée au cycle 33086880966)"
+  ],
+  "next": {
+    "mobile": "Activé — refonte Tricount-like DRC-01 : supprimer TaskDefinition, entry.taskId, migrer vers entrées autonomes, réduire à 3 onglets (Ajouter une tâche|Score|To-do), bilan temps réel semaine/mois/année/depuis le début",
+    "backend": "Désactivé — DRC-07 complete",
+    "audit": "Lane audit inactive tant que le candidat mobile n'est pas disponible et accepté"
+  },
+  "humanActions": []
+}

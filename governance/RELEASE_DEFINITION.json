@@ -1,28 +1,77 @@
 {
-  "schemaVersion": 2,
-  "milestone": "demo-rc",
-  "title": "ChoreScore RC Android — households, history, Score and To-do",
-  "objective": "Application Android Tricount-like du temps domestique : foyers, réalisations fait-par/fait-pour, historique complet, Score équilibres/statistiques, historique filtré et To-do.",
-  "completionRule": "Tous les critères DRC sont complete, aucun finding bloquant ne reste ouvert, l'UX respecte la constitution puis DRC-06 possède artefact et runtime-smoke Android API 35.",
+  "schemaVersion": 3,
+  "milestone": "v2-rc",
+  "title": "ChoreScore V2 RC — greenfield",
+  "objective": "Construire depuis un socle propre ChoreScore V2 : connexion/foyers, Ajouter une tâche + historique, Score équilibres, To-do, partage système, intégrations préparées et APK Android installable.",
+  "completionRule": "Tous les critères DRC sont complete, aucun finding bloquant ne reste ouvert, la V2 provient de lab/chorescore-v2 et DRC-06 possède un APK installé + runtime-smoke.",
   "criteria": [
-    {"id":"DRC-01","priority":10,"title":"Foyers et réalisations Tricount-like","outcome":"L'écran racine affiche les foyers et respecte un quota d'abonnement numérique. Dans Ajouter une tâche, une CompletedEntry accepte libellé, Fait par n'importe quel membre du foyer, Fait pour tout le monde ou un sous-ensemble non vide, durée manuelle ou chrono, PersistentTask facultative et date. Tout l'historique chronologique du foyer apparaît sous la saisie.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
-    {"id":"DRC-02","priority":20,"title":"Persistance, migration et isolation","outcome":"Foyers, membres, CompletedEntry avec performedBy/beneficiaries, PersistentTask, TodoItem et chrono survivent au redémarrage avec schéma versionné, migration sûre et isolation stricte.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
-    {"id":"DRC-03","priority":30,"title":"Collaboration et options foyer","outcome":"Les membres peuvent ajouter/modifier/supprimer des entrées et gérer les To-do pour les autres sans changer leur identité connectée. Tous ont Options ; le payeur/propriétaire dispose en plus des options d'administration, quota/abonnement et permissions selon plan, sans créer un quatrième onglet dans le foyer.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
-    {"id":"DRC-04","priority":40,"title":"Score statistiques et équilibres","outcome":"Score propose semaine/mois/année/depuis le début et filtres Toutes/une entrée par PersistentTask/Autres. Une PersistentTask crée exactement un filtre ; les libellés ponctuels n'en créent aucun. Pour chaque entrée D faite par P pour N bénéficiaires, P reçoit +D et chaque bénéficiaire -D/N ; les soldes servent à proposer qui doit rattraper combien auprès de qui. Score affiche temps effectué + graphes avec noms, section pondérée équivalente, puis historique exactement filtré par période/tâche. L'historique complet reste sous Ajouter.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
-    {"id":"DRC-05","priority":50,"title":"To-do, partage, UX et accessibilité","outcome":"La navigation du foyer est exactement Ajouter une tâche / Score / To-do. Une To-do peut être datée ou non, assignée, avoir bénéficiaires, deadline/reminder ; son check demande fait-par + durée + fait-pour puis crée une CompletedEntry. Ajouter/Score/To-do permettent un partage natif contextuel des entrées, historiques filtrés, scores/graphes ou planning. L'UX est KISS, feel-good, peu blanche, accessible, sans dépendre d'une couleur identitaire fixe par membre ni afficher de texte moral parasite.","allowedRoles":["mobile"],"requiredEvidence":["tests","audit"]},
-    {"id":"DRC-07","priority":60,"title":"Dépôt révisable et frontières production","outcome":"Documentation/architecture reflètent fait-par/fait-pour, settlement de temps, PersistentTask=filtre, partage natif, quotas, identité future, notifications/calendrier et permissions sans simuler des services externes non configurés. Aucun risque critique/élevé connu ne reste ouvert.","allowedRoles":["mobile","backend"],"requiredEvidence":["documentation","audit"]},
-    {"id":"DRC-06","priority":70,"title":"Artefact Android installable","outcome":"APK reproductible construit depuis lab/chorescore, installé et parcouru sur Android API 35. Smoke : foyer, ajout fait-par/fait-pour manuel+chrono, historique complet, filtres PersistentTask/Autres, Score balances/graphes réel+pondéré+historique filtré, To-do convertie en CompletedEntry et partage natif déclenchable.","allowedRoles":[],"requiredEvidence":["artifact","runtime-smoke"]}
+    {
+      "id": "DRC-01",
+      "priority": 10,
+      "title": "Socle V2 greenfield, identité et foyers",
+      "outcome": "Le produit cumulatif V2 ne reprend pas l'ancienne application. Il possède un shell Expo propre, domaine séparé, persistance locale versionnée, contrats Auth/Share/Notification/Calendar/Sync/Billing, écran racine foyers, quota householdLimit et navigation interne Ajouter une tâche | Score | To-do. Les adapters externes non configurés restent honnêtement désactivés.",
+      "allowedRoles": ["mobile"],
+      "requiredEvidence": ["tests", "audit"]
+    },
+    {
+      "id": "DRC-02",
+      "priority": 20,
+      "title": "CompletedEntry et historique complet",
+      "outcome": "Ajouter une tâche crée une CompletedEntry indépendante avec libellé, fait-par, fait-pour, durée manuelle ou chrono, date, PersistentTask facultative et coefficient figé. L'historique complet du foyer apparaît sous la saisie, est modifiable/supprimable selon le modèle de confiance et persiste après reprise.",
+      "allowedRoles": ["mobile"],
+      "requiredEvidence": ["tests", "audit"]
+    },
+    {
+      "id": "DRC-03",
+      "priority": 30,
+      "title": "Score et équilibres Tricount du temps",
+      "outcome": "Score gère semaine/mois/année/depuis le début, Toutes/PersistentTask/Autres, une PersistentTask égale un filtre, calcul fait-par/fait-pour à somme nulle, compensations pair-à-pair, temps réellement effectué, graphes à noms/valeurs sans identité couleur obligatoire, vue pondérée secondaire et historique contextuel filtré.",
+      "allowedRoles": ["mobile"],
+      "requiredEvidence": ["tests", "audit"]
+    },
+    {
+      "id": "DRC-04",
+      "priority": 40,
+      "title": "To-do et conversion en réalisation",
+      "outcome": "To-do gère tâches datées ou non, attribution, bénéficiaires, notes, deadline et reminders locaux. Cocher fait demande fait-par + durée + fait-pour puis crée atomiquement une CompletedEntry, termine la TodoItem et met immédiatement à jour historique et Score.",
+      "allowedRoles": ["mobile"],
+      "requiredEvidence": ["tests", "audit"]
+    },
+    {
+      "id": "DRC-05",
+      "priority": 50,
+      "title": "Partage système, calendrier, notifications et UX",
+      "outcome": "Le partage utilise le share sheet système sans SDK social spécifique et fonctionne depuis les surfaces pertinentes. Notifications locales et calendrier utilisent des gateways propres et permissions honnêtes. L'UX est KISS, feel-good, peu blanche, accessible, responsive aux grandes tailles de texte et sans commentaire moral automatique.",
+      "allowedRoles": ["mobile"],
+      "requiredEvidence": ["tests", "audit"]
+    },
+    {
+      "id": "DRC-07",
+      "priority": 60,
+      "title": "Frontières production, auth, sync, billing et sécurité",
+      "outcome": "L'architecture prépare compte ChoreScore + Google + Facebook, session sécurisée, deep links, backend/sync, push distant, calendrier, billing par householdLimit et permissions de foyer sans faux service. Documentation, sécurité et dépendances correspondent au code accepté et aucun risque critique/élevé connu ne reste ouvert.",
+      "allowedRoles": ["mobile"],
+      "requiredEvidence": ["documentation", "audit"]
+    },
+    {
+      "id": "DRC-06",
+      "priority": 70,
+      "title": "APK Android V2 installable",
+      "outcome": "Après conformité produit, un APK reproductible construit exclusivement depuis lab/chorescore-v2 est installé et parcouru sur Android sans Metro. Le smoke couvre foyers, entrée manuelle, chrono, fait-par/fait-pour, historique, Score/filtre, To-do->CompletedEntry et share sheet système au niveau permis par l'émulateur.",
+      "allowedRoles": [],
+      "requiredEvidence": ["artifact", "runtime-smoke"]
+    }
   ],
   "productionBeta": {
     "status": "out-of-scope",
-    "reason": "OAuth réel, push distant, calendrier distant, paiement et synchronisation multi-device ne sont activés qu'avec leurs environnements réels et secrets correctement configurés.",
+    "reason": "Les services externes réels exigent leurs configurations et secrets ; la V2 RC prépare les adapters et reste local-first.",
     "humanPrerequisites": [
-      "grille canonique des paliers d'abonnement et quotas de foyers",
-      "fournisseurs OAuth et secrets protégés",
-      "backend/synchronisation réelle et règles d'autorisation",
-      "notifications push et consentements",
-      "intégration calendrier réelle",
-      "Stripe/environnements de paiement",
+      "grille canonique des abonnements et householdLimit",
+      "configuration backend production",
+      "credentials OAuth Google",
+      "configuration OAuth Facebook",
+      "configuration push distant",
+      "configuration billing",
       "validation juridique confidentialité/conditions",
       "revue sécurité avant données réelles"
     ]

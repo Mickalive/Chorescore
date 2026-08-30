@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "cycle": "33342545414",
+  "role": "mobile",
+  "round": 1,
+  "decision": "accept",
+  "summary": "Verification-only DRC-01 accept : candidat zero-delta conforme car l'arbre accepté intègre déjà le fix Fait par (cycle 33336517880). Fait par est un sélecteur SegmentedControl listant tous les householdMembers, défaut = currentUserId, valeur stockée dans performedByMemberId et utilisée via planManualEntry/AppProvider handleSubmit, validée par validatePerformedBy + membership. 195/195 tests verts (6 AC16), export Android demo réussi, aucune régression, diff vs /home/runner/work/_temp/accepted-mobile nul hors artefacts build. Blocage PRODUCT-RESET-CORE levé, DRC-01 peut passer complete sans diff cosmétique requis.",
+  "findings": [
+    {
+      "path": "src/components/ManualEntryModal.tsx",
+      "problem": "Vérification DRC-01 Fait par sélecteur — conforme, aucun défaut bloquant (verification-only).",
+      "evidence": "Lecture directe : props householdMembers:User[], currentUserId:string, onSubmit(minutes,performedByMemberId); L34 useState(currentUserId); L44-49 useEffect reset sur task null -> currentUserId; L69-75 validatePerformedBy puis onSubmit(parsedMinutes,performedByMemberId); L123-137 householdMembers.length>1 ? SegmentedControl accessibilityLabel='Sélectionner le membre qui a réalisé la tâche' options=householdMembers.map -> {value:id,label:name} value=performedByMemberId onChange=setPerformedByMemberId wrap : null. Candidat identique à accepted-mobile (diff -r brief vide sur src/app/tests).",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise — implémentation conservée identique à l'état accepté.",
+      "verification": "Ouvrir ManualEntryModal en demo 3 membres : Fait par affiche 3 segments, défaut Noa (=currentUserId). Changer vers Camille -> 30 min -> handleSubmit appelle planManualEntry(task_dishes,30,'user_camille') ok true et crée CompletedEntry performedByMemberId=user_camille. Couvert par tests drc01.test.ts AC16 6/6 verts, rejoué via npm run check 195/195."
+    },
+    {
+      "path": "src/store/appReducer.ts",
+      "problem": "Plan métier Fait par — validation et stockage corrects, aucun défaut bloquant.",
+      "evidence": "planManualEntry(state,taskId,durationMinutes,performedByMemberId) L417-456 : validateManualMinutes, si performedByMemberId.length===0 -> 'Un membre doit être sélectionné pour « Fait par ».', isMember=memberships.some(m.householdId===state.household.id && m.userId===performedByMemberId) sinon 'Le membre sélectionné n’appartient pas à ce foyer.' Retour {task,durationMinutes,effectiveWeight,performedByMemberId}. AppProvider L374-394 addManualEntry utilise plan.value.performedByMemberId pour createManualEntry userId. Zero delta vs accepted.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise.",
+      "verification": "Mutation proofs : validatePerformedBy('') erreur ; planManualEntry('',...) rejette ; member inconnu 'user_intrus' rejette ; outsider autre foyer rejette ; autre membre foyer accepte et IDs distincts. Tests drc01 AC16 + store-interactions tous verts (npm run check)."
+    },
+    {
+      "path": "app/(tabs)/index.tsx",
+      "problem": "Câblage foyer -> sélecteur — correct ; masquage mono-membre length>1 est cosmétique non bloquant.",
+      "evidence": "L63-68 householdMembers = users.filter(membership householdId===state.household.id); L185-193 drilling householdMembers + currentUserId vers ManualEntryModal. L123-137 condition length>1 masque sélecteur si foyer mono-membre. Zero delta vs accepted-mobile, demo 3 membres donc sélecteur visible.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction obligatoire pour DRC-01. Optionnel futur : afficher sélecteur même à 1 membre.",
+      "verification": "Foyer 3 membres : sélecteur visible et modifiable. Foyer mono-membre simulé : pas de sélecteur mais soumission réussit avec currentUserId (valeur par défaut correcte). Vérifié par revue code + tests isolation foyer verts."
+    },
+    {
+      "path": "src/domain/validation.ts + src/store/persistence.ts",
+      "problem": "Validations annexes CompletedEntry/PersistentTask/TodoItem et persistance V3 — non-régressées, aucun défaut bloquant pour DRC-01.",
+      "evidence": "validateCompletedEntryLabel, validateBeneficiaryIds, validatePerformedBy présentes ; isDurableStateV3 et migrateV2ToV3 V3 conservés ; calculateBalances Tricount somme nulle vérifiée par drc01 AC11. npm run check 195 tests incl. 15 AC DRC-01 historiques + persistence, isolation, scoring.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise.",
+      "verification": "EXPO_PUBLIC_DATA_MODE=demo expo export --platform android success (1288 modules, 2.9MB hbc). npm audit check non exécuté mais npm run check couvre typecheck/tests. 189 tests historiques + 6 AC16 = 195 sans régression, 3 onglets fonctionnels demo sans réseau."
+    }
+  ],
+  "checks": [
+    "npm run check — typecheck 0 error, 195/195 tests pass dont drc01.test.ts AC16 6 tests Fait par (currentUser ok, other member ok, intrus rejette, vide rejette, outsider foyer rejette, distinct IDs)",
+    "EXPO_PUBLIC_DATA_MODE=demo npx expo export --platform android — success 1288 modules, 2.9MB entry.hbc, dist/metadata.json présent",
+    "diff verification-only vs accepted-mobile (/home/runner/work/_temp/accepted-mobile) — diff -r --brief src/app/tests vide, hors node_modules/.test-build/.opencode, confirme zero delta et fix déjà intégré au cycle 33336517880",
+    "code inspection ManualEntryModal wiring — householdMembers filter memberships, currentUserId prop, SegmentedControl value/onChange performedByMemberId, validatePerformedBy avant onSubmit, useEffect reset après succès",
+    "mutation proof performedBy — validatePerformedBy('') erreur, planManualEntry vide/inconnu/hors-foyer rejette, membre valide accepte et persiste via AppProvider createManualEntry",
+    "isolation et scoring non-régressés — balances somme nulle, isolation foyer, migration V2->V3, quota householdLimit numeric 1/3/5/10, tous verts"
+  ]
+}

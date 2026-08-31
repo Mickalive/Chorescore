@@ -18,7 +18,7 @@
     "stripe": "22.5.0"
   },
   "devDependencies": {
-    "@types/node": "22.15.30",
+    "@types/node": "26.4.0",
     "typescript": "6.0.3"
   }
 }

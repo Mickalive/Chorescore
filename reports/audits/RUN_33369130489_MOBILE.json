@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "cycle": "33369130489",
+  "role": "mobile",
+  "round": 1,
+  "decision": "accept",
+  "summary": "Verification-only cycle 33369130489: l'arbre accepté satisfait déjà DRC-01 Fait par modifiable. ManualEntryModal expose SegmentedControl listant householdMembers, défaut currentUserId, state performedByMemberId validé par validatePerformedBy et planManualEntry (isolation foyer), utilisé dans handleSubmit via AppProvider.addManualEntry. Reset après succès via useEffect. 195 tests verts dont drc01 AC16 (6 tests Fait par), typecheck et export Android demo réussis, zéro delta justifié, aucun mustFix. Accept vaut preuve courante que l'accepté couvre ce bounded objective.",
+  "findings": [
+    {
+      "path": "src/components/ManualEntryModal.tsx",
+      "problem": "Aucun défaut bloquant : Fait par est modifiable et conforme à MAIN_PROMPT §3 et aux acceptances DRC-01 réparation (sélecteur, défaut, modifiable, stockage performedByMemberId, handleSubmit, reset).",
+      "evidence": "L123-136: {householdMembers.length>1 ? <Text>Fait par</Text> <SegmentedControl accessibilityLabel=\"Sélectionner le membre qui a réalisé la tâche\" options={householdMembers.map(m=>({value:m.id,label:m.name}))} value={performedByMemberId} onChange={setPerformedByMemberId} wrap/>}. Init L34 useState(currentUserId) et reset L44-50 useEffect task===null -> setPerformedByMemberId(currentUserId). Validation L69 validatePerformedBy + L75 onSubmit(parsedMinutes,performedByMemberId). Wiring app/(tabs)/index.tsx L63-68 householdMembers filter memberships + L185-192 ManualEntryModal householdMembers/currentUserId/onSubmit -> addManualEntry. planManualEntry L417-456 valide durée, vide, isMember foyer. AppProvider L374-392 utilise plan.value.performedByMemberId. Identique à accepted-mobile.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise pour ce critère. Conserver le pattern existant.",
+      "verification": "npm run check 195/195 dont drc01 AC16: défaut currentUserId ok, autre membre ok, inconnu rejeté, vide rejeté, autre foyer rejeté, distinct performers ok. Ouvrir ManualEntryModal en demo 3 membres: Fait par 3 segments défaut Noa, changer Camille -> 30min -> CompletedEntry performedByMemberId=user_camille, reload persistence OK."
+    },
+    {
+      "path": "app/(tabs)/_layout.tsx",
+      "problem": "Navigation interne toujours à 4 onglets (Tâches, Classement, Historique, Profil) au lieu des 3 canoniques Ajouter une tâche | Score | To-do exigés par MAIN_PROMPT §2.",
+      "evidence": "Lecture _layout.tsx: 4 Tabs.Screen index Tâches, leaderboard Classement, history Historique, profile Profil. diff -r --brief /home/runner/work/_temp/accepted-mobile vs candidate vide hors .expo/.test-build/dist/node_modules/.opencode. Audit RUN_33318451586 avait classé ce point mustFix:false tranche suivante. Candidat 33328400903 avait livré 3 onglets mais rejeté pour Fait par statique non intégré, donc état accepté reste à 4.",
+      "mustFix": false,
+      "requiredFix": "Différé hors de ce bounded objective: remplacer Tabs par 3 onglets canoniques (Ajouter une tâche + historique complet V3 | Score Tricount + historique filtré | To-do) dans future tranche DRC-01/02. Ne bloque pas réparation Fait par.",
+      "verification": "Après future refonte: npm run check et navigation manuelle écran racine foyers -> entrée foyer affiche exactement 3 tabs Ajouter une tâche|Score|To-do accessibles en demo sans réseau, export Android succès."
+    },
+    {
+      "path": "src/store/AppProvider.tsx",
+      "problem": "Modèle Verified V3 (CompletedEntry/PersistentTask/TodoItem) testé mais AppProvider writer reste en V2 (toDurableState V2, createSequentialWriter V2); pas de régression pour ce cycle verification-only mais noté pour traçabilité.",
+      "evidence": "persistence.ts DurableStateV3/migrateV2ToV3/isDurableStateV3/serializeEnvelopeV3 présents et validés par drc01 AC14-15. AppProvider toDurableState construit DurableState V2, createSequentialWriter V2, isV3 ? [] : tasks/entries. Constat identique à audits 33318451586/33348131590 finding 3 mustFix:false. Zero delta confirmé.",
+      "mustFix": false,
+      "requiredFix": "Hors scope de cette réparation bounded Fait par. Le wiring V3 complet (AppState V3, writer V3, UI CompletedEntry avec Fait pour/label) reste planifié tranche DRC-02/03.",
+      "verification": "Tests drc01 AC14 migration V2->V3 sans perte, AC15 isolation et persistence suite passent, npm run check 195/195, isDurableStateV3 rejette bénéficiaire inconnu/vide, calculateBalances somme nulle AC11 vérifiée."
+    }
+  ],
+  "checks": [
+    "npm run check — 195/195 pass dont drc01.test.ts 30 tests AC16 6 tests Fait par (défaut currentUserId ok, autre membre ok, inconnu rejette, vide rejette, outsider foyer rejette, distinct performers)",
+    "EXPO_PUBLIC_DATA_MODE=demo npx --no-install expo export --platform android — success 1288 modules 2.9MB hbc bundle entry-11dfd9403de10ac9dc4ce73d1ab3eda9.hbc 27 assets",
+    "diff -r --brief /home/runner/work/_temp/accepted-mobile vs candidate — zéro delta hors artefacts build (.expo, .test-build, dist, node_modules, .opencode) → verification-only justifié",
+    "grep performedByMemberId src — ManualEntryModal state + SegmentedControl + validatePerformedBy + planManualEntry isolation foyer, AppProvider.addManualEntry utilise plan.value.performedByMemberId",
+    "grep householdMembers app/(tabs)/index.tsx — const householdMembers = state.users.filter(memberships householdId===state.household.id) passé à ManualEntryModal avec currentUserId",
+    "mutation proof planManualEntry AC16 — validatePerformedBy('') erreur, planManualEntry vide/inconnu/hors-foyer rejette, membres valides acceptent et sont persistés",
+    "mutation proof persistence isolation AC14-15 — isDurableStateV3 rejette bénéficiaire inconnu/vide, migrateV2ToV3 conserve users/households/memberships mappe tasks->persistentTasks completedEntries, somme Tricount calculateBalances AC11 vérifiée"
+  ]
+}

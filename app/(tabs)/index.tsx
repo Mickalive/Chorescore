@@ -13,8 +13,8 @@ import { TaskFormModal } from '@/src/components/TaskFormModal';
 import { TaskRow } from '@/src/components/TaskRow';
 import { COLORS, RADIUS, SPACING } from '@/src/components/theme';
 import { getEntitlements, getPlanLabel } from '@/src/domain/entitlements';
-import { buildLeaderboard } from '@/src/domain/leaderboard';
-import { formatMetric } from '@/src/domain/scoring';
+import { buildLeaderboard, getVisibleHistory } from '@/src/domain/leaderboard';
+import { formatMetric, getEntryValue } from '@/src/domain/scoring';
 import type { TaskDefinition, TaskEntry } from '@/src/domain/types';
 import { selectVisibleTasks } from '@/src/store/appReducer';
 import { useApp } from '@/src/store/AppProvider';
@@ -66,6 +66,14 @@ export default function TasksScreen() {
       (m) => m.householdId === state.household.id && m.userId === user.id,
     ),
   );
+
+  // Historique chronologique complet du foyer
+  const visibleEntries = useMemo(
+    () => getVisibleHistory(state.entries, state.household.id, entitlements.historyDays, new Date()),
+    [state.entries, state.household.id, entitlements.historyDays],
+  );
+  const taskById = useMemo(() => new Map(state.tasks.map((task) => [task.id, task])), [state.tasks]);
+  const userById = useMemo(() => new Map(state.users.map((user) => [user.id, user])), [state.users]);
 
   // DRC-03 : l'archivage est réel mais jamais silencieux — confirmation
   // explicite avant de retirer la tâche des propositions.
@@ -167,6 +175,52 @@ export default function TasksScreen() {
         </Text>
       ) : null}
 
+      {/* Historique chronologique complet du foyer */}
+      <View style={styles.historySection}>
+        <SectionTitle
+          title="Historique complet"
+          detail={`${visibleEntries.length} ${visibleEntries.length > 1 ? 'entrées' : 'entrée'}`}
+        />
+        {visibleEntries.length === 0 ? (
+          <Card style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>Aucune saisie</Text>
+            <Text style={styles.emptyText}>
+              Les temps enregistrés apparaîtront ici.
+            </Text>
+          </Card>
+        ) : (
+          <View style={styles.historyList}>
+            {visibleEntries.slice(0, 20).map((entry) => {
+              const task = taskById.get(entry.taskId);
+              const user = userById.get(entry.userId);
+              const completedAt = entry.completedAt === null ? null : new Date(entry.completedAt);
+              const entryLabel = task?.name ?? 'Tâche archivée';
+              return (
+                <Card key={entry.id}>
+                  <View style={styles.entryRow}>
+                    <View style={styles.entryCopy}>
+                      <Text style={styles.entryName}>{entryLabel}</Text>
+                      <Text style={styles.entryMeta}>
+                        {user?.name ?? 'Membre'} · {entry.isManual ? 'saisie manuelle' : 'chrono'} ·{' '}
+                        {completedAt === null
+                          ? ''
+                          : new Intl.DateTimeFormat('fr-CH', { day: '2-digit', month: 'short' }).format(completedAt)}
+                      </Text>
+                    </View>
+                    <View style={styles.entryValueWrap}>
+                      <Text style={styles.entryValue}>
+                        {formatMetric(getEntryValue(entry, entitlements.useWeights), entitlements.useWeights)}
+                      </Text>
+                      <Text style={styles.entryMinutes}>{Math.round(entry.durationSeconds / 60)} min</Text>
+                    </View>
+                  </View>
+                </Card>
+              );
+            })}
+          </View>
+        )}
+      </View>
+
       <TaskFormModal
         visible={taskFormVisible}
         canCustomizeWeight={entitlements.canCustomizeWeights}
@@ -253,5 +307,43 @@ const styles = StyleSheet.create({
     // (≥ 4,5:1) grâce à l'ajustement MOB-CYCLE32961708279-SEG dans theme.ts.
     color: COLORS.textPrimary,
     lineHeight: 20,
+  },
+  historySection: {
+    marginTop: SPACING.lg,
+  },
+  historyList: {
+    gap: SPACING.sm,
+  },
+  entryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  entryCopy: {
+    flex: 1,
+  },
+  entryName: {
+    color: COLORS.textPrimary,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  entryMeta: {
+    color: COLORS.textMuted,
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  entryValueWrap: {
+    alignItems: 'flex-end',
+  },
+  entryValue: {
+    color: COLORS.textPrimary,
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  entryMinutes: {
+    color: COLORS.textMuted,
+    fontSize: 11,
+    marginTop: 2,
   },
 });

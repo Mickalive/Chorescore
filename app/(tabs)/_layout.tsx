@@ -27,10 +27,9 @@ export default function TabLayout() {
         },
       }}
     >
-      <Tabs.Screen name="index" options={{ title: 'Tâches' }} />
-      <Tabs.Screen name="leaderboard" options={{ title: 'Classement' }} />
-      <Tabs.Screen name="history" options={{ title: 'Historique' }} />
-      <Tabs.Screen name="profile" options={{ title: 'Profil' }} />
+      <Tabs.Screen name="index" options={{ title: 'Ajouter une tâche' }} />
+      <Tabs.Screen name="score" options={{ title: 'Score' }} />
+      <Tabs.Screen name="todo" options={{ title: 'To-do' }} />
     </Tabs>
   );
 }

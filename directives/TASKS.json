@@ -1,25 +1,25 @@
 {
   "schemaVersion": 1,
   "milestone": "demo-rc",
-  "updatedBy": "director-run-33328400903",
+  "updatedBy": "director-run-33369130489",
   "activeCriteria": ["DRC-01"],
   "assignments": {
     "mobile": {
       "enabled": true,
       "criterionId": "DRC-01",
-      "objective": "Repair DRC-01 — rendre Fait par modifiable parmi les membres du foyer. Le candidat précédent (cycle 33328400903) a livré les 3 onglets canoniques (Ajouter une tâche | Score | To-do), le quota householdLimit numérique, l'historique complet V3, le writer V3 et l'isolation foyer (189 tests verts, export Android). Le blocage unique est le champ Fait par statique : l'UI affiche l'utilisateur connecté sans sélecteur, violant l'acceptance #3 et MAIN_PROMPT §3. Le formulaire doit exposer un sélecteur (chips/SegmentedControl/Picker) listant tous les householdMembers, avec défaut = currentUserId, valeur stockée dans performedByMemberId et utilisée dans handleSubmit. Après fix, le candidat doit repasser audit.",
+      "objective": "DRC-01 remaining:Restructurer la navigation de 4 onglets vers 3 onglets canoniques. La réparation Fait par est vérifiée complete (audit accept cycle 33369130489, 195 tests, SegmentedControl, validatePerformedBy, planManualEntry). Le code accepté satisfait DRC-01 pour le formulaire. Le blocage résiduel est la navigation : _layout.tsx affiche 4 Tabs.Screen (Tâches, Classement, Historique, Profil) au lieu de 3 (Ajouter une tâche | Score | To-do) exigés par MAIN_PROMPT §2 et RELEASE_DEFINITION DRC-01. Remplacer la structureTabs par exactement 3 écrans. L'onglet 'Ajouter une tâche' contient le formulaire + historique chronologique complet. L'onglet 'Score' contient les périodes (semaine/mois/année/depuis le début), filtres (Toutes/PersistentTask/Autres), calcul équilibres fait-par/fait-pour, graphes et historique filtré. L'onglet 'To-do' contient la planification future. Les onglets Classement, Historique et Profil sont supprimés. Préserver Fait par modifiable et tous les 195 tests existants.",
       "acceptance": [
-        "Fait par propose un sélecteur listant tous les membres du foyer (chips, SegmentedControl ou Picker).",
-        "Le défaut Fait par est l'utilisateur connecté (currentUserId).",
-        "La sélection Fait par est modifiable avant soumission et stockée dans performedByMemberId.",
-        "handleSubmit utilise la valeur sélectionnée (pas le performer fixe) pour créer CompletedEntry.",
-        "La sélection survit à la création et se réinitialise après succès.",
-        "Tests d'intégration UI valident validatePerformedBy et la capacité à choisir un autre membre.",
+        "_layout.tsx contient exactement 3 Tabs.Screen : 'Ajouter une tâche', 'Score', 'To-do'.",
+        "Aucun onglet Classement, Historique ou Profil n'existe.",
+        "L'onglet Ajouter une tâche contient le formulaire de saisie (Fait par modifiable, Fait pour, durée, label) et l'historique chronologique complet.",
+        "L'onglet Score affiche un sélecteur de période (semaine/mois/année/depuis le début) et un affichage des équilibres.",
+        "L'onglet To-do affiche la liste des tâches futures.",
+        "La navigation entre les 3 onglets fonctionne en mode demo sans réseau.",
+        "Les 195 tests existants restent verts (aucune régression).",
         "npm run check vert et EXPO_PUBLIC_DATA_MODE=demo npx expo export --platform android succès.",
-        "Les 189 tests existants restent verts (aucune régression).",
-        "Les 3 onglets Ajouter une tâche | Score | To-do restent fonctionnels en demo sans réseau."
+        "Fait par reste modifiable via SegmentedControl (préservé du cycle 33369130489)."
       ],
-      "firstTask": "PRODUCT-RESET-CORE : rendre Fait par modifiable — remplacer l'affichage statique du performer par un sélecteur de membres du foyer."
+      "firstTask": "NAV-4TABS :Restructurer navigation 4→3 onglets canoniques (Ajouter une tâche | Score | To-do)"
     },
     "backend": {
       "enabled": false,

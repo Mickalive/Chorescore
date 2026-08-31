@@ -2,18 +2,19 @@
   "schemaVersion": 1,
   "milestone": "demo-rc",
   "governanceVersion": "2026-08-30-product-reset",
-  "lastCycle": "33328400903",
+  "lastCycle": "33369130489",
   "activeCriteria": ["DRC-01"],
   "stalledCycles": 0,
-  "progressSummary": "Cycle 33328400903 : candidat mobile DRC-01 tranche 2 produit mais rejeté par audit (repair, 1 mustFix). Le candidat a livré les 3 onglets canoniques, householdLimit quota, historique complet V3, writer V3 et isolation foyer (189 tests, export Android), mais le champ Fait par reste statique (non modifiable parmi les membres du foyer), violant MAIN_PROMPT §3. Le candidat n'a pas été intégré. Le réparateur Fait par est la première tâche du prochain cycle. DRC-01 reste in_progress. DRC-02/07 restent complete. DRC-03/04/05 restent pending. Stagnation = 0.",
-  "blocker": "Fait par non modifiable — champ statique au lieu de sélecteur de membres du foyer",
+  "progressSummary": "Cycle 33369130489 : verification-only mobile DRC-01 — le code accepté satisfait déjà la réparation Fait par (SegmentedControl householdMembers, défaut currentUserId, performedByMemberId, validatePerformedBy, planManualEntry isolation foyer, reset après succès). 195 tests dont drc01.test.ts 30 tests AC16 (6 Fait par). Zéro delta produit, zéro mustFix. L'audit confirme accept. La réparation Fait par est résolue (PRODUCT-RESET-CORE resolved). Cependant DRC-01 n'est PAS complete : la navigation affiche encore 4 onglets (Tâches, Classement, Historique, Profil) au lieu des 3 canoniques (Ajouter une tâche | Score | To-do) exigés par MAIN_PROMPT §2 et le RELEASE_DEFINITION DRC-01. Ce 4→3 tabs est la prochaine tâche bornée DRC-01. DRC-02/07 restent complete. DRC-03/04/05 restent pending. Stagnation = 0.",
+  "blocker": "Navigation 4 onglets (Tâches, Classement, Historique, Profil) au lieu de 3 canoniques (Ajouter une tâche | Score | To-do) — DRC-01 incomplete",
   "criteria": [
     {
       "id": "DRC-01",
       "status": "in_progress",
       "evidence": [
-        {"kind":"tests","reference":"189 tests verts incluant drc01.test.ts (20+ acceptances DRC-01), persistence suite, isolation foyer — cycle 33318451586","cycle":"33318451586"},
-        {"kind":"audit","reference":"reports/audits/RUN_33318451586_MOBILE.json — decision accept, 0 mustFix, modèle CompletedEntry/PersistentTask/TodoItem, calculateBalances, householdLimit, migration V2→V3","cycle":"33318451586"},
+        {"kind":"tests","reference":"195 tests verts dont drc01.test.ts 30 tests AC16 (6 Fait par: défaut currentUserId, autre membre, inconnu rejeté, vide rejeté, outsider foyer rejeté, distinct performers) — cycle 33369130489","cycle":"33369130489"},
+        {"kind":"audit","reference":"reports/audits/RUN_33369130489_MOBILE.json — decision accept, 0 mustFix, verification-only, Fait par modifiable via SegmentedControl, validatePerformedBy, planManualEntry isolation foyer, reset useEffect","cycle":"33369130489"},
+        {"kind":"audit","reference":"reports/audits/RUN_33318451586_MOBILE.json — decision accept, modèle V3 CompletedEntry/PersistentTask/TodoItem, calculateBalances, householdLimit, migration V2→V3","cycle":"33318451586"},
         {"kind":"product-reset","reference":"Revue humaine 2026-08-30 : ancien parcours rejeté ; nouvelle exigence = foyer + journal + entrée libre nom/personne/durée manuelle ou chrono, sans catalogue ni catégorie obligatoire.","cycle":"human-product-reset-20260830"}
       ]
     },
@@ -74,9 +75,19 @@
       "role": "mobile",
       "severity": "critical",
       "mustFixBeforeRelease": true,
-      "status": "unresolved",
+      "status": "resolved",
       "requiredFix": "Rendre Fait par modifiable : remplacer l'affichage statique du performer par un sélecteur (chips/SegmentedControl/Picker) listant tous les membres du foyer, défaut = currentUserId, valeur stockée dans performedByMemberId, utilisée dans handleSubmit et validée par planAddCompletedEntry. La sélection doit survivre à la création et se réinitialiser après succès. Mettre à jour le test d'intégration UI si présent. Les 3 onglets canoniques et le quota householdLimit sont désormais en place mais le formulaire reste invalide tant que Fait par n'est pas modifiable.",
-      "resolvedPart": "Modèle canonique V3 (CompletedEntry, PersistentTask, TodoItem, calculateBalances, householdLimit numérique, migration V2→V3, isolation foyer) accepté par audit avec 189 tests — cycle 33318451586. Navigation 3 onglets, quota householdLimit et historique complet livrés — audit cycle 33328400903 (repair)."
+      "resolvedPart": "Fait par modifiable vérifié par audit indépendant cycle 33369130489 : SegmentedControl listant householdMembers, défaut currentUserId (useState), performedByMemberId state, validatePerformedBy + planManualEntry isolation foyer, reset useEffect après succès, 195 tests dont 6 AC16 Fait par. Zéro delta, zéro mustFix. Confirmation que l'état accepté satisfait cet objectif borné sans delta produit."
+    },
+    {
+      "id": "NAV-4TABS",
+      "criterionId": "DRC-01",
+      "role": "mobile",
+      "severity": "high",
+      "mustFixBeforeRelease": true,
+      "status": "unresolved",
+      "requiredFix": "Restructurer la navigation de 4 onglets (Tâches, Classement, Historique, Profil) vers exactement 3 onglets canoniques : Ajouter une tâche (+historique complet), Score (+stats+équilibres+historique filtré), To-do. Conformément à MAIN_PROMPT §2 et au RELEASE_DEFINITION DRC-01 'navigation interne Ajouter une tâche | Score | To-do'. Les onglets Classement, Historique et Profil doivent être supprimés ou replacés. Le tab Ajouter une tâche contient formulaire + historique chronologique. Le tab Score contient périodes/filtres/stats/équilibres/historique filtré. Le tab To-do contient la planification future.",
+      "resolvedPart": null
     },
     {
       "id": "PRODUCT-RESET-DATA",

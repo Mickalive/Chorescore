@@ -8,11 +8,11 @@ Auditer séparément chaque poste codeur activé dans `directives/TASKS.json`.
 
 ## Statut
 
-**Lane audit inactive.** Le candidat mobile cycle 33328400903 a été
-rejeté (audit repair, 1 mustFix : Fait par statique). Le shell de
-confiance n'a pas intégré le candidat. Le code dans lab/chorescore
-conserve l'état du cycle 33318451586 (modèle V3 accepté, 189 tests).
+**Lane audit inactive.** Le cycle 33369130489 était verification-only :
+le code accepté satisfait déjà la réparation Fait par sans delta produit.
+L'audit indépendant (RUN_33369130489_MOBILE.json) a confirmé `accept`
+avec 0 mustFix, 195 tests, zéro delta.
 
 La lane audit sera réactivée dès qu'un nouveau candidat mobile sera
-produit pour la réparation DRC-01 (Fait par sélecteur) et transmis
-à l'auditeur pour évaluation.
+produit pour la restructure navigation 4→3 onglets (NAV-4TABS, DRC-01)
+et transmis à l'auditeur pour évaluation.

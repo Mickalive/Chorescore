@@ -1,6 +1,6 @@
 # Tâche active — Ingénieur produit mobile
 
-Assignment-Id: DRC-01 (repair — Fait par sélecteur)
+Assignment-Id: DRC-01 (navigation restructure 4→3 onglets)
 Autorité de poste : `governance/roles/MOBILE_PRODUCT_ENGINEER.md`
 Sélecteur machine : `directives/TASKS.json`
 
@@ -10,70 +10,87 @@ Lire d'abord `MAIN_PROMPT.md`, `governance/RELEASE_DEFINITION.json` et `docs/pro
 
 ## État du cycle précédent
 
-Le candidat cycle 33328400903 a été rejeté (audit repair, 1 mustFix).
-Le candidat précédent cycle 33318451586 avait accepté le modèle V3
-(189 tests). Le code dans lab/chorescore conserve le modèle V3 accepté
-avec les 3 onglets, householdLimit, historique complet et writer V3
-déjà câblés. Le seul blocage est le champ Fait par.
+Le cycle 33369130489 a vérifié que la réparation Fait par est complète dans
+le code accepté. L'audit indépendant (RUN_33369130489_MOBILE.json) confirme
+`accept` avec 0 mustFix. 195 tests verts. Zéro delta produit.
 
-### Ce qui est en place (depuis cycle 33318451586 + candidat 33328400903)
+### Ce qui est en place (vérifié cycle 33369130489)
 
+- **Fait par modifiable** : SegmentedControl dans ManualEntryModal listant
+  `householdMembers`, défaut `currentUserId`, state `performedByMemberId`,
+  `validatePerformedBy` + `planManualEntry` isolation foyer, reset useEffect
+  après succès — **VÉRIFIÉ COMPLET**
 - **Modèle canonique V3** : CompletedEntry, PersistentTask, TodoItem,
   calculateBalances, householdLimit, migration V2→V3 — accepté
-- **Navigation 3 onglets** : Ajouter une tâche | Score | To-do
 - **Quota householdLimit** : source de vérité (pas le booléen)
 - **Historique complet V3** sous le formulaire
-- **Writer V3** branché (createSequentialWriterV3/toDurableStateV3)
-- **189 tests** et export Android
+- **195 tests** et export Android
+- **Persistence V3** et isolation foyer
 
-### Blocage unique
+### Blocage résiduel DRC-01
 
-**Fait par statique** : `app/(tabs)/index.tsx` affiche
-`{performer?.name ?? '—'}` sans sélecteur. L'utilisateur ne peut pas
-choisir un autre membre du foyer comme réalisateur. Cela viole
-MAIN_PROMPT §3 et l'acceptance #3 de DRC-01.
+**Navigation 4 onglets** : `app/(tabs)/_layout.tsx` affiche 4 Tabs.Screen
+(Tâches, Classement, Historique, Profil) au lieu des 3 canoniques
+(Ajouter une tâche | Score | To-do) exigés par MAIN_PROMPT §2 et le
+RELEASE_DEFINITION DRC-01. Les onglets Classement, Historique et Profil
+doivent être supprimés ou replacés.
 
 ## Finding prioritaire
 
-**PRODUCT-RESET-CORE** (critical, DRC-01) — Fait par non modifiable.
+**NAV-4TABS** (high, DRC-01) — Navigation 4→3 onglets canoniques.
 
-## Tâche bornée : DRC-01 repair — rendre Fait par modifiable
+## Tâche bornée : DRC-01 —Restructurer navigation 4→3 onglets
 
-### 1. Sélecteur Fait par
+### 1. Restructurer _layout.tsx
 
-Dans `app/(tabs)/index.tsx` :
-- Remplacer l'affichage statique `{performer?.name ?? '—'}` par un
-  sélecteur interactif (chips, SegmentedControl ou Picker) listant
-  **tous les `householdMembers`** ;
-- Défaut = `currentUserId` (utilisateur connecté) ;
-- La valeur sélectionnée est stockée dans l'état local `performedByMemberId` ;
-- Après soumission réussie, réinitialiser à `currentUserId`.
+Dans `app/(tabs)/_layout.tsx` :
+- Remplacer les 4 `Tabs.Screen` actuels (index/Tâches, leaderboard/Classement,
+  history/Historique, profile/Profil) par exactement 3 :
+  - `Ajouter une tâche` (name="index") — formulaire + historique complet
+  - `Score` (name="score") — périodes/filtres/stats/équilibres/historique filtré
+  - `To-do` (name="todo") — planification future
+- Les fichiers `leaderboard.tsx`, `history.tsx` et `profile.tsx` doivent
+  être supprimés ou leur contenu déplacé dans les 3 onglets canoniques.
 
-### 2. Intégration handleSubmit
+### 2. Onglet Ajouter une tâche (index.tsx)
 
-- `handleSubmit` utilise `performedByMemberId` (pas `performer.id` fixe) ;
-- Valider via `planAddCompletedEntry` (déjà prêt) ;
-- La CompletedEntry créée a `performedByMemberId` correspondant à la
-  sélection.
+- Conserver le formulaire de saisie actuel (Fait par modifiable,
+  Fait pour, durée manuelle/chrono, label, PersistentTask facultative)
+- Afficher l'historique chronologique complet du foyer sous le formulaire
+- Chaque entrée affiche : tâche, durée, fait par, fait pour, date
 
-### 3. Tests
+### 3. Onglet Score (score.tsx — nouveau ou existant)
 
-- Ajouter/mettre à jour un test d'intégration UI qui valide :
-  - `validatePerformedBy` est appelé avec la bonne valeur ;
-  - La capacité de choisir un autre membre que le connecté ;
-  - La sélection est utilisée dans la CompletedEntry créée.
+- Sélecteur de période : Semaine | Mois | Année | Depuis le début
+- Filtres : Toutes | une entrée par PersistentTask | Autres
+- Calcul des équilibres fait-par/fait-pour (somme nulle, compensations)
+- Graphiques simples à barres avec noms lisibles (pas couleur=identité)
+- Historique contextuel filtré sous les statistiques
 
-### 4. Préserver
+### 4. Onglet To-do (todo.tsx — nouveau ou existant)
 
-- Les 189 tests existants restent verts ;
-- Les 3 onglets Ajouter une tâche | Score | To-do restent fonctionnels ;
-- L'export Android réussit.
+- Liste des tâches futures du foyer
+- Création, attribution, dates, bénéficiaires
+- Validation → CompletedEntry (si déjà câblé, préserver)
+
+### 5. Préserver
+
+- Fait par modifiable (SegmentedControl) préservé dans le formulaire
+- Les 195 tests existants restent verts
+- Export Android réussit
+- Navigation fonctionne en demo sans réseau
+
+### 6. Tests
+
+- Tests de navigation vérifiant exactement 3 onglets accessibles
+- Tests de chaque onglet vérifiant le contenu attendu
+- Aucune régression des 195 tests existants
 
 ## Preuves attendues
 
-- `app/(tabs)/index.tsx` contient un sélecteur Fait par interactif ;
-- `handleSubmit` utilise `performedByMemberId` de l'état ;
-- Test d'intégration validant la sélection d'un autre membre ;
-- npm run check vert, 189+ tests, export android succès ;
-- Deux créations avec différents performeurs → CompletedEntry avec
-  performedByMemberId distincts.
+- `app/(tabs)/_layout.tsx` contient exactement 3 Tabs.Screen
+- Aucun fichier leaderboard.tsx, history.tsx, profile.tsx actif
+- `app/(tabs)/score.tsx` contient sélecteur de période et affichage équilibres
+- `app/(tabs)/index.tsx` contient formulaire + historique complet
+- Test de navigation vérifiant les 3 onglets
+- npm run check vert, 195+ tests, export android succès

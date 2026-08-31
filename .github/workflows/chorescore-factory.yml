@@ -154,7 +154,7 @@ jobs:
           ref: ${{ needs.prepare.outputs.accepted_sha }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-node@ae0d4ed08881f17d1511386f5be3e62356acd4a6
+      - uses: actions/setup-node@94196ee1d15439c1b6651cd87ef14e88ec435966
         with:
           node-version: 22.13.0
           cache: npm
@@ -187,7 +187,7 @@ jobs:
           ref: ${{ needs.prepare.outputs.accepted_sha }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-node@ae0d4ed08881f17d1511386f5be3e62356acd4a6
+      - uses: actions/setup-node@94196ee1d15439c1b6651cd87ef14e88ec435966
         with:
           node-version: 22.13.0
           cache: npm
@@ -220,7 +220,7 @@ jobs:
           ref: ${{ needs.prepare.outputs.accepted_sha }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-node@ae0d4ed08881f17d1511386f5be3e62356acd4a6
+      - uses: actions/setup-node@94196ee1d15439c1b6651cd87ef14e88ec435966
         with:
           node-version: 22.13.0
           cache: npm
@@ -258,7 +258,7 @@ jobs:
           ref: ${{ needs.prepare.outputs.accepted_sha }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-node@ae0d4ed08881f17d1511386f5be3e62356acd4a6
+      - uses: actions/setup-node@94196ee1d15439c1b6651cd87ef14e88ec435966
         with:
           node-version: 22.13.0
           cache: npm
@@ -299,7 +299,7 @@ jobs:
           ref: ${{ needs.prepare.outputs.accepted_sha }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-node@ae0d4ed08881f17d1511386f5be3e62356acd4a6
+      - uses: actions/setup-node@94196ee1d15439c1b6651cd87ef14e88ec435966
         with:
           node-version: 22.13.0
           cache: npm
@@ -358,7 +358,7 @@ jobs:
             all(.criteria[]; if .id=="DRC-06" then .status=="in_progress" and any(.evidence[]?; .kind=="audit") else .status=="complete" end) and
             all(.openFindings[]?; (.mustFixBeforeRelease!=true) or .status=="resolved")
           ' docs/RELEASE_STATUS.json >/dev/null
-      - uses: actions/setup-node@ae0d4ed08881f17d1511386f5be3e62356acd4a6
+      - uses: actions/setup-node@94196ee1d15439c1b6651cd87ef14e88ec435966
         with:
           node-version: 22.13.0
           cache: npm

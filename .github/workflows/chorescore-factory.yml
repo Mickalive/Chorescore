@@ -98,7 +98,7 @@ jobs:
         run: bash .github/scripts/probe-model.sh "$PROBE_MODEL"
       - name: Upload probe evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: model-probe-${{ matrix.model }}
           path: ${{ runner.temp }}/model-probe-${{ matrix.model }}/probe.json
@@ -135,7 +135,7 @@ jobs:
         id: select
         run: bash .github/scripts/select-models.sh /tmp/model-probes
       - name: Upload model selection audit
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: model-selection
           path: ${{ runner.temp }}/model-selection
@@ -168,7 +168,7 @@ jobs:
           OX_MODEL: ${{ needs.select_models.outputs.mobile_model }}
         run: bash .github/scripts/candidate-lane.sh mobile
       - name: Upload ephemeral mobile candidate
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: candidate-mobile
           path: ${{ runner.temp }}/candidate-mobile
@@ -201,7 +201,7 @@ jobs:
           OX_MODEL: ${{ needs.select_models.outputs.backend_model }}
         run: bash .github/scripts/candidate-lane.sh backend
       - name: Upload ephemeral backend candidate
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: candidate-backend
           path: ${{ runner.temp }}/candidate-backend
@@ -239,7 +239,7 @@ jobs:
           OX_MODEL: ${{ needs.select_models.outputs.mobile_audit_model }}
         run: bash .github/scripts/audit-lane.sh mobile /tmp/candidate-mobile
       - name: Upload mobile audit
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: audit-mobile
           path: ${{ runner.temp }}/audit-mobile
@@ -277,7 +277,7 @@ jobs:
           OX_MODEL: ${{ needs.select_models.outputs.backend_audit_model }}
         run: bash .github/scripts/audit-lane.sh backend /tmp/candidate-backend
       - name: Upload backend audit
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: audit-backend
           path: ${{ runner.temp }}/audit-backend
@@ -414,7 +414,7 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: bash "$GITHUB_WORKSPACE/.github/scripts/smoke-android-apk.sh" "${{ steps.build.outputs.apk_path }}" com.mickalive.chorescore "$RUNNER_TEMP/chorescore-runtime-smoke"
       - name: Upload final installable APK
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: ${{ steps.build.outputs.artifact_name }}
           path: |

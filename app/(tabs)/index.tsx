@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { AppButton } from '@/src/components/AppButton';
 import { Card } from '@/src/components/Card';
 import { DemoBanner } from '@/src/components/DemoBanner';
+import { EntryCorrectionModal } from '@/src/components/EntryCorrectionModal';
 import { ManualEntryModal } from '@/src/components/ManualEntryModal';
 import { MetricCard } from '@/src/components/MetricCard';
 import { NoticeBanner } from '@/src/components/NoticeBanner';
@@ -29,12 +30,15 @@ export default function TasksScreen() {
     completeTimer,
     cancelTimer,
     addManualEntry,
+    editEntryDuration,
+    deleteEntry,
     showPaywall,
     dismissNotice,
   } = useApp();
   const [taskFormVisible, setTaskFormVisible] = useState(false);
   const [editTask, setEditTask] = useState<TaskDefinition | null>(null);
   const [manualTask, setManualTask] = useState<TaskDefinition | null>(null);
+  const [correctingEntry, setCorrectingEntry] = useState<TaskEntry | null>(null);
   const entitlements = getEntitlements(state.household.plan);
   const currentUser = state.users.find((user) => user.id === state.currentUserId);
   const weeklyRows = useMemo(
@@ -95,6 +99,21 @@ export default function TasksScreen() {
       { text: 'Continuer le chrono', style: 'cancel' },
       { text: 'Annuler le chrono', style: 'destructive', onPress: () => cancelTimer(activeEntry.id) },
     ]);
+  };
+
+  // DRC-03 (PRODUCT-RESET-DATA) : suppression confirmée d'une entrée
+  // libre du journal. Modèle de confiance : chaque membre peut
+  // corriger/supprimer ses propres entrées.
+  const confirmDeleteEntry = (entry: TaskEntry) => {
+    const taskName = taskById.get(entry.taskId)?.name ?? 'Tâche archivée';
+    Alert.alert(
+      'Supprimer cette entrée ?',
+      `« ${taskName} » — ${Math.round(entry.durationSeconds / 60)} min seront retirées de l'historique.`,
+      [
+        { text: 'Conserver', style: 'cancel' },
+        { text: 'Supprimer', style: 'destructive', onPress: () => deleteEntry(entry.id) },
+      ],
+    );
   };
 
   return (
@@ -195,6 +214,7 @@ export default function TasksScreen() {
               const user = userById.get(entry.userId);
               const completedAt = entry.completedAt === null ? null : new Date(entry.completedAt);
               const entryLabel = task?.name ?? 'Tâche archivée';
+              const isOwnCompleted = entry.userId === state.currentUserId && entry.status === 'completed';
               return (
                 <Card key={entry.id}>
                   <View style={styles.entryRow}>
@@ -213,6 +233,24 @@ export default function TasksScreen() {
                       </Text>
                       <Text style={styles.entryMinutes}>{Math.round(entry.durationSeconds / 60)} min</Text>
                     </View>
+                    {isOwnCompleted ? (
+                      <View style={styles.entryActions}>
+                        <Pressable
+                          accessibilityLabel={`Corriger ${entryLabel}`}
+                          onPress={() => setCorrectingEntry(entry)}
+                          style={styles.entryAction}
+                        >
+                          <Text style={styles.entryActionText}>✏️</Text>
+                        </Pressable>
+                        <Pressable
+                          accessibilityLabel={`Supprimer ${entryLabel}`}
+                          onPress={() => confirmDeleteEntry(entry)}
+                          style={styles.entryAction}
+                        >
+                          <Text style={styles.entryActionText}>🗑️</Text>
+                        </Pressable>
+                      </View>
+                    ) : null}
                   </View>
                 </Card>
               );
@@ -243,6 +281,19 @@ export default function TasksScreen() {
         onClose={() => setManualTask(null)}
         onSubmit={(minutes, performedByMemberId) =>
           manualTask === null ? false : addManualEntry(manualTask.id, minutes, performedByMemberId)
+        }
+      />
+      <EntryCorrectionModal
+        entry={correctingEntry}
+        taskName={
+          correctingEntry === null
+            ? ''
+            : (taskById.get(correctingEntry.taskId)?.name ?? 'Tâche archivée')
+        }
+        useWeights={entitlements.useWeights}
+        onClose={() => setCorrectingEntry(null)}
+        onSubmit={(minutes) =>
+          correctingEntry === null ? false : editEntryDuration(correctingEntry.id, minutes)
         }
       />
     </Screen>
@@ -345,5 +396,15 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     fontSize: 11,
     marginTop: 2,
+  },
+  entryActions: {
+    flexDirection: 'row',
+    gap: SPACING.xs,
+  },
+  entryAction: {
+    padding: SPACING.xs,
+  },
+  entryActionText: {
+    fontSize: 14,
   },
 });

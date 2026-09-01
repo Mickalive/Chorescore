@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/src/components/Avatar';
 import { Card } from '@/src/components/Card';
 import { DemoBanner } from '@/src/components/DemoBanner';
+import { MemberBarChart } from '@/src/components/MemberBarChart';
 import { MetricCard } from '@/src/components/MetricCard';
 import { NoticeBanner } from '@/src/components/NoticeBanner';
 import { Screen } from '@/src/components/Screen';
@@ -13,7 +14,15 @@ import { COLORS, RADIUS, SPACING } from '@/src/components/theme';
 import { getEntitlements, getPlanLabel } from '@/src/domain/entitlements';
 import { buildLeaderboard, getVisibleHistory } from '@/src/domain/leaderboard';
 import { isEntryInPeriod } from '@/src/domain/periods';
-import { formatMetric } from '@/src/domain/scoring';
+import {
+  FILTER_ALL,
+  buildMemberBarData,
+  buildScoreFilterOptions,
+  filterEntriesByTask,
+  hasArchivedTaskEntries,
+  hasWeightedContent,
+} from '@/src/domain/scoreFilters';
+import { formatMetric, getEntryValue } from '@/src/domain/scoring';
 import type { TaskEntry } from '@/src/domain/types';
 import { useApp } from '@/src/store/AppProvider';
 
@@ -52,14 +61,42 @@ function filterByScorePeriod(
 export default function ScoreScreen() {
   const { state, dismissNotice, showPaywall } = useApp();
   const [period, setPeriod] = useState<ScorePeriod>('week');
+  const [taskFilter, setTaskFilter] = useState<string>(FILTER_ALL);
   const entitlements = getEntitlements(state.household.plan);
   const now = new Date();
 
-  const filteredEntries = useMemo(
+  // Step 1: filter by period
+  const periodEntries = useMemo(
     () => filterByScorePeriod(state.entries, state.household.id, period, now),
-    [state.entries, state.household.id, period],
+    [state.entries, state.household.id, period, now],
   );
 
+  // Step 2: filter by task (on top of period filter)
+  const filteredEntries = useMemo(
+    () => filterEntriesByTask(periodEntries, state.tasks, state.household.id, taskFilter),
+    [periodEntries, state.tasks, state.household.id, taskFilter],
+  );
+
+  // Build task filter options
+  const archivedExist = useMemo(
+    () => hasArchivedTaskEntries(periodEntries, state.tasks, state.household.id),
+    [periodEntries, state.tasks, state.household.id],
+  );
+
+  const taskFilterOptions = useMemo(
+    () => buildScoreFilterOptions(state.tasks, state.household.id, archivedExist),
+    [state.tasks, state.household.id, archivedExist],
+  );
+
+  // Reset task filter if the selected option no longer exists
+  useEffect(() => {
+    if (taskFilter !== FILTER_ALL && !taskFilterOptions.some((opt) => opt.value === taskFilter)) {
+      setTaskFilter(FILTER_ALL);
+    }
+  }, [taskFilterOptions, taskFilter]);
+
+  // Leaderboard rows (for ranking section) — always built from all period entries
+  // to show the full household ranking regardless of task filter
   const rows = useMemo(() => {
     if (period === 'week' || period === 'month') {
       return buildLeaderboard(
@@ -72,7 +109,7 @@ export default function ScoreScreen() {
         entitlements.useWeights,
       );
     }
-    // For year and all-time, build from filtered entries
+    // For year and all-time, build from period entries (not task-filtered)
     const memberIds = new Set(
       state.memberships
         .filter((m) => m.householdId === state.household.id)
@@ -81,7 +118,7 @@ export default function ScoreScreen() {
     const unsorted = state.users
       .filter((user) => memberIds.has(user.id))
       .map((user) => {
-        const userEntries = filteredEntries.filter((entry) => entry.userId === user.id);
+        const userEntries = periodEntries.filter((entry) => entry.userId === user.id);
         return {
           user,
           rank: 0,
@@ -115,9 +152,34 @@ export default function ScoreScreen() {
         contribution: total === 0 ? 0 : (row.value / total) * 100,
       };
     });
-  }, [filteredEntries, state.users, state.memberships, state.household.id, period, now, entitlements.useWeights]);
+  }, [filteredEntries, periodEntries, state.users, state.memberships, state.household.id, period, now, entitlements.useWeights]);
 
   const hasEntries = rows.some((row) => row.taskCount > 0);
+
+  // Member bar data — built from task-filtered entries (not all period entries)
+  const memberBarData = useMemo(
+    () => buildMemberBarData(filteredEntries, state.users, state.household.id, entitlements.useWeights),
+    [filteredEntries, state.users, state.household.id, entitlements.useWeights],
+  );
+
+  // Weighted view: show when any task-filtered entry has a weight ≠ 1
+  const showWeighted = useMemo(
+    () => entitlements.useWeights && hasWeightedContent(filteredEntries),
+    [entitlements.useWeights, filteredEntries],
+  );
+
+  // Weighted member bar data
+  const weightedBarData = useMemo(() => {
+    if (!showWeighted) return [];
+    // Recompute with useWeights = true
+    return buildMemberBarData(filteredEntries, state.users, state.household.id, true);
+  }, [showWeighted, filteredEntries, state.users, state.household.id]);
+
+  // Weighted totals for secondary metrics
+  const weightedTotalMinutes = useMemo(
+    () => filteredEntries.reduce((sum, e) => sum + e.durationSeconds / 60 * e.weightSnapshot, 0),
+    [filteredEntries],
+  );
 
   useEffect(() => {
     if (!entitlements.canViewMonthlyLeaderboard && period === 'month') {
@@ -141,6 +203,17 @@ export default function ScoreScreen() {
   };
 
   const totalMinutes = rows.reduce((sum, row) => sum + row.durationMinutes, 0);
+
+  // History lookup maps for the filtered history section
+  const taskById = useMemo(() => new Map(state.tasks.map((task) => [task.id, task])), [state.tasks]);
+  const userById = useMemo(() => new Map(state.users.map((user) => [user.id, user])), [state.users]);
+
+  // Current task filter label for section title
+  const taskFilterLabel = useMemo(() => {
+    if (taskFilter === FILTER_ALL) return null;
+    const option = taskFilterOptions.find((opt) => opt.value === taskFilter);
+    return option?.label ?? null;
+  }, [taskFilter, taskFilterOptions]);
 
   return (
     <Screen>
@@ -170,18 +243,54 @@ export default function ScoreScreen() {
         wrap
       />
 
+      {/* Task filter selector: Toutes | PersistentTask | Autres */}
+      <SegmentedControl
+        accessibilityLabel="Filtre de tâche"
+        options={taskFilterOptions}
+        value={taskFilter}
+        onChange={setTaskFilter}
+        wrap
+      />
+
       <View style={styles.metricRow}>
         <MetricCard
           label="Temps total"
-          value={`${Math.round(totalMinutes)} min`}
-          detail={`${rows.reduce((sum, row) => sum + row.taskCount, 0)} entrées dans la sélection`}
+          value={`${Math.round(filteredEntries.reduce((sum, e) => sum + e.durationSeconds / 60, 0))} min`}
+          detail={`${filteredEntries.length} entrées dans la sélection`}
         />
         <MetricCard
           label={entitlements.useWeights ? 'Points (poids)' : 'Points (temps brut)'}
-          value={formatMetric(rows.reduce((sum, row) => sum + row.value, 0), entitlements.useWeights)}
+          value={formatMetric(
+            filteredEntries.reduce(
+              (sum, entry) => sum + getEntryValue(entry, entitlements.useWeights),
+              0,
+            ),
+            entitlements.useWeights,
+          )}
         />
       </View>
 
+      {/* Member bar chart with names */}
+      <SectionTitle
+        title="Contribution par membre"
+        detail={taskFilterLabel !== null ? `Filtré : ${taskFilterLabel}` : 'Temps par membre'}
+      />
+      {memberBarData.length === 0 ? (
+        <Card style={styles.empty}>
+          <Text style={styles.emptyTitle}>Pas encore de données</Text>
+          <Text style={styles.emptyText}>
+            Les membres apparaîtront ici dès qu'une tâche sera terminée.
+          </Text>
+        </Card>
+      ) : (
+        <MemberBarChart
+          data={memberBarData}
+          unit={entitlements.useWeights ? 'pts' : 'min'}
+          showValue={entitlements.useWeights}
+        />
+      )}
+
+      {/* Équilibres section */}
       <SectionTitle title="Équilibres" detail="Classement par contribution du foyer" />
 
       {!hasEntries ? (
@@ -220,6 +329,72 @@ export default function ScoreScreen() {
                       { width: `${Math.max(row.contribution, 2)}%` },
                     ]}
                   />
+                </View>
+              </Card>
+            );
+          })}
+        </View>
+      )}
+
+      {/* Weighted secondary view */}
+      {showWeighted && weightedBarData.length > 0 ? (
+        <>
+          <SectionTitle
+            title="Vue pondérée"
+            detail={`${Math.round(weightedTotalMinutes)} pts pondérés · Filtre : ${taskFilterLabel ?? 'Toutes'}`}
+          />
+          <MemberBarChart
+            data={weightedBarData}
+            unit="pts"
+            showValue
+          />
+        </>
+      ) : null}
+
+      {/* Filtered history under stats */}
+      <SectionTitle
+        title="Historique filtré"
+        detail={`${filteredEntries.length} ${filteredEntries.length > 1 ? 'entrées' : 'entrée'} — ${taskFilterLabel ?? 'Toutes'} · ${
+          period === 'week'
+            ? 'Semaine'
+            : period === 'month'
+              ? 'Mois'
+              : period === 'year'
+                ? 'Année'
+                : 'Depuis le début'
+        }`}
+      />
+      {filteredEntries.length === 0 ? (
+        <Card style={styles.empty}>
+          <Text style={styles.emptyTitle}>Aucune entrée</Text>
+          <Text style={styles.emptyText}>
+            Aucune entrée ne correspond à la période et au filtre sélectionnés.
+          </Text>
+        </Card>
+      ) : (
+        <View style={styles.list}>
+          {filteredEntries.slice(0, 30).map((entry) => {
+            const task = taskById.get(entry.taskId);
+            const user = userById.get(entry.userId);
+            const completedAt = entry.completedAt === null ? null : new Date(entry.completedAt);
+            return (
+              <Card key={entry.id}>
+                <View style={styles.historyRow}>
+                  <View style={styles.historyCopy}>
+                    <Text style={styles.historyName}>{task?.name ?? 'Tâche archivée'}</Text>
+                    <Text style={styles.historyMeta}>
+                      {user?.name ?? 'Membre'} · {entry.isManual ? 'saisie manuelle' : 'chrono'} ·{' '}
+                      {completedAt === null
+                        ? ''
+                        : new Intl.DateTimeFormat('fr-CH', { day: '2-digit', month: 'short' }).format(completedAt)}
+                    </Text>
+                  </View>
+                  <View style={styles.historyValueWrap}>
+                    <Text style={styles.historyValue}>
+                      {formatMetric(getEntryValue(entry, entitlements.useWeights), entitlements.useWeights)}
+                    </Text>
+                    <Text style={styles.historyMinutes}>{Math.round(entry.durationSeconds / 60)} min</Text>
+                  </View>
                 </View>
               </Card>
             );
@@ -305,6 +480,38 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     textAlign: 'center',
     marginTop: SPACING.xs,
+  },
+  historyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  historyCopy: {
+    flex: 1,
+  },
+  historyName: {
+    color: COLORS.textPrimary,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  historyMeta: {
+    color: COLORS.textMuted,
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  historyValueWrap: {
+    alignItems: 'flex-end',
+  },
+  historyValue: {
+    color: COLORS.textPrimary,
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  historyMinutes: {
+    color: COLORS.textMuted,
+    fontSize: 11,
+    marginTop: 2,
   },
   disclaimer: {
     color: COLORS.textMuted,

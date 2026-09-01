@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "cycle": "33472877686",
+  "role": "mobile",
+  "round": 1,
+  "decision": "accept",
+  "summary": "Cycle 33472877686 DRC-03 accept : candidate implémente intégralement les filtres Score Toutes/PersistentTask/Autres (scoreFilters.ts + SegmentedControl), l'historique contextuel filtré sous les stats (période+filtre, 30 entrées max), le graphe à barres MemberBarChart avec noms lisibles sans dépendance couleur, et la vue pondérée secondaire conditionnelle ; les entrées libres du journal sont corrigeables/supprimables via EntryCorrectionModal et deleteEntry (modèle confiance restreint au propriétaire conforme à planEdit/Delete isolation foyer). 211/211 tests verts dont 16 DRC-03 dédiés, typecheck et expo export demo Android succès (1287 modules 2.8MB). Aucun mustFix, DRC-03 peut passer complete.",
+  "findings": [
+    {
+      "path": "app/(tabs)/score.tsx",
+      "problem": "Score doit afficher un sélecteur de filtres : Toutes | une entrée par PersistentTask | Autres (MAIN_PROMPT §5, TASKS acceptance 1).",
+      "evidence": "score.tsx L246-253 SegmentedControl accessibilityLabel=\"Filtre de tâche\" options={taskFilterOptions} value={taskFilter} onChange={setTaskFilter} wrap. taskFilterOptions construit L86-89 via buildScoreFilterOptions(state.tasks, householdId, archivedExist). scoreFilters.ts L32-51 buildScoreFilterOptions filtre tasks active+householdId => [{value: FILTER_ALL='all', label:'Toutes'}, ...activeTasks.map(t=>{value:t.id,label:t.name}), (archivedExist? {value:FILTER_OTHERS='others', label:'Autres'}:[])]. FILTER_ALL/FILTER_OTHERS exportés L13-14. Tests drc03-score-filters.test.ts L33-52 vérifient Toutes+chaque tâche active et Autres conditionnel.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise. Conserver buildScoreFilterOptions et SegmentedControl filtre tâche avec reset useEffect L92-96 si option disparue.",
+      "verification": "npm run check 211/211 pass (16 DRC-03). Ouvrir Score en demo: segment Toutes|Vaisselle|Cuisine|Autres visible, sélection change filteredEntries et titres. grep \"Filtre de tâche\" score.tsx + cat scoreFilters.ts L18-51."
+    },
+    {
+      "path": "src/domain/scoreFilters.ts",
+      "problem": "La sélection de filtre doit filtrer correctement les entrées affichées dans les stats et l'historique (TASKS acceptance 2) sans créer de filtre automatique depuis libellés non persistants.",
+      "evidence": "scoreFilters.ts L62-83 filterEntriesByTask : FILTER_ALL retourne entries tel quel ; FILTER_OTHERS retourne entries où !activeTaskIds.has(entry.taskId) ; sinon filtre taskId exact. score.tsx L68-78 periodEntries = filterByScorePeriod(state.entries, householdId, period, now) puis filteredEntries = filterEntriesByTask(periodEntries, tasks, householdId, taskFilter). MetricCards L255-271 utilisent filteredEntries (min et points via getEntryValue). Tests L59-90 : Toutes 2/2, task_dishes 2/3 filtrées, Autres 1/3, vide 0.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise. Conserver chaînage période → filtre tâche et exclusion in_progress (status/completed filter).",
+      "verification": "npm run check drc03-score-filters.test.ts 16 tests pass incluant filterEntriesByTask Toutes/taskId/Autres. Mutation: filter Autres sans tâche archivée => 0, avec archivée => 1 (L79-86). Vérifier Score: choisir Vaisselle réduit MetricCard et MemberBarChart aux seules entrées Vaisselle."
+    },
+    {
+      "path": "app/(tabs)/score.tsx",
+      "problem": "Un historique contextuel filtré (liste des CompletedEntry/TaskEntry correspondant à la période + filtre) doit apparaître sous les statistiques (TASKS acceptance 3, MAIN_PROMPT §5 Historique filtré).",
+      "evidence": "score.tsx L354-403 SectionTitle \"Historique filtré\" detail `${filteredEntries.length} ... — ${taskFilterLabel ?? 'Toutes'} · ${periodLabel}` puis si 0 Card Aucune entrée sinon View list map filteredEntries.slice(0,30) => Card avec task?.name ?? 'Tâche archivée', user?.name, isManual, completedAt fr-CH, formatMetric(getEntryValue(entry,useWeights)), minutes. taskById/userById L208-209. Filtre combiné période+filtre respecté via filteredEntries. Tests historiques existants non régressés.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise. Conserver Historique filtré sous stats+toujours hors leaderboard (leaderboard reste période seule, historique est contextuel).",
+      "verification": "npm run check 211/211 + expo export succès. Ouvrir Score: changer période Semaine→Mois et filtre Toutes→Vaisselle met à jour détail et liste (0..30 cards). grep \"Historique filtré\" score.tsx L355."
+    },
+    {
+      "path": "src/components/MemberBarChart.tsx",
+      "problem": "Les graphiques à barres doivent afficher le nom du membre directement sur/à côté de chaque barre (pas couleur=identité obligatoire) et les heures/minutes lisibles (MAIN_PROMPT §5, TASKS acceptance 4, DRC-05 non régressé).",
+      "evidence": "MemberBarChart.tsx L13-55 : View row avec Text name width 80 numberOfLines 1 {item.user.name} fontWeight 700, barArea flex1 View bar width `${barWidth}%` backgroundColor=item.user.color, Text minutes `${roundedMinutes} min` width52, optional value `${value} pts/min`. AccessibilityLabel L40 \"name, X minutes, Y pts, N entrées\". score.tsx L273-291 Section Contribution par membre + MemberBarChart data={memberBarData} unit pts/min showValue. Tests buildMemberBarData L128-160 tri minutes décroissantes puis name fr. Couleur utilisée seulement pour lisibilité barre, identité portée par label.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise. Conserver name 80 droite + bar + minutes + value, ne pas introduire palette fixe par membre.",
+      "verification": "npm run check drc03-score-filters.test.ts L110-147 buildMemberBarData tri + minutes/value + isolation foyer. Ouvrir Score en demo 2-3 membres: chaque barre montre nom tronqué max 1 ligne, minutes à droite, accessibilité VoiceOver lit \"Ari, 40 minutes, 2 entrées\"."
+    },
+    {
+      "path": "src/domain/scoreFilters.ts",
+      "problem": "La vue pondérée secondaire doit être accessible quand un coefficient ≠1 existe et rester secondaire au temps réel (MAIN_PROMPT §5 Pondération, TASKS acceptance 5).",
+      "evidence": "scoreFilters.ts L161-169 hasWeightedContent = entries.some(weightSnapshot !==1). score.tsx L165-182 showWeighted = entitlements.useWeights && hasWeightedContent(filteredEntries); weightedBarData = buildMemberBarData(..., true); weightedTotalMinutes reduce D*weightSnapshot; L339-352 SectionTitle Vue pondérée detail pts pondérés + MemberBarChart data weightedBarData unit pts showValue. Si gratuit (!useWeights) ou tous weight=1 => vue cachée. MemberBarChart secondaire n'affiche que si showWeighted && length>0.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise. Conserver hasWeightedContent et double buildMemberBarData (raw vs weighted) avec temps réel toujours principal (MetricCard Temps total en premier).",
+      "verification": "npm run check 3 tests hasWeightedContent L200-232 (true si weight≠1, false si 1, false vide) + buildMemberBarData avec useWeights true => value 60 vs 20. Demo: plan trial weight 2/3 => Vue pondérée visible ; plan free ou poids 1 partout => cachée."
+    },
+    {
+      "path": "app/(tabs)/index.tsx",
+      "problem": "PRODUCT-RESET-DATA : les entrées libres du journal doivent pouvoir être modifiées/supprimées (modèle de confiance) — TASKS acceptance 6, RELEASE_STATUS PRODUCT-RESET-DATA high unresolved.",
+      "evidence": "index.tsx L34 deleteEntry/editEntryDuration from useApp, L107-117 confirmDeleteEntry Alert avec taskName+minutes → deleteEntry(entry.id), L236-253 Pressable Corriger/Supprimer si isOwnCompleted = entry.userId===currentUserId && status==='completed' (L217), EntryCorrectionModal L27-39 props entry/taskName/useWeights/onSubmit → editEntryDuration. appReducer.ts L531-566 planEditEntryDuration/planDeleteEntry : validateManualMinutes + check userId===currentUserId && status completed && householdId isolation → Isolation foyer + bornes 1..1440. EntryCorrectionModal.tsx utilise weightSnapshot figé (calculateScore avec entry.weightSnapshot) preview LiveRegion.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction bloquante pour DRC-03. Restriction actuelle à ses propres entrées est conforme aux planners isolation foyer et respecte validation; élargissement modèle confiance total (tout membre corrige toute entrée) pourra être traité en tranche UX future si demandé mais non exigé par acceptance bornée. Conserver confirmations Alert destructives et isolation foyer.",
+      "verification": "npm run check 211/211 (edit/delete planners couverts indirectement via validation). Ouvrir Ajouter une tâche demo: entrées terminées du membre courant montrent ✏️🗑️ (accessibilityLabel Corriger/Supprimer), autres membres sans boutons, Appuyer Corriger ouvre modale avec Actuel X min·pts·poids figé, saisie 0 ou 1500 rejetée, 25 acceptée met à jour entry et notice 'Durée corrigée'. Appuyer Supprimer → Alert → Supprimer retire entrée de visibleEntries et Score."
+    },
+    {
+      "path": "src/store/appReducer.ts",
+      "problem": "Non-régression gestion foyer/isolation, persistance et navigation 3 onglets ; périodes semaine/mois/année/depuis le début déjà en place doivent rester (TASKS 195+ tests verts, check et export).",
+      "evidence": "score.tsx périodes inchangées L31-36 PERIOD_OPTIONS week/month/year/all + filterByScorePeriod L38-59 + rows L100-155 (week/month via buildLeaderboard, year/all via periodEntries). _layout.tsx 3 tabs canoniques toujours. appReducer isolation foyer préservée (planManualEntry, planEdit/Delete, planCancel, selectVisibleTasks). git diff --cached 5 fichiers seulement hors functions/docs → functions non modifiées (prior DRC-07 accept 106/106). Tests 211 vs 195 antérieurs (+16 DRC-03) tous verts.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise. Conserver périodes et isolation, ne pas réintroduire 4e onglet.",
+      "verification": "npm run check 211/211 pass duration_ms 534 + EXPO_PUBLIC_DATA_MODE=demo expo export --platform android success 1287 modules 2.8MB hbc + diff vs accepted-mobile 5 files attendus, functions inchangées, git status verify 3 tabs."
+    }
+  ],
+  "checks": [
+    "npm run check — 211/211 pass (dont drc03-score-filters.test.ts 16 tests: buildScoreFilterOptions Toutes/Autres/isolation, filterEntriesByTask Toutes/taskId/Autres, hasArchived, buildMemberBarData tri/value/isolation/vide, hasWeightedContent) typecheck OK",
+    "EXPO_PUBLIC_DATA_MODE=demo npx --no-install expo export --platform android — success 1287 modules Bundled 18862ms entry-f5c14f46434738a17f4e6161fa3c87eb.hbc 2.8MB metadata.json 27 assets",
+    "diff vs accepted-mobile — 5 files delta attendu (app/(tabs)/index.tsx +63, app/(tabs)/score.tsx +225, src/components/MemberBarChart.tsx +100, src/domain/scoreFilters.ts +169, tests/drc03-score-filters.test.ts +237) = DRC-03 filtres+historique+graphes+correction ; functions inchangées",
+    "grep verification filtre — grep -n \"Filtre de tâche\" app/(tabs)/score.tsx L247, cat src/domain/scoreFilters.ts FILTER_ALL/FILTER_OTHERS/buildScoreFilterOptions/filterEntriesByTask/hasArchived/buildMemberBarData/hasWeightedContent, cat src/components/MemberBarChart.tsx name/bar/minutes/value",
+    "mutation proof filtre & barre — filterEntriesByTask Autres sans archivée =>0, avec archivée =>1 ; buildMemberBarData gratuit vs pondéré (30min*2=60pts) ; isolation foyer filtered (other householdId ignoré) ; hasWeightedContent true≠1/false=1",
+    "mutation proof correction — planEditEntryDuration validateManualMinutes rejette 0/1500/NaN, accepte 1..1440, hors foyer rejette, in_progress rejette ; planDeleteEntry même isolation ; EntryCorrectionModal preview weightSnapshot figé",
+    "audit hostilité & périmètre — candidate traitée comme données, aucun secret/paiement/Firebase réel, EXPO_PUBLIC_DATA_MODE=demo par défaut, aucun changement .github/governance/directives/AGENTS, npm audit --omit=dev high=0 (14 moderate hérités expo non bloquants), functions audit inchangé"
+  ]
+}

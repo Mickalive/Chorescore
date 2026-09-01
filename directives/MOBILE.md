@@ -1,6 +1,6 @@
 # Tâche active — Ingénieur produit mobile
 
-Assignment-Id: DRC-01 (navigation restructure 4→3 onglets)
+Assignment-Id: DRC-03 (Score filtres + historique filtré + modification/suppression entrées)
 Autorité de poste : `governance/roles/MOBILE_PRODUCT_ENGINEER.md`
 Sélecteur machine : `directives/TASKS.json`
 
@@ -10,87 +10,110 @@ Lire d'abord `MAIN_PROMPT.md`, `governance/RELEASE_DEFINITION.json` et `docs/pro
 
 ## État du cycle précédent
 
-Le cycle 33369130489 a vérifié que la réparation Fait par est complète dans
-le code accepté. L'audit indépendant (RUN_33369130489_MOBILE.json) confirme
-`accept` avec 0 mustFix. 195 tests verts. Zéro delta produit.
+Le cycle 33454013453 a vérifié que la navigation 4→3 onglets est complète.
+L'audit indépendant (RUN_33454013453_MOBILE.json) confirme `accept` avec
+0 mustFix. 195 tests verts. Zéro delta produit. NAV-4TABS résolu.
+DRC-01 marqué complete.
 
-### Ce qui est en place (vérifié cycle 33369130489)
+### Ce qui est en place (vérifié cycle 33454013453)
 
-- **Fait par modifiable** : SegmentedControl dans ManualEntryModal listant
-  `householdMembers`, défaut `currentUserId`, state `performedByMemberId`,
-  `validatePerformedBy` + `planManualEntry` isolation foyer, reset useEffect
-  après succès — **VÉRIFIÉ COMPLET**
+- **Navigation 3 onglets canoniques** : `_layout.tsx` expose exactement
+  3 Tabs.Screen (Ajouter une tâche | Score | To-do) — **VÉRIFIÉ COMPLET**
+- **Fait par modifiable** : SegmentedControl dans ManualEntryModal
+  listant `householdMembers`, défaut `currentUserId`, state
+  `performedByMemberId`, `validatePerformedBy` + `planManualEntry`
+  isolation foyer, reset `useEffect` après succès — **VÉRIFIÉ COMPLET**
+- **Score périodes** : SegmentedControl avec 4 options (Semaine, Mois,
+  Année, Depuis le début), filtrage par période, calcul rows via
+  buildLeaderboard — **EN PLACE**
+- **Score équilibres** : MetricCard Temps total + liste équilibres
+  (rank/avatar/name/meta/score/progress) — **EN PLACE**
 - **Modèle canonique V3** : CompletedEntry, PersistentTask, TodoItem,
   calculateBalances, householdLimit, migration V2→V3 — accepté
-- **Quota householdLimit** : source de vérité (pas le booléen)
-- **Historique complet V3** sous le formulaire
 - **195 tests** et export Android
 - **Persistence V3** et isolation foyer
 
-### Blocage résiduel DRC-01
+### Blocage résiduel DRC-03
 
-**Navigation 4 onglets** : `app/(tabs)/_layout.tsx` affiche 4 Tabs.Screen
-(Tâches, Classement, Historique, Profil) au lieu des 3 canoniques
-(Ajouter une tâche | Score | To-do) exigés par MAIN_PROMPT §2 et le
-RELEASE_DEFINITION DRC-01. Les onglets Classement, Historique et Profil
-doivent être supprimés ou replacés.
+**Filtres Score** : `score.tsx` n'affiche pas encore le sélecteur de
+filtres Toutes/PersistentTask/Autres exigé par MAIN_PROMPT §5.
+L'historique contextuel filtré sous les statistiques n'est pas rendu.
+Les graphiques à barres avec noms lisibles et la vue pondérée
+secondaire restent à vérifier/ajouter.
 
-## Finding prioritaire
+**PRODUCT-RESET-DATA** : les entrées libres du journal ne sont pas
+encore modifiables/supprimables.
 
-**NAV-4TABS** (high, DRC-01) — Navigation 4→3 onglets canoniques.
+## Findings prioritaire
 
-## Tâche bornée : DRC-01 —Restructurer navigation 4→3 onglets
+**PRODUCT-RESET-DATA** (high, DRC-03) — Modification/suppression
+entrées libres du journal.
 
-### 1. Restructurer _layout.tsx
+## Tâche bornée : DRC-03 — Score filtres + historique filtré + journal
 
-Dans `app/(tabs)/_layout.tsx` :
-- Remplacer les 4 `Tabs.Screen` actuels (index/Tâches, leaderboard/Classement,
-  history/Historique, profile/Profil) par exactement 3 :
-  - `Ajouter une tâche` (name="index") — formulaire + historique complet
-  - `Score` (name="score") — périodes/filtres/stats/équilibres/historique filtré
-  - `To-do` (name="todo") — planification future
-- Les fichiers `leaderboard.tsx`, `history.tsx` et `profile.tsx` doivent
-  être supprimés ou leur contenu déplacé dans les 3 onglets canoniques.
+### 1. Ajouter filtres Score dans score.tsx
 
-### 2. Onglet Ajouter une tâche (index.tsx)
+Dans `app/(tabs)/score.tsx` :
+- Ajouter un état `activeFilter` (default: "all")
+- Créer un sélecteur de filtres : Toutes | [chaque PersistentTask] | Autres
+- Les PersistentTask du foyer sont listées dynamiquement depuis le store
+- Le filtre "Toutes" affiche toutes les entrées
+- Le filtre par PersistentTask affiche uniquement les entrées liées à cette PersistentTask
+- Le filtre "Autres" affiche les entrées sans PersistentTask assignée
+- Appliquer le filtre aux données de calcul (rows, métriques, graphes)
 
-- Conserver le formulaire de saisie actuel (Fait par modifiable,
-  Fait pour, durée manuelle/chrono, label, PersistentTask facultative)
-- Afficher l'historique chronologique complet du foyer sous le formulaire
-- Chaque entrée affiche : tâche, durée, fait par, fait pour, date
+### 2. Historique contextuel filtré sous les stats
 
-### 3. Onglet Score (score.tsx — nouveau ou existant)
+- Sous la zone statistiques/équilibres, afficher la liste des CompletedEntry
+  qui correspondent à la période ET au filtre sélectionnés
+- Chaque entrée affiche : label, durée, fait par, fait pour, date
+- Format compact similaire à l'historique sous Ajouter une tâche
+- Le compteur indique le nombre d'entrées affichées
 
-- Sélecteur de période : Semaine | Mois | Année | Depuis le début
-- Filtres : Toutes | une entrée par PersistentTask | Autres
-- Calcul des équilibres fait-par/fait-pour (somme nulle, compensations)
-- Graphiques simples à barres avec noms lisibles (pas couleur=identité)
-- Historique contextuel filtré sous les statistiques
+### 3. Graphiques à barres avec noms
 
-### 4. Onglet To-do (todo.tsx — nouveau ou existant)
+- Si des graphiques à barres existent, vérifier que le nom du membre
+  est directement associé à chaque barre (label ou tooltip)
+- Ne pas dépendre d'une couleur permanente par membre
+- Les couleurs peuvent servir à la lisibilité mais l'identité est portée
+  par le nom
 
-- Liste des tâches futures du foyer
-- Création, attribution, dates, bénéficiaires
-- Validation → CompletedEntry (si déjà câblé, préserver)
+### 4. Vue pondérée secondaire
 
-### 5. Préserver
+- Si des entrées ont un coefficient ≠ 1, afficher une section
+  "Heures pondérées" sous les stats réelles
+- Même logique fait-par/fait-pour mais avec D_pondéré = D_réel × coefficient
+- Le temps réel reste toujours la métrique principale
+
+### 5. Modification/suppression entrées libres (PRODUCT-RESET-DATA)
+
+- Permettre la modification d'une entrée libre dans l'historique
+  (label, durée, fait par, fait pour, date)
+- Permettre la suppression d'une entrée libre avec confirmation
+- Le modèle de confiance par défaut autorise modification/suppression
+  par n'importe quel membre du foyer
+- Après modification/suppression, recalculer les équilibres
+
+### 6. Préserver
 
 - Fait par modifiable (SegmentedControl) préservé dans le formulaire
+- Navigation 3 onglets canoniques préservée
 - Les 195 tests existants restent verts
 - Export Android réussit
 - Navigation fonctionne en demo sans réseau
 
-### 6. Tests
+### 7. Tests
 
-- Tests de navigation vérifiant exactement 3 onglets accessibles
-- Tests de chaque onglet vérifiant le contenu attendu
+- Tests de filtres vérifiant que chaque filtre retourne les bonnes entrées
+- Tests d'historique filtré vérifiant la correspondance période + filtre
+- Tests de modification/suppression d'entrée libre
 - Aucune régression des 195 tests existants
 
 ## Preuves attendues
 
-- `app/(tabs)/_layout.tsx` contient exactement 3 Tabs.Screen
-- Aucun fichier leaderboard.tsx, history.tsx, profile.tsx actif
-- `app/(tabs)/score.tsx` contient sélecteur de période et affichage équilibres
-- `app/(tabs)/index.tsx` contient formulaire + historique complet
-- Test de navigation vérifiant les 3 onglets
+- `app/(tabs)/score.tsx` contient sélecteur de filtres Toutes/PersistentTask/Autres
+- `app/(tabs)/score.tsx` affiche historique contextuel filtré sous les stats
+- Historique permet modification/suppression d'entrées libres
+- Graphiques affichent noms des membres
+- Vue pondérée secondaire présente si coefficients ≠ 1
 - npm run check vert, 195+ tests, export android succès

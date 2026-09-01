@@ -1,25 +1,24 @@
 {
   "schemaVersion": 1,
   "milestone": "demo-rc",
-  "updatedBy": "director-run-33369130489",
-  "activeCriteria": ["DRC-01"],
+  "updatedBy": "director-run-33454013453",
+  "activeCriteria": ["DRC-03"],
   "assignments": {
     "mobile": {
       "enabled": true,
-      "criterionId": "DRC-01",
-      "objective": "DRC-01 remaining:Restructurer la navigation de 4 onglets vers 3 onglets canoniques. La réparation Fait par est vérifiée complete (audit accept cycle 33369130489, 195 tests, SegmentedControl, validatePerformedBy, planManualEntry). Le code accepté satisfait DRC-01 pour le formulaire. Le blocage résiduel est la navigation : _layout.tsx affiche 4 Tabs.Screen (Tâches, Classement, Historique, Profil) au lieu de 3 (Ajouter une tâche | Score | To-do) exigés par MAIN_PROMPT §2 et RELEASE_DEFINITION DRC-01. Remplacer la structureTabs par exactement 3 écrans. L'onglet 'Ajouter une tâche' contient le formulaire + historique chronologique complet. L'onglet 'Score' contient les périodes (semaine/mois/année/depuis le début), filtres (Toutes/PersistentTask/Autres), calcul équilibres fait-par/fait-pour, graphes et historique filtré. L'onglet 'To-do' contient la planification future. Les onglets Classement, Historique et Profil sont supprimés. Préserver Fait par modifiable et tous les 195 tests existants.",
+      "criterionId": "DRC-03",
+      "objective": "DRC-03 remaining:Ajouter les filtres Score Toutes/PersistentTask/Autres et l'historique contextuel filtré sous les statistiques. Le calcul fait-par/fait-pour et les périodes (semaine/mois/année/depuis le début) sont déjà en place dans score.tsx. Les filtres Toutes/PersistentTask/Autres ne sont pas encore rendus. L'historique contextuel filtré sous les stats n'est pas affiché. Les graphes à barres avec noms lisibles et la vue pondérée secondaire restent à vérifier/ajouter.PRODUCT-RESET-DATA unresolved : modification/suppression entrées libres du journal.",
       "acceptance": [
-        "_layout.tsx contient exactement 3 Tabs.Screen : 'Ajouter une tâche', 'Score', 'To-do'.",
-        "Aucun onglet Classement, Historique ou Profil n'existe.",
-        "L'onglet Ajouter une tâche contient le formulaire de saisie (Fait par modifiable, Fait pour, durée, label) et l'historique chronologique complet.",
-        "L'onglet Score affiche un sélecteur de période (semaine/mois/année/depuis le début) et un affichage des équilibres.",
-        "L'onglet To-do affiche la liste des tâches futures.",
-        "La navigation entre les 3 onglets fonctionne en mode demo sans réseau.",
-        "Les 195 tests existants restent verts (aucune régression).",
-        "npm run check vert et EXPO_PUBLIC_DATA_MODE=demo npx expo export --platform android succès.",
-        "Fait par reste modifiable via SegmentedControl (préservé du cycle 33369130489)."
+        "Score.tsx affiche un sélecteur de filtres : Toutes | une entrée par PersistentTask | Autres.",
+        "La sélection de filtre filtre correctement les entrées affichées dans les stats et l'historique.",
+        "Un historique contextuel filtré (liste des CompletedEntry correspondant à la période + filtre) apparaît sous les statistiques.",
+        "Les graphiques à barres affichent le nom du membre directement sur/à côté de chaque barre (pas couleur=identité obligatoire).",
+        "La vue pondérée secondaire est accessible quand un coefficient ≠ 1 existe.",
+        "PRODUCT-RESET-DATA : les entrées libres du journal peuvent être modifiées/supprimées (modèle de confiance).",
+        "Les 195+ tests existants restent verts (aucune régression).",
+        "npm run check vert et EXPO_PUBLIC_DATA_MODE=demo npx expo export --platform android succès."
       ],
-      "firstTask": "NAV-4TABS :Restructurer navigation 4→3 onglets canoniques (Ajouter une tâche | Score | To-do)"
+      "firstTask": "PRODUCT-RESET-DATA + Score filtres :Ajouter filtres Toutes/PersistentTask/Autres dans Score, historique contextuel filtré sous stats, vérifier graphes à noms et vue pondérée, et permettre modification/suppression entrées libres du journal."
     },
     "backend": {
       "enabled": false,

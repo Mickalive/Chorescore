@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "milestone": "demo-rc",
   "governanceVersion": "2026-08-30-product-reset",
-  "lastCycle": "33522140085",
-  "activeCriteria": ["DRC-05"],
+  "lastCycle": "33558140027",
+  "activeCriteria": [],
   "stalledCycles": 0,
-  "progressSummary": "Cycle 33522140085 : audit mobile independent RUN_33522140085_MOBILE.json accept, 0 mustFix, 237/237 tests (26 DRC-04 dédiés), export Android succès (1287 modules 2.9MB). DRC-04 complet : CreateTodoModal (libellé/date-deadline/assignation/bénéficiaires/note), CompleteTodoModal (fait-par défaut currentUserId modifiable, durée réelle, fait-pour reprend bénéficiaires), COMPLETE_TODO atomique (todo.completedAt + entry prepend), Score 4 périodes cœur produit sans gate premium. PRODUCT-RESET-BALANCE résolu. DRC-01/02/03/04/07 complets. DRC-05 passe à in_progress (PRODUCT-RESET-UX unresolved). Non-bloquant : TodoItems non persistées en durable state (session-level). Stagnation reset à 0 (progrès objectif DRC-04 complete).",
+  "progressSummary": "Cycle 33558140027 : audit mobile accept (RUN_33558140027_MOBILE.json), 0 mustFix, 249/249 tests (237 existants + 12 DRC-05), export Android succès (1290 modules 2.9MB). DRC-05 complet : partage système natif Score/To-do via Share API sans SDK social, notifications/calendrier gateways honnêtement désactivées, aucun commentaire moral, pondération hors flux principal, journal compact, design feel-good teinté. PRODUCT-RESET-UX résolu. DRC-01/02/03/04/05/07 complets. DRC-06 passe à in_progress pour APK Android. Stagnation = 0.",
   "blocker": null,
   "criteria": [
     {
@@ -46,15 +46,16 @@
     },
     {
       "id": "DRC-05",
-      "status": "in_progress",
+      "status": "complete",
       "evidence": [
-        {"kind":"tests","reference":"Historique : contrastes, grandes tailles de texte et layout ont reçu des preuves jusqu'à 164/164 tests. Ces preuves techniques restent pertinentes mais ne certifient pas la qualité UX du nouveau produit.","cycle":"33111799778"},
-        {"kind":"product-reset","reference":"À revalider par audit UX produit : interface simple et moderne, Ajouter une entrée évident, journal compact, bilan lisible, aucun texte automatique interprétant les chiffres/personnes, aucun pseudo-conseil relationnel, aucune batterie de boutons par ligne.","cycle":"human-product-reset-20260830"}
+        {"kind":"tests","reference":"249/249 tests verts dont 12 DRC-05 dédiés (share notifications, weight options, formatDurationHuman, buildScoreShareText, buildEntryShareText, buildTodoShareText, gateway status, calendar status). Non-régressions DRC-01/02/03/04 préservées.","cycle":"33558140027"},
+        {"kind":"audit","reference":"reports/audits/RUN_33558140027_MOBILE.json — decision accept, 0 mustFix, partage système natif Score/To-do via Share API sans SDK social, buildScoreShareText/buildTodoShareText informatif sans commentaire moral (#ChargeMentale), notifications/calendrier gateways honnêtement désactivées (supported:false, message clair), pondération hors flux principal (TaskFormModal weight:1, TaskRow weightBadge supprimé, entryMeta temps réel), journal compact (entryName/entryMeta label/durée/membre/date), design feel-good teinté, export Android 1290 modules 2.9MB.","cycle":"33558140027"},
+        {"kind":"product-reset","reference":"PRODUCT-RESET-UX résolu : refonte interface mobile validée par audit indépendant. Design propre/léger/feel-good, journal compact, action ajout évidente, suppression messages moraux, pondération Options avancées seulement, partage système natif, notifications/calendrier honnêtes.","cycle":"33558140027"}
       ]
     },
     {
       "id": "DRC-06",
-      "status": "pending",
+      "status": "in_progress",
       "evidence": [
         {"kind":"historical-audit","reference":"Ancienne source-readiness RUN_33111958796_MOBILE.json conservée comme historique technique uniquement ; invalidée comme attestation produit par le reset humain du 2026-08-30.","cycle":"33111958796"}
       ]
@@ -69,7 +70,7 @@
       ]
     }
   ],
-  "pendingArtifact": null,
+  "pendingArtifact": "DRC-06",
   "openFindings": [
     {
       "id": "PRODUCT-RESET-CORE",
@@ -117,8 +118,9 @@
       "role": "mobile",
       "severity": "high",
       "mustFixBeforeRelease": true,
-      "status": "unresolved",
-      "requiredFix": "Refondre l'interface : design mobile propre et léger, journal compact, action d'ajout évidente, pondération seulement en Options avancées, temps réel toujours principal, et suppression de tout message automatique qui interprète, moralise ou commente les chiffres/personnes."
+      "status": "resolved",
+      "requiredFix": "Refondre l'interface : design mobile propre et léger, journal compact, action d'ajout évidente, pondération seulement en Options avancées, temps réel toujours principal, et suppression de tout message automatique qui interprète, moralise ou commente les chiffres/personnes.",
+      "resolvedPart": "PRODUCT-RESET-UX résolu par audit indépendant cycle 33558140027 : design feel-good teinté (fonds #F7F2EB/#FFFDF9/#F6F2ED), journal compact entryName/entryMeta (label/durée/membre/date), pondération hors flux principal (TaskFormModal weight:1, TaskRow weightBadge supprimé), partage système natif Score/To-do via Share API, notifications/calendrier gateways honnêtes (supported:false), aucun message moral (grep 0 hit), 249/249 tests, export Android 1290 modules 2.9MB. Confirmation que l'état accepté satisfait la refonte UX DRC-05."
     }
   ]
 }

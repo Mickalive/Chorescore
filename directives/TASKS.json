@@ -1,24 +1,27 @@
 {
   "schemaVersion": 1,
   "milestone": "demo-rc",
-  "updatedBy": "director-run-33496035059",
-  "activeCriteria": ["DRC-04"],
+  "updatedBy": "director-run-33522140085",
+  "activeCriteria": ["DRC-05"],
   "assignments": {
     "mobile": {
       "enabled": true,
-      "criterionId": "DRC-04",
-      "objective": "DRC-04 : To-do et conversion en réalisation. Le formulaire To-do doit gérer tâches datées ou non, attribution à un membre, bénéficiaires, notes, deadline et reminders locaux. Le check fait doit demander fait-par (défaut membre connecté, modifiable) + durée réelle + fait-pour (reprend bénéficiaires To-do ou permet choix) puis créer atomiquement une CompletedEntry, terminer la TodoItem et mettre immédiatement à jour historique complet et Score. Les 211 tests existants restent verts. PRODUCT-RESET-BALANCE unresolved : bilan temps réel 4 périodes cœur produit.",
+      "criterionId": "DRC-05",
+      "objective": "DRC-05 : Partage système, calendrier, notifications et UX. Refondre l'interface : design mobile propre et léger (feel-good, chaleureuse, contemporaine, énergique mais pas enfantine), journal compact sous Ajouter une tâche, action d'ajout évidente, pondération seulement en Options avancées, temps réel toujours principal, et suppression de tout message automatique qui interprète, moralise ou commente les chiffres/personnes. Partage système natif depuis Score/historique/To-do. Notifications locales et calendrier avec gateways propres et permissions honnêtes. Accessibilité/contrastes conservés. Les 237 tests existants restent verts.",
       "acceptance": [
-        "TodoItem est créable avec libellé, date/deadline facultative, membre assigné, bénéficiaires, note.",
-        "Le check fait ouvre un mini-formulaire : fait-par défaut membre connecté (modifiable parmi membres foyer), durée réelle, fait-pour reprend bénéficiaires To-do ou permet choix.",
-        "La validation crée atomiquement une CompletedEntry indépendante + termine la TodoItem.",
-        "L'historique complet (tab Ajouter une tâche) et Score se mettent à jour immédiatement après conversion.",
-        "Les reminders locaux sont configurables (si non possible honnêtement, désactivé avec mention).",
-        "PRODUCT-RESET-BALANCE : les 4 périodes (semaine/mois/année/depuis le début) sont cœur produit, pas premium.",
-        "Les 211+ tests existants restent verts (aucune régression).",
+        "Design mobile propre et léger : fonds teintés doux, surfaces colorées légères, typographie nette, peu de texte, aucun blanc dominant.",
+        "Journal compact sous Ajouter une tâche : chaque entrée affiche tâche/durée/fait par/fait pour/date de façon compacte.",
+        "Action d'ajout évidente : formulaire minimal en haut, saisie rapide sans friction.",
+        "Pondération réservée aux Options avancées, pas dans le flux principal.",
+        "Temps réel (heures/minutes) toujours la métrique principale, jamais remplacé par des points.",
+        "Aucun commentaire moral, relationnel ou interprétatif automatique.",
+        "Partage système natif (share sheet) depuis Score, historique et To-do.",
+        "Notifications locales et calendrier : gateways propres, permissions honnêtes, désactivation si non supporté.",
+        "Accessibilité : contrastes AA, grandes tailles de texte, responsive.",
+        "Les 237+ tests existants restent verts.",
         "npm run check vert et EXPO_PUBLIC_DATA_MODE=demo npx expo export --platform android succès."
       ],
-      "firstTask": "To-do → CompletedEntry atomique : formulaire de validation (fait-par modifiable, durée, fait-pour) + création CompletedEntry + terminaison TodoItem + mise à jour immédiate historique/Score."
+      "firstTask": "PRODUCT-RESET-UX : refonte interface mobile — design propre/léger/feel-good, journal compact, action ajout évidente, suppression messages moraux automatiques, pondération en Options avancées seulement."
     },
     "backend": {
       "enabled": false,

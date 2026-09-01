@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "milestone": "demo-rc",
   "governanceVersion": "2026-08-30-product-reset",
-  "lastCycle": "33496035059",
-  "activeCriteria": ["DRC-04"],
-  "stalledCycles": 1,
-  "progressSummary": "Cycle 33496035059 : provider failure — mobile candidate unavailable (job failure), aucun candidat produit, aucun audit généré. Backend désactivé (DRC-07 complete). DRC-04 reste in_progress (To-do → CompletedEntry atomique). PRODUCT-RESET-BALANCE unresolved. Stagnation = 1 (provider failure, pas de progrès produit). DRC-01/02/03/07 restent complete avec preuves intactes.",
-  "blocker": "provider-failure-mobile",
+  "lastCycle": "33522140085",
+  "activeCriteria": ["DRC-05"],
+  "stalledCycles": 0,
+  "progressSummary": "Cycle 33522140085 : audit mobile independent RUN_33522140085_MOBILE.json accept, 0 mustFix, 237/237 tests (26 DRC-04 dédiés), export Android succès (1287 modules 2.9MB). DRC-04 complet : CreateTodoModal (libellé/date-deadline/assignation/bénéficiaires/note), CompleteTodoModal (fait-par défaut currentUserId modifiable, durée réelle, fait-pour reprend bénéficiaires), COMPLETE_TODO atomique (todo.completedAt + entry prepend), Score 4 périodes cœur produit sans gate premium. PRODUCT-RESET-BALANCE résolu. DRC-01/02/03/04/07 complets. DRC-05 passe à in_progress (PRODUCT-RESET-UX unresolved). Non-bloquant : TodoItems non persistées en durable state (session-level). Stagnation reset à 0 (progrès objectif DRC-04 complete).",
+  "blocker": null,
   "criteria": [
     {
       "id": "DRC-01",
@@ -37,15 +37,16 @@
     },
     {
       "id": "DRC-04",
-      "status": "in_progress",
+      "status": "complete",
       "evidence": [
-        {"kind":"tests","reference":"Historique : isolation multi-foyers et export local précédemment testés au cycle 32919230502 ; briques à préserver.","cycle":"32919230502"},
-        {"kind":"product-reset","reference":"À revalider : création/changement de foyer réellement accessible et bilan temps réel semaine/mois/année/depuis le début. Ces quatre périodes sont cœur produit, pas premium. Pondération seulement facultative dans Options avancées.","cycle":"human-product-reset-20260830"}
+        {"kind":"tests","reference":"237/237 tests verts dont 26 DRC-04 dédiés (AC1 7 CreateTodoModal, AC2 5 CompleteTodoModal, AC3 3 atomicité, AC4 1 mise à jour immédiate, AC5 1 reminders, AC6 2 4 périodes, isolation 4, selectVisibleTodos 3, DELETE_TODO 1). Non-régressions DRC-01/02/03 préservées.","cycle":"33522140085"},
+        {"kind":"audit","reference":"reports/audits/RUN_33522140085_MOBILE.json — decision accept, 0 mustFix, CreateTodoModal (libellé/date-deadline/assignation/bénéficiaires/note, parseFrenchDate, planCreateTodoItem isolation foyer), CompleteTodoModal (fait-par SegmentedControl currentUserId modifiable, durée réelle, fait-pour reprend bénéficiaires), COMPLETE_TODO atomique (todo.completedAt + entries prepend), Score 4 périodes cœur produit sans premium gate, reminders honnêtement désactivés, export Android 1287 modules 2.9MB.","cycle":"33522140085"},
+        {"kind":"product-reset","reference":"PRODUCT-RESET-BALANCE résolu : Score affiche Semaine/Mois/Année/Depuis le début sans gate premium (canViewMonthlyLeaderboard supprimé de score.tsx). 4 périodes sont cœur produit.","cycle":"33522140085"}
       ]
     },
     {
       "id": "DRC-05",
-      "status": "pending",
+      "status": "in_progress",
       "evidence": [
         {"kind":"tests","reference":"Historique : contrastes, grandes tailles de texte et layout ont reçu des preuves jusqu'à 164/164 tests. Ces preuves techniques restent pertinentes mais ne certifient pas la qualité UX du nouveau produit.","cycle":"33111799778"},
         {"kind":"product-reset","reference":"À revalider par audit UX produit : interface simple et moderne, Ajouter une entrée évident, journal compact, bilan lisible, aucun texte automatique interprétant les chiffres/personnes, aucun pseudo-conseil relationnel, aucune batterie de boutons par ligne.","cycle":"human-product-reset-20260830"}
@@ -106,8 +107,9 @@
       "role": "mobile",
       "severity": "high",
       "mustFixBeforeRelease": true,
-      "status": "unresolved",
-      "requiredFix": "Faire du bilan temps réel la fonction cœur : semaine, mois, année, depuis le début ; temps total du foyer, temps par membre et part en %. Les quatre périodes restent accessibles dans le produit de base."
+      "status": "resolved",
+      "requiredFix": "Faire du bilan temps réel la fonction cœur : semaine, mois, année, depuis le début ; temps total du foyer, temps par membre et part en %. Les quatre périodes restent accessibles dans le produit de base.",
+      "resolvedPart": "PRODUCT-RESET-BALANCE résolu par audit indépendant cycle 33522140085 : score.tsx supprime gate premium canViewMonthlyLeaderboard, 4 périodes (Semaine/Mois/Année/Depuis le début) accessibles sans paywall, PERIOD_OPTIONS L31-36 conservé, filterByScorePeriod L38-59 gère week/month/year/all, test AC6 vérifie 4 périodes et filtrage année. 237/237 tests, zéro mustFix. Confirmation que le Score offre les 4 périodes comme cœur produit."
     },
     {
       "id": "PRODUCT-RESET-UX",

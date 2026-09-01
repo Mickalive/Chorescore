@@ -8,9 +8,10 @@ Auditer séparément chaque poste codeur activé dans `directives/TASKS.json`.
 
 ## Statut
 
-**Lane audit inactive.** Le cycle 33496035059 a échoué (provider failure —
-mobile candidate unavailable). Aucun candidat produit, aucun audit à effectuer.
+**Lane audit inactive.** Le cycle 33522140085 a produit un candidat mobile
+accept (RUN_33522140085_MOBILE.json, decision accept, 0 mustFix, 237/237
+tests). Le candidat a été intégré au manifeste de confiance.
 
 La lane audit sera réactivée dès qu'un nouveau candidat mobile sera
-produit pour DRC-04 (To-do → CompletedEntry atomique) et transmis
-à l'auditeur pour évaluation.
+produit pour DRC-05 (Partage système, calendrier, notifications et UX)
+et transmis à l'auditeur pour évaluation.

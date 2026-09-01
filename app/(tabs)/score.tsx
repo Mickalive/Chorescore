@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/src/components/Avatar';
 import { Card } from '@/src/components/Card';
 import { DemoBanner } from '@/src/components/DemoBanner';
@@ -12,6 +12,7 @@ import { SectionTitle } from '@/src/components/SectionTitle';
 import { SegmentedControl } from '@/src/components/SegmentedControl';
 import { COLORS, RADIUS, SPACING } from '@/src/components/theme';
 import { getEntitlements, getPlanLabel } from '@/src/domain/entitlements';
+import { buildScoreShareText, formatDurationHuman, shareText } from '@/src/services/shareService';
 import { buildLeaderboard, getVisibleHistory } from '@/src/domain/leaderboard';
 import { isEntryInPeriod } from '@/src/domain/periods';
 import {
@@ -386,6 +387,34 @@ export default function ScoreScreen() {
         </View>
       )}
 
+      {/* DRC-05 : Partage système natif du Score courant */}
+      {rows.some((row) => row.taskCount > 0) ? (
+        <Pressable
+          onPress={() => {
+            const periodLabel =
+              period === 'week' ? 'Semaine' : period === 'month' ? 'Mois' : period === 'year' ? 'Année' : 'Depuis le début';
+            const text = buildScoreShareText({
+              householdName: state.household.name,
+              periodLabel,
+              filterLabel: taskFilterLabel ?? 'Toutes',
+              totalMinutes: totalMinutes,
+              rows: rows
+                .filter((row) => row.taskCount > 0)
+                .map((row) => ({
+                  name: row.user.name,
+                  durationMinutes: row.durationMinutes,
+                  rank: row.rank,
+                })),
+            });
+            shareText(text);
+          }}
+          style={styles.shareButton}
+          accessibilityLabel="Partager le score"
+        >
+          <Text style={styles.shareButtonText}>Partager le score</Text>
+        </Pressable>
+      ) : null}
+
     </Screen>
   );
 }
@@ -493,5 +522,19 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     fontSize: 11,
     marginTop: 2,
+  },
+  shareButton: {
+    marginTop: SPACING.lg,
+    marginBottom: SPACING.md,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+  },
+  shareButtonText: {
+    color: COLORS.textPrimary,
+    fontWeight: '700',
+    fontSize: 14,
   },
 });

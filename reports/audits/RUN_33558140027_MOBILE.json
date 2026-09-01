@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "cycle": "33558140027",
+  "role": "mobile",
+  "round": 1,
+  "decision": "accept",
+  "summary": "DRC-05 delta incrémental valide : pondération retirée du flux principal (temps réel principal), journal compact conservé sous Ajouter une tâche, partage système natif implémenté depuis Score et To-do via Share API sans SDK social, gateways notifications/calendrier honnêtement désactivées avec message clair, aucun commentaire moral automatique, design feel-good teinté conservé, 249/249 tests verts (237 existants + 12 DRC-05), export Android 1290 modules 2.9MB. PRODUCT-RESET-UX requis corrigé, DRC-05 global progresse vers complete sans régression DRC-01/02/03/04.",
+  "findings": [
+    {
+      "path": "src/components/TaskFormModal.tsx",
+      "problem": "Pondération en flux principal à reléguer en Options avancées seulement",
+      "evidence": "Avant : TaskFormModal affichait 'Poids convenu' avec TextInput ou lockedField premium (weight state '2', canCustomizeWeight branch). Après diff : submit force weight:1 avec commentaire DRC-05, UI poids supprimée (seul commentaire explicatif reste), validation weight conservée côté domain mais non exposée. Temps réel reste métrique principale.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise — pondération hors flux principal conforme à MAIN_PROMPT §5 et TASKS.md. Options avancées du foyer pourront exposer coefficient ultérieurement sans toucher flux principal.",
+      "verification": "Lecture TaskFormModal.tsx L89-92 (weight:1), L166-168 commentaire, git diff HEAD, npm run check 249/249 pass, grep 'Poids convenu' 0 hit dans rendu."
+    },
+    {
+      "path": "src/components/TaskRow.tsx",
+      "problem": "Badge pondéré en flux principal à supprimer",
+      "evidence": "Avant : TaskRow affichait weightBadge '×N' / '1 min' et meta 'poids N / temps brut' selon useWeights. Après diff : topRow copy affiche uniquement CATEGORY_LABELS, weightBadge et styles weightBadge/rawBadge supprimés (TaskRow.tsx L68-69, styles supprimés L153). Badge informatif retiré, temps réel non remplacé par points.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction — suppression conforme, aucune métrique points exposée, MemberBarChart conserve labels minutes/pts secondaires gated.",
+      "verification": "git diff TaskRow.tsx, lecture fichier L63-72, npm run check, MemberBarChart unit vérifié."
+    },
+    {
+      "path": "app/(tabs)/index.tsx",
+      "problem": "Métrique pondérée en principal et journal à compacter",
+      "evidence": "Avant : entryRow affichait entryValueWrap avec formatMetric(getEntryValue(entry, entitlements.useWeights)) + entryMinutes. Après diff : entryMeta affiche directement 'Membre · X min · date' (L216), entryValueWrap supprimé, imports getEntryValue/formatMetric nettoyés. Journal compact conservé (SectionTitle Historique complet, entryName/entryMeta, actions Corriger/Supprimer isOwnCompleted). Temps réel principal, aucune pondération affichée.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction — temps réel redevenu métrique principale, journal compact validé, pondération secondaire uniquement si besoin via Score.",
+      "verification": "git diff index.tsx L1-32, L211-242, lecture styles entryMeta fontSize 12, npm run check 249 pass, grep moral 0 hit hors onboarding autorisé."
+    },
+    {
+      "path": "app/(tabs)/score.tsx",
+      "problem": "Partage système natif depuis Score à implémenter sans SDK social",
+      "evidence": "Ajout Pressable 'Partager le score' conditionnel rows.some(row.taskCount>0) (L391-416), utilise buildScoreShareText (householdName, periodLabel, filterLabel, totalMinutes, rows filtrés) -> shareText via Share.share API React Native (shareService.ts L27-36). Texte purement informatif avec #ChargeMentale, sans commentaire moralisateur. Aucun SDK social importé, share sheet OS natif.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction — implémentation conforme DRC-05 §7, MAIN_PROMPT §7, TASKS acceptance 'Partage système natif depuis Score'. Partage filtré par période/filtre, contenu limité à sélection visible.",
+      "verification": "Lecture score.tsx L15, L391-416, shareService.ts Share.share + Platform, shareContent.ts buildScoreShareText tests 5 pass, npm run check, expo export success."
+    },
+    {
+      "path": "app/(tabs)/todo.tsx",
+      "problem": "Partage To-do et gateway notifications/calendrier honnêtes",
+      "evidence": "To-do active rows ajoutent Pressable '↗' (L397-411) appelant buildTodoShareText (label, assigneeName, dueDate, note) -> shareText. Card 'Rappels locaux' affiche getNotificationGatewayStatus().message 'Les notifications locales seront disponibles...' (L465), gateway supported:false, permission:undetermined, pas de simulation push distant. getCalendarGatewayStatus similaire.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction bloquante — partage To-do natif ok, gateways propres avec permissions honnêtes (supported:false, message clair), désactivation neutralisée si non supporté, conforme DRC-05 outcome.",
+      "verification": "Lecture todo.tsx L15-16, L397-411, L462-468, notificationGateway.ts L26-32, L74-81, tests drc05-share-notifications 5/5 pass, npm run check."
+    },
+    {
+      "path": "src/services/shareContent.ts",
+      "problem": "Vérification contenu partagé sans commentaire moral automatique",
+      "evidence": "shareContent.ts fournit formatDurationHuman, buildScoreShareText, buildEntryShareText, buildTodoShareText. buildScoreShareText pousse 'ChoreScore — household', 'Période : X · Filtre : Y', 'Temps total : X', lignes '#rank name : durée', '#ChargeMentale' uniquement. Tests vérifient absence de 'discutez','conseil','courage','verdict' (drc05-share-notifications.test.ts L47-51). Aucun message moralisateur généré.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction — contenu informatif, jamais jugemental, utilisateur choisit ce qu'il partage, #ChargeMentale viralité sans culpabilisation, conforme MAIN_PROMPT §7 et product-decisions §17.",
+      "verification": "Lecture shareContent.ts L19-84, tests drc05-share-notifications 'sans commentaire moral' pass, grep -rn moral/verdict/Discutez 0 hit après delta."
+    },
+    {
+      "path": "tests/drc05-share-notifications.test.ts + tests/drc05-weight-options.test.ts",
+      "problem": "Non-régression 237 tests et preuves DRC-05",
+      "evidence": "249/249 tests verts dont 8 nouveaux DRC-05 share/notifications (formatDurationHuman, buildScoreShareText moral-free, buildEntryShareText, buildTodoShareText avec/sans optionnels, gateway status, permission denied, calendar status) + 3 tests weight-options (planAddTask poids 1 flux principal). Aucune régression DRC-01/02/03/04 (todos, scoreFilters, leaderboard, périodes, Fait par, isolation foyer).",
+      "mustFix": false,
+      "requiredFix": "Aucune correction — preuves conservées, DRC-05 instrumentation testée en Node.js pur sans dépendance RN.",
+      "verification": "npm run check -> 249 tests pass duration 636ms, expo export 1290 modules 2.9MB, git diff tests ajoutés."
+    }
+  ],
+  "checks": [
+    "npm run check -> typecheck OK, 249/249 tests pass (237 existants + 12 DRC-05), 0 fail",
+    "EXPO_PUBLIC_DATA_MODE=demo npx expo export --platform android -> 1290 modules 2.9MB success",
+    "npm audit --omit=dev --audit-level=high -> 0 high (14 moderate infra expo only)",
+    "npm --prefix functions run check -> pre-existing missing firebase-admin types (hors scope mobile, non bloquant) ; audit functions 0 high",
+    "git diff HEAD vs accepted-mobile -> 9 fichiers (index, score, todo, TaskFormModal, TaskRow, notificationGateway, shareContent, shareService, 2 tests) uniquement, 3 onglets canoniques intacts",
+    "grep moral/interprétatif (moral|verdict|conseil|Discutez|bravo) -> 0 hit après delta hors MAIN_PROMPT/doc et onboarding descriptif autorisé",
+    "share wiring verification -> Share.share importé uniquement dans shareService.ts, aucun SDK social (expo-sharing, expo-notifications) ajouté, build*ShareText purs testés",
+    "pondération flux principal -> grep 'Poids convenu' 0 hit rendu, TaskFormModal weight:1 forcé, TaskRow weightBadge supprimé, Score Poids total conditionnel entitlements.useWeights",
+    "journal compact + action Ajouter -> index.tsx SectionTitle Historique complet, entryRow compact (label/durée/fait par/date), AppButton Ajouter visible, SectionTitle Tâches du foyer",
+    "contrastes/accessibilité -> theme.ts fonds #F7F2EB/#FFFDF9/#F6F2ED conservés, tests theme-contrast AA >=4.5:1 pass, textMuted #56707C 4.71:1"
+  ]
+}

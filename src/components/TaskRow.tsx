@@ -66,11 +66,8 @@ export function TaskRow({
         <View style={styles.copy}>
           <Text style={styles.name}>{task.name}</Text>
           <Text style={styles.meta}>
-            {CATEGORY_LABELS[task.category]} · {useWeights ? `poids ${task.weight}` : 'temps brut'}
+            {CATEGORY_LABELS[task.category]}
           </Text>
-        </View>
-        <View style={[styles.weightBadge, !useWeights && styles.rawBadge]}>
-          <Text style={styles.weightText}>{useWeights ? `×${task.weight}` : '1 min'}</Text>
         </View>
       </View>
 
@@ -153,22 +150,7 @@ const styles = StyleSheet.create({
     marginTop: 3,
     fontSize: 13,
   },
-  weightBadge: {
-    minWidth: 46,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 6,
-    borderRadius: RADIUS.pill,
-    backgroundColor: COLORS.accent,
-    alignItems: 'center',
-  },
-  rawBadge: {
-    backgroundColor: COLORS.primary,
-  },
-  weightText: {
-    color: COLORS.textPrimary,
-    fontWeight: '800',
-    fontSize: 12,
-  },
+
   actions: {
     flexDirection: 'row',
     flexWrap: 'wrap',

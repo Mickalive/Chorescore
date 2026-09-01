@@ -15,7 +15,7 @@ import { TaskRow } from '@/src/components/TaskRow';
 import { COLORS, RADIUS, SPACING } from '@/src/components/theme';
 import { getEntitlements, getPlanLabel } from '@/src/domain/entitlements';
 import { buildLeaderboard, getVisibleHistory } from '@/src/domain/leaderboard';
-import { formatMetric, getEntryValue } from '@/src/domain/scoring';
+import { formatMetric } from '@/src/domain/scoring';
 import type { TaskDefinition, TaskEntry } from '@/src/domain/types';
 import { selectVisibleTasks } from '@/src/store/appReducer';
 import { useApp } from '@/src/store/AppProvider';
@@ -213,36 +213,32 @@ export default function TasksScreen() {
                     <View style={styles.entryCopy}>
                       <Text style={styles.entryName}>{entryLabel}</Text>
                       <Text style={styles.entryMeta}>
-                        {user?.name ?? 'Membre'} · {entry.isManual ? 'saisie manuelle' : 'chrono'} ·{' '}
+                        {user?.name ?? 'Membre'} · {Math.round(entry.durationSeconds / 60)} min ·{' '}
                         {completedAt === null
                           ? ''
                           : new Intl.DateTimeFormat('fr-CH', { day: '2-digit', month: 'short' }).format(completedAt)}
                       </Text>
                     </View>
-                    <View style={styles.entryValueWrap}>
-                      <Text style={styles.entryValue}>
-                        {formatMetric(getEntryValue(entry, entitlements.useWeights), entitlements.useWeights)}
-                      </Text>
-                      <Text style={styles.entryMinutes}>{Math.round(entry.durationSeconds / 60)} min</Text>
+                    <View style={styles.entryActions}>
+                      {isOwnCompleted ? (
+                        <>
+                          <Pressable
+                            accessibilityLabel={`Corriger ${entryLabel}`}
+                            onPress={() => setCorrectingEntry(entry)}
+                            style={styles.entryAction}
+                          >
+                            <Text style={styles.entryActionText}>✏️</Text>
+                          </Pressable>
+                          <Pressable
+                            accessibilityLabel={`Supprimer ${entryLabel}`}
+                            onPress={() => confirmDeleteEntry(entry)}
+                            style={styles.entryAction}
+                          >
+                            <Text style={styles.entryActionText}>🗑️</Text>
+                          </Pressable>
+                        </>
+                      ) : null}
                     </View>
-                    {isOwnCompleted ? (
-                      <View style={styles.entryActions}>
-                        <Pressable
-                          accessibilityLabel={`Corriger ${entryLabel}`}
-                          onPress={() => setCorrectingEntry(entry)}
-                          style={styles.entryAction}
-                        >
-                          <Text style={styles.entryActionText}>✏️</Text>
-                        </Pressable>
-                        <Pressable
-                          accessibilityLabel={`Supprimer ${entryLabel}`}
-                          onPress={() => confirmDeleteEntry(entry)}
-                          style={styles.entryAction}
-                        >
-                          <Text style={styles.entryActionText}>🗑️</Text>
-                        </Pressable>
-                      </View>
-                    ) : null}
                   </View>
                 </Card>
               );
@@ -356,21 +352,8 @@ const styles = StyleSheet.create({
   },
   entryMeta: {
     color: COLORS.textMuted,
-    fontSize: 11,
+    fontSize: 12,
     lineHeight: 16,
-    marginTop: 2,
-  },
-  entryValueWrap: {
-    alignItems: 'flex-end',
-  },
-  entryValue: {
-    color: COLORS.textPrimary,
-    fontWeight: '800',
-    fontSize: 13,
-  },
-  entryMinutes: {
-    color: COLORS.textMuted,
-    fontSize: 11,
     marginTop: 2,
   },
   entryActions: {

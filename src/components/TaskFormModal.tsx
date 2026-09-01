@@ -87,8 +87,9 @@ export function TaskFormModal({
   }, [errorAnnouncement]);
 
   const submit = () => {
-    const parsedWeight = canCustomizeWeight ? Number(weight) : 1;
-    const input = { name, category, weight: parsedWeight };
+    // DRC-05 : le poids est toujours 1 dans le flux principal.
+    // La pondération est réservée aux Options avancées du foyer.
+    const input = { name, category, weight: 1 };
     const error = validateTaskInput(input);
     if (error !== null) {
       setErrorAnnouncement(computeErrorAnnouncement(errorAnnouncement, error));
@@ -162,30 +163,9 @@ export function TaskFormModal({
               })}
             </View>
 
-            <View style={styles.weightHeader}>
-              <Text style={styles.label}>Poids convenu</Text>
-              {!canCustomizeWeight ? <Text style={styles.locked}>Fonction premium</Text> : null}
-            </View>
-            {canCustomizeWeight ? (
-              <TextInput
-                accessibilityLabel="Poids de la tâche"
-                value={weight}
-                onChangeText={setWeight}
-                keyboardType="number-pad"
-                maxLength={4}
-                style={styles.input}
-              />
-            ) : (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Découvrir la pondération premium"
-                onPress={onLockedWeight}
-                style={styles.lockedField}
-              >
-                <Text style={styles.lockedFieldText}>Le mode gratuit utilise le temps brut, poids 1.</Text>
-              </Pressable>
-            )}
-            <Text style={styles.footnote}>Le poids doit rester compris entre 1 et 1000. Il ne mesure pas une vérité absolue.</Text>
+            {/* DRC-05 : la pondération est réservée aux Options avancées du foyer.
+                Elle n'apparaît jamais dans le flux principal de création/modification.
+                Le poids de la tâche est fixé à 1 par défaut dans planAddTask. */}
             {errorAnnouncement === null ? null : (
               // `key` = jeton : une erreur identique répétée remonte un nœud
               // frais, donc la région live Android re-annonce l'énoncé. Niveau

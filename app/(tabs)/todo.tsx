@@ -12,6 +12,8 @@ import { COLORS, RADIUS, SPACING } from '@/src/components/theme';
 import { getPlanLabel } from '@/src/domain/entitlements';
 import { validateManualMinutes } from '@/src/domain/validation';
 import type { TodoItem } from '@/src/domain/types';
+import { getNotificationGatewayStatus } from '@/src/services/notificationGateway';
+import { shareText, buildTodoShareText } from '@/src/services/shareService';
 import { useApp } from '@/src/store/AppProvider';
 import { selectVisibleTodos } from '@/src/store/appReducer';
 
@@ -393,6 +395,21 @@ export default function TodoScreen() {
                     </Text>
                   </View>
                   <Pressable
+                    onPress={() => {
+                      const text = buildTodoShareText({
+                        label: todo.label,
+                        assigneeName: assignee?.name ?? null,
+                        dueDate: dueLabel,
+                        note: todo.note,
+                      });
+                      shareText(text);
+                    }}
+                    style={styles.shareAction}
+                    accessibilityLabel={`Partager ${todo.label}`}
+                  >
+                    <Text style={styles.shareActionText}>↗</Text>
+                  </Pressable>
+                  <Pressable
                     onPress={() => confirmDelete(todo)}
                     style={styles.deleteAction}
                     accessibilityLabel={`Supprimer ${todo.label}`}
@@ -442,11 +459,11 @@ export default function TodoScreen() {
         </>
       ) : null}
 
-      {/* Reminders : désactivés honnêtement (pas de expo-notifications dans les dépendances) */}
+      {/* DRC-05 : notifications locales — gateway honnête */}
       <Card style={styles.reminderNotice}>
         <Text style={styles.reminderTitle}>Rappels locaux</Text>
         <Text style={styles.reminderText}>
-          Les rappels locaux seront disponibles dans une prochaine mise à jour.
+          {getNotificationGatewayStatus().message ?? 'Fonctionnalité non disponible.'}
         </Text>
       </Card>
 
@@ -573,6 +590,14 @@ const styles = StyleSheet.create({
   },
   deleteActionText: {
     fontSize: 14,
+  },
+  shareAction: {
+    padding: SPACING.xs,
+  },
+  shareActionText: {
+    fontSize: 16,
+    color: COLORS.textSecondary,
+    fontWeight: '700',
   },
   completedToggle: {
     marginTop: SPACING.md,

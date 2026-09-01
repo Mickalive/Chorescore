@@ -1,6 +1,6 @@
 # Tâche active — Ingénieur produit mobile
 
-Assignment-Id: DRC-03 (Score filtres + historique filtré + modification/suppression entrées)
+Assignment-Id: DRC-04 (To-do → CompletedEntry atomique + bilan temps réel)
 Autorité de poste : `governance/roles/MOBILE_PRODUCT_ENGINEER.md`
 Sélecteur machine : `directives/TASKS.json`
 
@@ -10,110 +10,86 @@ Lire d'abord `MAIN_PROMPT.md`, `governance/RELEASE_DEFINITION.json` et `docs/pro
 
 ## État du cycle précédent
 
-Le cycle 33454013453 a vérifié que la navigation 4→3 onglets est complète.
-L'audit indépendant (RUN_33454013453_MOBILE.json) confirme `accept` avec
-0 mustFix. 195 tests verts. Zéro delta produit. NAV-4TABS résolu.
-DRC-01 marqué complete.
+Le cycle 33472877686 a complété DRC-03. L'audit indépendant (RUN_33472877686_MOBILE.json) confirme `accept` avec 0 mustFix, 211/211 tests (195 existants +16 DRC-03), export Android succès. Filtres Score Toutes/PersistentTask/Autres, historique contextuel filtré, graphes à barres noms lisibles, vue pondérée, correction/suppression entrées libres — tous implémentés et vérifiés. DRC-03 marqué complete.
 
-### Ce qui est en place (vérifié cycle 33454013453)
+### Ce qui est en place (vérifié cycles 33454013453 + 33472877686)
 
-- **Navigation 3 onglets canoniques** : `_layout.tsx` expose exactement
-  3 Tabs.Screen (Ajouter une tâche | Score | To-do) — **VÉRIFIÉ COMPLET**
-- **Fait par modifiable** : SegmentedControl dans ManualEntryModal
-  listant `householdMembers`, défaut `currentUserId`, state
-  `performedByMemberId`, `validatePerformedBy` + `planManualEntry`
-  isolation foyer, reset `useEffect` après succès — **VÉRIFIÉ COMPLET**
-- **Score périodes** : SegmentedControl avec 4 options (Semaine, Mois,
-  Année, Depuis le début), filtrage par période, calcul rows via
-  buildLeaderboard — **EN PLACE**
-- **Score équilibres** : MetricCard Temps total + liste équilibres
-  (rank/avatar/name/meta/score/progress) — **EN PLACE**
-- **Modèle canonique V3** : CompletedEntry, PersistentTask, TodoItem,
-  calculateBalances, householdLimit, migration V2→V3 — accepté
-- **195 tests** et export Android
-- **Persistence V3** et isolation foyer
+- **Navigation 3 onglets canoniques** : `_layout.tsx` expose exactement 3 Tabs.Screen (Ajouter une tâche | Score | To-do) — **VÉRIFIÉ COMPLET**
+- **Fait par modifiable** : SegmentedControl dans ManualEntryModal listant householdMembers, défaut currentUserId, state performedByMemberId — **VÉRIFIÉ COMPLET**
+- **Score filtres** : SegmentedControl Filtre de tâche (Toutes | PersistentTask | Autres), scoreFilters.ts buildScoreFilterOptions/filterEntriesByTask — **VÉRIFIÉ COMPLET**
+- **Score historique filtré** : Section historique filtré sous stats, 30 entrées max, correspondance période+filtre — **VÉRIFIÉ COMPLET**
+- **Score graphes** : MemberBarChart noms lisibles, minutes, value, sans dépendance couleur — **VÉRIFIÉ COMPLET**
+- **Score vue pondérée** : conditionnelle si useWeights && weightSnapshot≠1, MemberBarChart secondaire — **VÉRIFIÉ COMPLET**
+- **Correction/suppression entrées** : EntryCorrectionModal + deleteEntry, isolation foyer propriétaire — **VÉRIFIÉ COMPLET**
+- **Modèle canonique V3** : CompletedEntry, PersistentTask, TodoItem, calculateBalances, householdLimit — **EN PLACE**
+- **211 tests** et export Android (1287 modules 2.8MB)
+- **Persistance V3** et isolation foyer
 
-### Blocage résiduel DRC-03
+## Tâche bornée : DRC-04 — To-do et conversion en réalisation
 
-**Filtres Score** : `score.tsx` n'affiche pas encore le sélecteur de
-filtres Toutes/PersistentTask/Autres exigé par MAIN_PROMPT §5.
-L'historique contextuel filtré sous les statistiques n'est pas rendu.
-Les graphiques à barres avec noms lisibles et la vue pondérée
-secondaire restent à vérifier/ajouter.
+### 1. TodoItem formulaire de création
 
-**PRODUCT-RESET-DATA** : les entrées libres du journal ne sont pas
-encore modifiables/supprimables.
+Dans l'onglet To-do (`app/(tabs)/todo.tsx` ou équivalent) :
+- Formulaire de création de TodoItem avec :
+  - Libellé (obligatoire)
+  - Date/deadline facultative (DatePicker ou sélecteur date)
+  - Membre assigné (défaut = membre connecté, modifiable)
+  - Bénéficiaires (sélecteur multiple, défaut = tout le foyer)
+  - Note facultative
+- Persistance dans le store avec isolation foyer
+- Affichage de la liste des To-do du foyer (en cours, datées, non datées)
 
-## Findings prioritaire
+### 2. Validation d'une To-do → mini-formulaire
 
-**PRODUCT-RESET-DATA** (high, DRC-03) — Modification/suppression
-entrées libres du journal.
+Quand un membre coche une To-do comme faite :
+- Ouvrir un mini-formulaire/modal
+- **Fait par** : défaut = membre qui valide, modifiable parmi les membres du foyer
+- **Durée réelle** : saisie en minutes (1-1440), validateur strict
+- **Fait pour** : reprend les bénéficiaires de la To-do si définis, sinon permet de choisir (sélecteur multiple)
+- Bouton valider + bouton annuler
 
-## Tâche bornée : DRC-03 — Score filtres + historique filtré + journal
+### 3. Création atomique CompletedEntry
 
-### 1. Ajouter filtres Score dans score.tsx
+La validation du mini-formulaire doit :
+1. Créer une `CompletedEntry` indépendante avec :
+   - label = libellé de la To-do
+   - performedByMemberId = valeur du formulaire fait-par
+   - beneficiaryMemberIds = valeur du formulaire fait-pour
+   - durationMinutes = durée réelle saisie
+   - completedAt = date/heure courante
+   - taskId = null (entrée libre, pas liée à une PersistentTask)
+   - weightSnapshot = poids courant du membre fait-par
+2. Terminer la TodoItem (statut = completed)
+3. L'historique complet (tab Ajouter une tâche) affiche immédiatement la nouvelle entrée
+4. Score se recalcule immédiatement avec la nouvelle entrée
 
-Dans `app/(tabs)/score.tsx` :
-- Ajouter un état `activeFilter` (default: "all")
-- Créer un sélecteur de filtres : Toutes | [chaque PersistentTask] | Autres
-- Les PersistentTask du foyer sont listées dynamiquement depuis le store
-- Le filtre "Toutes" affiche toutes les entrées
-- Le filtre par PersistentTask affiche uniquement les entrées liées à cette PersistentTask
-- Le filtre "Autres" affiche les entrées sans PersistentTask assignée
-- Appliquer le filtre aux données de calcul (rows, métriques, graphes)
+### 4. Reminders locaux (si honnêtement possible)
 
-### 2. Historique contextuel filtré sous les stats
+- Si le device supporte les notifications locales : proposer un reminder configurable (date/heure de rappel)
+- Si non disponible : ne pas simuler, laisser les reminders « à venir » avec mention honnête
+- Les reminders ne bloquent pas la création de To-do
 
-- Sous la zone statistiques/équilibres, afficher la liste des CompletedEntry
-  qui correspondent à la période ET au filtre sélectionnés
-- Chaque entrée affiche : label, durée, fait par, fait pour, date
-- Format compact similaire à l'historique sous Ajouter une tâche
-- Le compteur indique le nombre d'entrées affichées
+### 5. Non-régressions
 
-### 3. Graphiques à barres avec noms
-
-- Si des graphiques à barres existent, vérifier que le nom du membre
-  est directement associé à chaque barre (label ou tooltip)
-- Ne pas dépendre d'une couleur permanente par membre
-- Les couleurs peuvent servir à la lisibilité mais l'identité est portée
-  par le nom
-
-### 4. Vue pondérée secondaire
-
-- Si des entrées ont un coefficient ≠ 1, afficher une section
-  "Heures pondérées" sous les stats réelles
-- Même logique fait-par/fait-pour mais avec D_pondéré = D_réel × coefficient
-- Le temps réel reste toujours la métrique principale
-
-### 5. Modification/suppression entrées libres (PRODUCT-RESET-DATA)
-
-- Permettre la modification d'une entrée libre dans l'historique
-  (label, durée, fait par, fait pour, date)
-- Permettre la suppression d'une entrée libre avec confirmation
-- Le modèle de confiance par défaut autorise modification/suppression
-  par n'importe quel membre du foyer
-- Après modification/suppression, recalculer les équilibres
-
-### 6. Préserver
-
-- Fait par modifiable (SegmentedControl) préservé dans le formulaire
-- Navigation 3 onglets canoniques préservée
-- Les 195 tests existants restent verts
+- Fait par modifiable préservé
+- Navigation 3 onglets préservée
+- Filtres Score préservés
+- Historique contextuel filtré préservé
+- 211+ tests restent verts
 - Export Android réussit
-- Navigation fonctionne en demo sans réseau
 
-### 7. Tests
+### 6. Tests
 
-- Tests de filtres vérifiant que chaque filtre retourne les bonnes entrées
-- Tests d'historique filtré vérifiant la correspondance période + filtre
-- Tests de modification/suppression d'entrée libre
-- Aucune régression des 195 tests existants
+- Tests de création TodoItem (libellé, date, assignation, bénéficiaires, note)
+- Tests de conversion To-do → CompletedEntry (atomique, fait-par défaut modifiable, durée, fait-pour, CreatedEntry visible)
+- Tests d'isolation foyer (To-do d'un foyer non visible dans l'autre)
+- Tests de reminder si implémenté
+- Aucune régression des 211 tests existants
 
 ## Preuves attendues
 
-- `app/(tabs)/score.tsx` contient sélecteur de filtres Toutes/PersistentTask/Autres
-- `app/(tabs)/score.tsx` affiche historique contextuel filtré sous les stats
-- Historique permet modification/suppression d'entrées libres
-- Graphiques affichent noms des membres
-- Vue pondérée secondaire présente si coefficients ≠ 1
-- npm run check vert, 195+ tests, export android succès
+- To-do permet créer une TodoItem avec tous les champs
+- Le check fait ouvre un mini-formulaire avec fait-par/durée/fait-pour
+- La validation crée atomiquement une CompletedEntry + termine la TodoItem
+- L'historique complet et Score se mettent à jour immédiatement
+- 211+ tests verts, npm run check vert, export Android succès

@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "milestone": "demo-rc",
   "governanceVersion": "2026-08-30-product-reset",
-  "lastCycle": "33454013453",
-  "activeCriteria": ["DRC-03"],
+  "lastCycle": "33472877686",
+  "activeCriteria": ["DRC-04"],
   "stalledCycles": 0,
-  "progressSummary": "Cycle 33454013453 : verification-only mobile DRC-01 NAV-4TABS — l'audit indépendant confirme accept avec 0 mustFix, 195 tests, zéro delta produit. La navigation affiche exactement 3 onglets canoniques (Ajouter une tâche | Score | To-do). NAV-4TABS résolu. DRC-01 marqué complete (tests + audit). DRC-02/07 restent complete. DRC-03 devient le prochain critère actif (filtres Score Toutes/PersistentTask/Autres + historique contextuel filtré + graphes). DRC-04/05 restent pending. Stagnation = 0.",
+  "progressSummary": "Cycle 33472877686 : DRC-03 accept — l'audit indépendant (RUN_33472877686_MOBILE.json) confirme accept avec 0 mustFix, 211/211 tests (195 existants +16 DRC-03 dédiés), export Android succès (1287 modules 2.8MB). Filtres Score Toutes/PersistentTask/Autres implémentés (scoreFilters.ts + SegmentedControl), historique contextuel filtré sous stats (période+filtre, 30 entrées max), graphes à barres MemberBarChart avec noms lisibles sans dépendance couleur, vue pondérée secondaire conditionnelle, correction/suppression entrées libres (EntryCorrectionModal + deleteEntry, isolation foyer propriétaire). DRC-03 marqué complete (tests + audit). DRC-01/02/07 restent complete. DRC-04 devient le prochain critère actif. Stagnation = 0.",
   "blocker": null,
   "criteria": [
     {
@@ -29,15 +29,15 @@
     },
     {
       "id": "DRC-03",
-      "status": "in_progress",
+      "status": "complete",
       "evidence": [
-        {"kind":"tests","reference":"Historique : modification/suppression/annulation couvertes sur l'ancien modèle au cycle 32864465631. Les primitives peuvent être réutilisées mais doivent être appliquées aux entrées libres, pas aux définitions de tâches.","cycle":"32864465631"},
-        {"kind":"product-reset","reference":"À revalider : modifier/supprimer une entrée libre et corriger nom/personne/durée/date/options avancées ; aucun archivage de TaskDefinition requis.","cycle":"human-product-reset-20260830"}
+        {"kind":"tests","reference":"211/211 tests verts dont 16 DRC-03 dédiés (drc03-score-filters.test.ts : buildScoreFilterOptions Toutes/Autres/isolation, filterEntriesByTask Toutes/taskId/Autres, hasArchived, buildMemberBarData tri/value/isolation/vide, hasWeightedContent). 195 existants préservés, aucune régression.","cycle":"33472877686"},
+        {"kind":"audit","reference":"reports/audits/RUN_33472877686_MOBILE.json — decision accept, 0 mustFix, filtres Score Toutes/PersistentTask/Autres (scoreFilters.ts + SegmentedControl), historique contextuel filtré sous stats, MemberBarChart noms lisibles, vue pondérée conditionnelle, correction/suppression entrées libres (EntryCorrectionModal + deleteEntry isolation foyer), export Android succès (1287 modules 2.8MB), 211 tests.","cycle":"33472877686"}
       ]
     },
     {
       "id": "DRC-04",
-      "status": "pending",
+      "status": "in_progress",
       "evidence": [
         {"kind":"tests","reference":"Historique : isolation multi-foyers et export local précédemment testés au cycle 32919230502 ; briques à préserver.","cycle":"32919230502"},
         {"kind":"product-reset","reference":"À revalider : création/changement de foyer réellement accessible et bilan temps réel semaine/mois/année/depuis le début. Ces quatre périodes sont cœur produit, pas premium. Pondération seulement facultative dans Options avancées.","cycle":"human-product-reset-20260830"}
@@ -96,8 +96,9 @@
       "role": "mobile",
       "severity": "high",
       "mustFixBeforeRelease": true,
-      "status": "unresolved",
-      "requiredFix": "Appliquer correction et suppression aux entrées libres du journal ; retirer du parcours principal la gestion active/archivée de définitions de tâches."
+      "status": "resolved",
+      "requiredFix": "Appliquer correction et suppression aux entrées libres du journal ; retirer du parcours principal la gestion active/archivée de définitions de tâches.",
+      "resolvedPart": "PRODUCT-RESET-DATA résolu par audit indépendant cycle 33472877686 : EntryCorrectionModal + deleteEntry avec isolation foyer (planEditEntryDuration/planDeleteEntry, userId===currentUserId, status completed, householdId isolation), 211 tests dont 16 DRC-03, zéro mustFix. Confirmation que l'état accepté satisfait la modification/suppression entrées libres du journal."
     },
     {
       "id": "PRODUCT-RESET-BALANCE",

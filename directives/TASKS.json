@@ -1,24 +1,24 @@
 {
   "schemaVersion": 1,
   "milestone": "demo-rc",
-  "updatedBy": "director-run-33454013453",
-  "activeCriteria": ["DRC-03"],
+  "updatedBy": "director-run-33472877686",
+  "activeCriteria": ["DRC-04"],
   "assignments": {
     "mobile": {
       "enabled": true,
-      "criterionId": "DRC-03",
-      "objective": "DRC-03 remaining:Ajouter les filtres Score Toutes/PersistentTask/Autres et l'historique contextuel filtré sous les statistiques. Le calcul fait-par/fait-pour et les périodes (semaine/mois/année/depuis le début) sont déjà en place dans score.tsx. Les filtres Toutes/PersistentTask/Autres ne sont pas encore rendus. L'historique contextuel filtré sous les stats n'est pas affiché. Les graphes à barres avec noms lisibles et la vue pondérée secondaire restent à vérifier/ajouter.PRODUCT-RESET-DATA unresolved : modification/suppression entrées libres du journal.",
+      "criterionId": "DRC-04",
+      "objective": "DRC-04 : To-do et conversion en réalisation. Le formulaire To-do doit gérer tâches datées ou non, attribution à un membre, bénéficiaires, notes, deadline et reminders locaux. Le check fait doit demander fait-par (défaut membre connecté, modifiable) + durée réelle + fait-pour (reprend bénéficiaires To-do ou permet choix) puis créer atomiquement une CompletedEntry, terminer la TodoItem et mettre immédiatement à jour historique complet et Score. Les 211 tests existants restent verts. PRODUCT-RESET-BALANCE unresolved : bilan temps réel 4 périodes cœur produit.",
       "acceptance": [
-        "Score.tsx affiche un sélecteur de filtres : Toutes | une entrée par PersistentTask | Autres.",
-        "La sélection de filtre filtre correctement les entrées affichées dans les stats et l'historique.",
-        "Un historique contextuel filtré (liste des CompletedEntry correspondant à la période + filtre) apparaît sous les statistiques.",
-        "Les graphiques à barres affichent le nom du membre directement sur/à côté de chaque barre (pas couleur=identité obligatoire).",
-        "La vue pondérée secondaire est accessible quand un coefficient ≠ 1 existe.",
-        "PRODUCT-RESET-DATA : les entrées libres du journal peuvent être modifiées/supprimées (modèle de confiance).",
-        "Les 195+ tests existants restent verts (aucune régression).",
+        "TodoItem est créable avec libellé, date/deadline facultative, membre assigné, bénéficiaires, note.",
+        "Le check fait ouvre un mini-formulaire : fait-par défaut membre connecté (modifiable parmi membres foyer), durée réelle, fait-pour reprend bénéficiaires To-do ou permet choix.",
+        "La validation crée atomiquement une CompletedEntry indépendante + termine la TodoItem.",
+        "L'historique complet (tab Ajouter une tâche) et Score se mettent à jour immédiatement après conversion.",
+        "Les reminders locaux sont configurables (si non possible honnêtement, désactivé avec mention).",
+        "PRODUCT-RESET-BALANCE : les 4 périodes (semaine/mois/année/depuis le début) sont cœur produit, pas premium.",
+        "Les 211+ tests existants restent verts (aucune régression).",
         "npm run check vert et EXPO_PUBLIC_DATA_MODE=demo npx expo export --platform android succès."
       ],
-      "firstTask": "PRODUCT-RESET-DATA + Score filtres :Ajouter filtres Toutes/PersistentTask/Autres dans Score, historique contextuel filtré sous stats, vérifier graphes à noms et vue pondérée, et permettre modification/suppression entrées libres du journal."
+      "firstTask": "To-do → CompletedEntry atomique : formulaire de validation (fait-par modifiable, durée, fait-pour) + création CompletedEntry + terminaison TodoItem + mise à jour immédiate historique/Score."
     },
     "backend": {
       "enabled": false,

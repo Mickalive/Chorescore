@@ -10,7 +10,7 @@ Lire d'abord `MAIN_PROMPT.md`, `governance/RELEASE_DEFINITION.json` et `docs/pro
 
 ## État du cycle précédent
 
-Le cycle 33472877686 a complété DRC-03. L'audit indépendant (RUN_33472877686_MOBILE.json) confirme `accept` avec 0 mustFix, 211/211 tests (195 existants +16 DRC-03), export Android succès. Filtres Score Toutes/PersistentTask/Autres, historique contextuel filtré, graphes à barres noms lisibles, vue pondérée, correction/suppression entrées libres — tous implémentés et vérifiés. DRC-03 marqué complete.
+Le cycle 33496035059 a échoué (provider failure — mobile candidate unavailable). Aucun candidat produit, aucun audit généré. DRC-04 reste in_progress. Stagnation = 1. Le cycle 33472877686 avait complété DRC-03 avec 211/211 tests et audit accept.
 
 ### Ce qui est en place (vérifié cycles 33454013453 + 33472877686)
 

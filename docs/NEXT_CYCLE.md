@@ -4,28 +4,25 @@
 
 `demo-rc` — application Android locale, persistante, honnête et révisable.
 
-## État au cycle 33472877686
+## État au cycle 33496035059
 
 - **DRC-01 reste `complete`** — navigation 3 onglets canoniques vérifiée
   par audit indépendant, Fait par modifiable préservé, 195 tests.
   NAV-4TABS et PRODUCT-RESET-CORE résolus.
 - **DRC-02 reste `complete`** — persistance/migration validées.
-- **DRC-03 est `complete`** — cycle 33472877686 accept avec 0 mustFix,
-  211/211 tests (195+16 DRC-03), filtres Score Toutes/PersistentTask/
-  Autres, historique contextuel filtré, graphes MemberBarChart noms
-  lisibles, vue pondérée conditionnelle, correction/suppression entrées
-  libres (EntryCorrectionModal + deleteEntry isolation foyer). Export
-  Android succès (1287 modules 2.8MB). PRODUCT-RESET-DATA résolu.
-- **DRC-04 devient `in_progress`** — To-do → CompletedEntry atomique
+- **DRC-03 reste `complete`** — cycle 33472877686 accept avec 0 mustFix,
+  211/211 tests, filtres Score, historique contextuel, graphes, correction
+  journal. PRODUCT-RESET-DATA résolu.
+- **DRC-04 reste `in_progress`** — To-do → CompletedEntry atomique
   (formulaire validation fait-par modifiable, durée, fait-pour) +
   PRODUCT-RESET-BALANCE unresolved (bilan temps réel 4 périodes cœur
-  produit).
+  produit). Provider failure ce cycle, aucun progrès.
 - **DRC-05 reste `pending`** — PRODUCT-RESET-UX unresolved (refonte
   interface).
 - **DRC-06 reste `pending`** — dépend de DRC-01 à DRC-05 complets.
 - **DRC-07 reste `complete`** — documentation backend acceptée.
-- **Stagnation = 0** — progrès objectif le cycle précédent (DRC-03
-  complete avec filtres+historique+graphes+correction journal).
+- **Stagnation = 1** — provider failure mobile (aucun candidat produit),
+  pas de progrès produit ce cycle.
 
 ## Prochaine action
 

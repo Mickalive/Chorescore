@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "milestone": "demo-rc",
   "governanceVersion": "2026-08-30-product-reset",
-  "lastCycle": "33472877686",
+  "lastCycle": "33496035059",
   "activeCriteria": ["DRC-04"],
-  "stalledCycles": 0,
-  "progressSummary": "Cycle 33472877686 : DRC-03 accept — l'audit indépendant (RUN_33472877686_MOBILE.json) confirme accept avec 0 mustFix, 211/211 tests (195 existants +16 DRC-03 dédiés), export Android succès (1287 modules 2.8MB). Filtres Score Toutes/PersistentTask/Autres implémentés (scoreFilters.ts + SegmentedControl), historique contextuel filtré sous stats (période+filtre, 30 entrées max), graphes à barres MemberBarChart avec noms lisibles sans dépendance couleur, vue pondérée secondaire conditionnelle, correction/suppression entrées libres (EntryCorrectionModal + deleteEntry, isolation foyer propriétaire). DRC-03 marqué complete (tests + audit). DRC-01/02/07 restent complete. DRC-04 devient le prochain critère actif. Stagnation = 0.",
-  "blocker": null,
+  "stalledCycles": 1,
+  "progressSummary": "Cycle 33496035059 : provider failure — mobile candidate unavailable (job failure), aucun candidat produit, aucun audit généré. Backend désactivé (DRC-07 complete). DRC-04 reste in_progress (To-do → CompletedEntry atomique). PRODUCT-RESET-BALANCE unresolved. Stagnation = 1 (provider failure, pas de progrès produit). DRC-01/02/03/07 restent complete avec preuves intactes.",
+  "blocker": "provider-failure-mobile",
   "criteria": [
     {
       "id": "DRC-01",

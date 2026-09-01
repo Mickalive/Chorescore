@@ -8,9 +8,8 @@ Auditer séparément chaque poste codeur activé dans `directives/TASKS.json`.
 
 ## Statut
 
-**Lane audit inactive.** Le cycle 33472877686 a produit et intégré un candidat mobile DRC-03
-(filtres Score, historique contextuel, graphes, correction journal) avec audit `accept` et
-0 mustFix. 211/211 tests, export Android succès. DRC-03 marqué complete.
+**Lane audit inactive.** Le cycle 33496035059 a échoué (provider failure —
+mobile candidate unavailable). Aucun candidat produit, aucun audit à effectuer.
 
 La lane audit sera réactivée dès qu'un nouveau candidat mobile sera
 produit pour DRC-04 (To-do → CompletedEntry atomique) et transmis

@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "cycle": "33496035059",
+  "decision": "continue",
+  "reason": "Provider failure — mobile candidate unavailable (job result: failure). No candidate produced, no audit generated, no integration possible. Backend disabled (DRC-07 complete). DRC-04 remains active criterion with PRODUCT-RESET-BALANCE unresolved. Stagnation increments to 1. Mobile retries DRC-04 next cycle.",
+  "activeCriteria": ["DRC-04"],
+  "stalledCycles": 1,
+  "progressEvidence": [
+    "Cycle 33496035059 : mobile candidate-unavailable (job failure), no candidate produced, no audit",
+    "No product delta — base SHA 8ec1f9765c9f3a91ebc0d2390b02722e8fc64503 unchanged",
+    "DRC-01/02/03/07 remain complete with intact evidence",
+    "DRC-04 remains in_progress — To-do → CompletedEntry atomique pending",
+    "PRODUCT-RESET-BALANCE unresolved — 4 périodes cœur produit"
+  ],
+  "next": {
+    "mobile": "Activé — DRC-04 : To-do → CompletedEntry atomique (formulaire validation fait-par modifiable, durée, fait-pour), reminders locaux si supportés, PRODUCT-RESET-BALANCE (4 périodes cœur produit). Préserver navigation 3 onglets, filtres Score, Fait par modifiable et 211+ tests.",
+    "backend": "Désactivé — DRC-07 complete",
+    "audit": "Lane audit inactive — aucun candidat à auditer ce cycle"
+  },
+  "findingsUpdate": [
+    {
+      "id": "PRODUCT-RESET-CORE",
+      "status": "resolved",
+      "note": "Résolu cycles 33369130489 + 33454013453. Fait par modifiable via SegmentedControl, 195 tests, zéro delta."
+    },
+    {
+      "id": "NAV-4TABS",
+      "status": "resolved",
+      "note": "Résolu cycle 33454013453. _layout.tsx 3 Tabs.Screen canoniques, legacy redirects, 195 tests."
+    },
+    {
+      "id": "PRODUCT-RESET-DATA",
+      "status": "resolved",
+      "note": "Résolu cycle 33472877686 : audit accept confirme EntryCorrectionModal + deleteEntry, isolation foyer, 211 tests dont 16 DRC-03."
+    },
+    {
+      "id": "PRODUCT-RESET-BALANCE",
+      "status": "unresolved",
+      "note": "Inchangé — dépend de DRC-04 (bilan temps réel 4 périodes cœur produit, pas premium). Provider failure ce cycle, aucun progrès."
+    },
+    {
+      "id": "PRODUCT-RESET-UX",
+      "status": "unresolved",
+      "note": "Inchangé — dépend de DRC-05 (refonte interface)"
+    }
+  ],
+  "humanActions": []
+}

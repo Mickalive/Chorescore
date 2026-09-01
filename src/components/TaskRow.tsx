@@ -133,7 +133,7 @@ export function TaskRow({
 const styles = StyleSheet.create({
   activeCard: {
     borderColor: COLORS.success,
-    backgroundColor: '#F6FCFA',
+    backgroundColor: '#F8F4EF',
   },
   topRow: {
     flexDirection: 'row',

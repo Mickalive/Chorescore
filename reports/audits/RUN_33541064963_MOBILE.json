@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "cycle": "33541064963",
+  "role": "mobile",
+  "round": 1,
+  "decision": "accept",
+  "summary": "DRC-05 UX refonte validée : fonds teintés chaleureux sans blanc dominant, temps réel principal conservé, pondération reléguée au secondaire, suppression des messages moraux automatiques, contrastes AA préservés, 238/238 tests verts et export Android 1287 modules 2.9MB. Le delta est ciblé, sans régression sur DRC-01/02/03/04, et honnêtement désactive partage/calendrier/notifications via gateways propres en attendant l'implémentation système.",
+  "findings": [
+    {
+      "path": "src/components/theme.ts",
+      "problem": "Fonds blancs dominants à corriger pour DRC-05 feel-good chaleureux",
+      "evidence": "Avant : background #FEFEFE, surface #FFFFFF, surfaceAlt #F8F9FA (blanc quasi-pur). Après : background #F7F2EB, surface #FFFDF9, surfaceAlt #F6F2ED avec teinte chaude R>B+2 (test theme-contrast DRC-05 teinte chaude passe). Vérifié par npm run check 238 tests et expo export.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise — teintes chaudes cream/beige implémentées, contrastes AA maintenus (textPrimary #264653, textSecondary #3C6E8E, textMuted #56707C tous ≥4.5:1 sur les 5 fonds réels).",
+      "verification": "npm run check (238/238 pass), tests/theme-contrast.test.ts teinte chaude + AA, EXPO_PUBLIC_DATA_MODE=demo expo export --platform android 1287 modules 2.9MB."
+    },
+    {
+      "path": "app/(tabs)/index.tsx",
+      "problem": "Message moral automatique et métrique pondérée en flux principal à supprimer",
+      "evidence": "Diff supprime balanceNote 'Un indicateur, pas un verdict / Discutez ensemble...' et simplifie subtitle à 'Enregistre ce qui a été fait.' Métrique passe de formatMetric(currentMetric, entitlements.useWeights) à formatMetric(currentMetric,false) avec détail 'tâches saisies' au lieu de 'durée × poids convenu'.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction — temps réel redevenu métrique principale, second metric 'Tâches saisies' supprimé au profit d'un détail intégré, journal compact conservé sous Ajouter une tâche.",
+      "verification": "Lecture du diff git HEAD, npm run check, inspection visuelle index.tsx L122-135, grep moral 0 occurrence hors onboarding descriptif autorisé."
+    },
+    {
+      "path": "app/(tabs)/score.tsx",
+      "problem": "Commentaire interprétatif et vue pondérée présentée comme primaire",
+      "evidence": "Diff supprime disclaimer 'Le rang est un résumé des saisies, pas une évaluation des personnes.' et remplace subtitle conditionnel useWeights par 'Équilibres et contribution de chaque membre du foyer.' Métrique 'Points (temps brut/poids)' devient 'Poids total' affiché uniquement si entitlements.useWeights avec 'durée × poids convenu' en détail secondaire.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction — temps réel (Temps total min) reste premier MetricCard, vue pondérée secondaire conditionnelle, aucun texte moralisateur.",
+      "verification": "Diff score.tsx L212-L254 et L390, grep 'Le rang' 0 hit, npm run check 238 pass."
+    },
+    {
+      "path": "app/(tabs)/todo.tsx",
+      "problem": "Partage système, calendrier et notifications DRC-05 non encore branchés sur gateways natives",
+      "evidence": "Aucun import Share/Sharing, expo-calendar, expo-notifications. Todo.tsx L445 affiche honnêtement 'Rappels locaux seront disponibles dans une prochaine mise à jour.' avec COLORS.secondary sans fausse promesse réseau. ExportReport existe mais non partagé via share sheet.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction bloquante pour ce delta UX — DRC-05 reste in_progress; implémenter ultérieurement share sheet système depuis Score/historique/To-do et gateways calendrier/notifications avec permissions honnêtes sans SDK social spécifique. Ne pas simuler comme réel.",
+      "verification": "grep -rn Share src/app 0 hit, inspection todo.tsx L445-451, vérification package.json sans expo-sharing/calendar/notifications, npm run check vert."
+    },
+    {
+      "path": "src/components/TaskRow.tsx",
+      "problem": "Vérification pondération en Options avancées vs flux principal",
+      "evidence": "TaskRow affiche encore badge poids '×N' ou '1 min' selon useWeights, mais métrique principale index/score n'en dépend plus. TaskFormModal weight input gated par canCustomizeWeights -> showPaywall('custom_weights'). Conforme à MAIN_PROMPT §5 : pondération secondaire après temps réel.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction — badge informatif conservé sans remplacer minutes réelles; pondération reste option avancée gated, non bloquante pour DRC-05 UX.",
+      "verification": "Lecture TaskRow.tsx L69-73, TaskFormModal canCustomizeWeight, npm run check, Score showWeighted conditionnel."
+    }
+  ],
+  "checks": [
+    "npm run check -> typecheck OK, 238/238 tests pass (237 existants + 1 DRC-05 teinte chaude), duration 360ms",
+    "EXPO_PUBLIC_DATA_MODE=demo npx expo export --platform android -> 1287 modules 2.9MB success",
+    "npm audit --omit=dev --audit-level=high -> 0 high, 14 moderate only",
+    "grep moral/interprétatif (verdict, moral, Discutez, rang résumé) -> 0 hit après delta (hors onboarding descriptif autorisé)",
+    "Tabs 3 canoniques vérifiés dans app/(tabs)/_layout.tsx -> Ajouter une tâche | Score | To-do uniquement",
+    "theme-contrast.test.ts AA ≥4.5:1 sur 5 fonds réels + teinte chaude R>B+2 -> tous pass",
+    "Journal compact + action Ajouter évidente vérifiés dans index.tsx (SectionTitle Historique complet, AppButton Ajouter, entryRow compact)",
+    "Pondération secondaire vérifiée : index metric false, Score Poids total conditionnel, weightedBarData secondaire"
+  ]
+}

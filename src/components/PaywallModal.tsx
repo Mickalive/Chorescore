@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
   },
   proCard: {
     borderColor: COLORS.accent,
-    backgroundColor: '#FFFDF5',
+    backgroundColor: '#FFFBF0',
   },
   planName: {
     color: COLORS.textPrimary,

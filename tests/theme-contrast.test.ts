@@ -9,37 +9,28 @@ import { COLORS } from '../src/components/theme.js';
  * jeton central `theme.ts` soit validée contre le seuil AA 4,5:1 sans outil
  * externe.
  *
- * Fonds réels de `textMuted` (inventaire du code, cf. rapport du codeur) :
- * - COLORS.background (#FEFEFE) : aides de modales, pied d'onboarding,
- *   avertissement du classement, ligne « Plan actuel » du paywall ;
- * - COLORS.surface (#FFFFFF) : cartes (méta d'entrée et minutes de
- *   l'historique, méta du classement, détail des MetricCard, valeurs du
- *   graphique) et barre d'onglets inactive ;
- * - COLORS.surfaceAlt (#F8F9FA) : note de rétention de l'historique ;
- * - '#F7FCFB' : carte du membre courant dans le classement ;
- * - '#FFFDF5' : carte Pro du paywall (styles.proCard en override de planCard,
- *   libellé « par mois et par foyer » styles.perMonth) — fond codé en dur
- *   hors jetons du thème, candidat à une future tokenisation.
+ * Fonds réels de `textMuted` (inventaire du code) :
+ * - COLORS.background (#F7F2EB) : fond dominant écran, aides de modales,
+ *   pied d'onboarding ;
+ * - COLORS.surface (#FFFDF9) : cartes (méta d'entrée, minutes de
+ *   l'historique, méta du classement, détail des MetricCard) ;
+ * - COLORS.surfaceAlt (#F6F2ED) : note de rétention de l'historique ;
+ * - '#F8F4EF' : carte active du chrono (TaskRow) et carte courante du
+ *   classement (Score currentCard) ;
+ * - '#FFFBF0' : carte Pro du paywall (proCard).
  *
- * Inventaire secondaire de `textSecondary` (MOB-CYCLE32961708279-SEG) — tous
- * les fonds réels où `color: COLORS.textSecondary` est rendu dans app/ et src/ :
- * - COLORS.background (#FEFEFE) : reportFile historique, body du PaywallModal,
- *   aides de modales (ManualEntry, TaskForm, EntryCorrection), avertissement
- *   du classement, pied d'onboarding, ScreenHeader, SectionTitle, HydrationGate ;
- * - COLORS.surface (#FFFFFF) : planCard Standard du paywall, Carte méta
+ * Inventaire secondaire de `textSecondary` — tous les fonds réels où
+ * `color: COLORS.textSecondary` est rendu dans app/ et src/ :
+ * - COLORS.background (#F7F2EB) : ScreenHeader, SectionTitle, HydrationGate ;
+ * - COLORS.surface (#FFFDF9) : planCard Standard du paywall, Carte métra
  *   d'entrée, MetricCard, NativeBarChart, ContributionBar track ;
- * - COLORS.surfaceAlt (#F8F9FA) : libellés non sélectionnés du SegmentedControl
- *   (filtre membre historique, périodes historique/classement/profil), emptyText
- *   du classement, archivedNote et planNote de l'historique, capNote du profil,
- *   ContributionBar, TaskForm sections secondaires ;
- * - '#F7FCFB' : rang du membre courant dans le classement (rank), membre
- *   sélectionné du profil (selectedMember) — fond codé en dur hors jetons ;
- * - '#FFFDF5' : planDetail et disclaimer du Pro dans PaywallModal — fond
- *   codé en dur hors jetons du thème ;
- * - COLORS.secondary (#F1FAEE) : disclaimer du PaywallModal, section de
- *   tâches archivées (TaskForm), demoBanner, avertissement du classement ;
- * - '#EDF8F6' : closeText du NoticeBanner — fond codé en dur hors jetons ;
- * - '#F6FCFA' : TaskRow — fond codé en dur hors jetons.
+ * - COLORS.surfaceAlt (#F6F2ED) : libellés non sélectionnés du SegmentedControl,
+ *   emptyText, archivedNote, capNote, ContributionBar, TaskForm sections ;
+ * - '#F8F4EF' : carte active du chrono et carte courante du classement ;
+ * - '#FFFBF0' : planDetail et disclaimer du Pro dans PaywallModal ;
+ * - COLORS.secondary (#F1FAEE) : disclaimer du PaywallModal, demoBanner ;
+ * - '#EFF8F0' : NoticeBanner container ;
+ * - '#F8F4EF' : TaskRow active card.
  *
  * Le test couvre aussi les paires de remplacement documentées lors des audits
  * précédents pour empêcher toute régression silencieuse du thème.
@@ -76,11 +67,11 @@ export function contrastRatio(foreground: string, background: string): number {
 
 test('le jeton textMuted atteint AA (≥ 4,5:1) sur chaque fond où il est réellement employé', () => {
   const mutedBackgrounds: Array<[string, string]> = [
-    [COLORS.background, 'background — modales, onboarding, classement, paywall'],
-    [COLORS.surface, 'surface — cartes et barre d’onglets'],
-    [COLORS.surfaceAlt, 'surfaceAlt — note de rétention de l’historique'],
-    ['#F7FCFB', 'carte courante du classement'],
-    ['#FFFDF5', 'carte Pro du paywall (proCard — perMonth)'],
+    [COLORS.background, 'background — fond dominant écran, aides de modales'],
+    [COLORS.surface, 'surface — cartes et barre d\'onglets'],
+    [COLORS.surfaceAlt, 'surfaceAlt — note de rétention de l\'historique'],
+    ['#F8F4EF', 'carte active du chrono et carte courante du classement'],
+    ['#FFFBF0', 'carte Pro du paywall (proCard)'],
   ];
   for (const [background, usage] of mutedBackgrounds) {
     const ratio = contrastRatio(COLORS.textMuted, background);
@@ -112,14 +103,14 @@ test('les paires de remplacement documentées par les audits restent conformes',
 
 test('le jeton textSecondary atteint AA (≥ 4,5:1) sur chaque fond réel de l\'inventaire secondaire', () => {
   const secondaryBackgrounds: Array<[string, string]> = [
-    [COLORS.background, 'background — reportFile, body paywall, modales, onboarding, ScreenHeader, SectionTitle'],
-    [COLORS.surface, 'surface — planCard, Carte méta, MetricCard, NativeBarChart'],
-    [COLORS.surfaceAlt, 'surfaceAlt — SegmentedControl non sélectionné (filtre membre, périodes), emptyText, archivedNote, planNote, capNote, ContributionBar'],
-    ['#F7FCFB', 'carte courante classement (rank) et profil sélectionné (selectedMember) — fond codé en dur'],
-    ['#FFFDF5', 'planDetail et disclaimer Pro paywall — fond codé en dur'],
-    [COLORS.secondary, 'secondary — disclaimer paywall, section archivées, demoBanner, avertissement classement'],
-    ['#EDF8F6', 'NoticeBanner closeText — fond codé en dur'],
-    ['#F6FCFA', 'TaskRow — fond codé en dur'],
+    [COLORS.background, 'background — ScreenHeader, SectionTitle, HydrationGate'],
+    [COLORS.surface, 'surface — planCard, Carte métra, MetricCard, NativeBarChart'],
+    [COLORS.surfaceAlt, 'surfaceAlt — SegmentedControl non sélectionné, emptyText, archivedNote, capNote, ContributionBar'],
+    ['#F8F4EF', 'carte active chrono et carte courante classement — fond codé en dur'],
+    ['#FFFBF0', 'planDetail et disclaimer Pro paywall — fond codé en dur'],
+    [COLORS.secondary, 'secondary — disclaimer paywall, demoBanner'],
+    ['#EFF8F0', 'NoticeBanner container — fond codé en dur'],
+    ['#F8F4EF', 'TaskRow active card — fond codé en dur'],
   ];
   for (const [background, usage] of secondaryBackgrounds) {
     const ratio = contrastRatio(COLORS.textSecondary, background);
@@ -138,4 +129,21 @@ test('l\'ancien jeton textSecondary #457B9D échouait bien le seuil sur surfaceA
   assert.ok(legacyOnSurfaceAlt < 4.5, `ancien #457B9D sur surfaceAlt devrait être < 4,5:1, mesuré ${legacyOnSurfaceAlt.toFixed(2)}:1`);
   const legacyOnCurrentCard = contrastRatio('#457B9D', '#F7FCFB');
   assert.ok(legacyOnCurrentCard < 4.5, `ancien #457B9D sur #F7FCFB devrait être < 4,5:1, mesuré ${legacyOnCurrentCard.toFixed(2)}:1`);
+});
+
+test('DRC-05 : le fond dominant n\'est ni blanc pur ni gris froid — teinte chaude requirement', () => {
+  // Vérifie que background n'est ni #FFFFFF (blanc pur) ni #FEFEFE (quasi-blanc)
+  // ni aucun gris froid. Le fond doit être teinté pour éviter le blanc dominant.
+  const bg = parseHex(COLORS.background);
+  // Un fond teinté a au moins une composante chaude (R > B). background pur
+  // aurait R=G=B. Ici on exige R > B + 2 pour garantir la teinte chaude.
+  assert.ok(
+    bg.r > bg.b + 2,
+    `background ${COLORS.background} devrait avoir une teinte chaude (R > B), mesuré R=${bg.r} B=${bg.b}`,
+  );
+  // Le blanc pur ou quasi-pur a R ≥ 254. Notre fond doit être nettement plus foncé.
+  assert.ok(
+    bg.r < 253,
+    `background ${COLORS.background} ne devrait pas être blanc pur (R ≥ 253)`,
+  );
 });

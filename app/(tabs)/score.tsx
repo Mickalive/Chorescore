@@ -212,11 +212,7 @@ export default function ScoreScreen() {
       <ScreenHeader
         eyebrow={`${state.household.name} · ${getPlanLabel(state.household.plan)}`}
         title="Score"
-        subtitle={
-          entitlements.useWeights
-            ? 'Comparaison fondée sur la durée et les poids convenus par le foyer.'
-            : 'Le mode gratuit compare uniquement le temps brut enregistré.'
-        }
+        subtitle="Équilibres et contribution de chaque membre du foyer."
       />
       <NoticeBanner message={state.notice} onDismiss={dismissNotice} />
 
@@ -244,18 +240,18 @@ export default function ScoreScreen() {
         <MetricCard
           label="Temps total"
           value={`${Math.round(filteredEntries.reduce((sum, e) => sum + e.durationSeconds / 60, 0))} min`}
-          detail={`${filteredEntries.length} entrées dans la sélection`}
+          detail={`${filteredEntries.length} ${filteredEntries.length > 1 ? 'entrées' : 'entrée'} dans la sélection`}
         />
-        <MetricCard
-          label={entitlements.useWeights ? 'Points (poids)' : 'Points (temps brut)'}
-          value={formatMetric(
-            filteredEntries.reduce(
-              (sum, entry) => sum + getEntryValue(entry, entitlements.useWeights),
+        {entitlements.useWeights ? (
+          <MetricCard
+            label="Poids total"
+            value={`${Math.round(filteredEntries.reduce(
+              (sum, entry) => sum + getEntryValue(entry, true),
               0,
-            ),
-            entitlements.useWeights,
-          )}
-        />
+            ))} pts`}
+            detail="durée × poids convenu"
+          />
+        ) : null}
       </View>
 
       {/* Member bar chart with names */}
@@ -390,9 +386,6 @@ export default function ScoreScreen() {
         </View>
       )}
 
-      <Text style={styles.disclaimer}>
-        Le rang est un résumé des saisies, pas une évaluation des personnes.
-      </Text>
     </Screen>
   );
 }
@@ -410,7 +403,7 @@ const styles = StyleSheet.create({
   },
   currentCard: {
     borderColor: COLORS.success,
-    backgroundColor: '#F7FCFB',
+    backgroundColor: '#F8F4EF',
   },
   rowTop: {
     flexDirection: 'row',
@@ -500,12 +493,5 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     fontSize: 11,
     marginTop: 2,
-  },
-  disclaimer: {
-    color: COLORS.textMuted,
-    fontSize: 12,
-    lineHeight: 18,
-    textAlign: 'center',
-    marginTop: SPACING.lg,
   },
 });

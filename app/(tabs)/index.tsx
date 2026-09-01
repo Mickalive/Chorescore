@@ -122,24 +122,16 @@ export default function TasksScreen() {
       <ScreenHeader
         eyebrow={`${state.household.name} · ${getPlanLabel(state.household.plan)}`}
         title={`Bonjour ${currentUser?.name ?? ''}`}
-        subtitle="Enregistre ce qui a été fait. Le score ne couvre que les tâches saisies."
+        subtitle="Enregistre ce qui a été fait."
       />
       <NoticeBanner message={state.notice} onDismiss={dismissNotice} />
 
       <View style={styles.metricRow}>
         <MetricCard
           label="Cette semaine"
-          value={formatMetric(currentMetric, entitlements.useWeights)}
-          detail={entitlements.useWeights ? 'durée × poids convenu' : 'comparaison en temps brut'}
+          value={formatMetric(currentMetric, false)}
+          detail={`${completedThisWeek} ${completedThisWeek > 1 ? 'tâches' : 'tâche'} saisies`}
         />
-        <MetricCard label="Tâches saisies" value={String(completedThisWeek)} detail="pour ton profil" />
-      </View>
-
-      <View style={styles.balanceNote}>
-        <Text style={styles.balanceTitle}>Un indicateur, pas un verdict</Text>
-        <Text style={styles.balanceText}>
-          Discutez ensemble des tâches absentes et des pondérations. ChoreScore ne voit que ce que le foyer choisit de noter.
-        </Text>
       </View>
 
       <View style={styles.sectionRow}>
@@ -305,22 +297,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: SPACING.sm,
-  },
-  balanceNote: {
-    backgroundColor: COLORS.secondary,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    marginTop: SPACING.md,
-  },
-  balanceTitle: {
-    color: COLORS.textPrimary,
-    fontWeight: '800',
-  },
-  balanceText: {
-    color: COLORS.textSecondary,
-    fontSize: 13,
-    lineHeight: 19,
-    marginTop: SPACING.xs,
   },
   sectionRow: {
     flexDirection: 'row',

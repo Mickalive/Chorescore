@@ -23,7 +23,7 @@ export function NoticeBanner({ message, onDismiss }: { message: string | null; o
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#EDF8F6',
+    backgroundColor: '#EFF8F0',
     borderColor: COLORS.success,
     borderWidth: 1,
     borderRadius: RADIUS.md,

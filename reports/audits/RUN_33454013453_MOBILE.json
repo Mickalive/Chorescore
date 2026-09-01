@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "cycle": "33454013453",
+  "role": "mobile",
+  "round": 1,
+  "decision": "accept",
+  "summary": "Verification-only cycle 33454013453 DRC-01 NAV-4TABS : l'arbre accepté satisfait déjà la restructuration 4→3 onglets canoniques. _layout.tsx expose exactement 3 Tabs.Screen (Ajouter une tâche|Score|To-do), Ajouter une tâche embarque formulaire avec Fait par modifiable + historique complet, Score expose périodes semaine/mois/année/depuis le début + équilibres, To-do planifie futur, legacy Historique/Classement/Profil ne sont que des redirects (non-tabs). Fait par préservé (SegmentedControl, validatePerformedBy, planManualEntry isolation foyer, reset useEffect) issu audit 33369130489. 195/195 tests verts, typecheck et export demo Android succès, diff zéro delta vs accepted-mobile justifié. Aucun mustFix, accept vaut preuve courante que l'accepté couvre cet objectif borné.",
+  "findings": [
+    {
+      "path": "app/(tabs)/_layout.tsx",
+      "problem": "Navigation 4→3 : doit afficher exactement 3 onglets canoniques (Ajouter une tâche | Score | To-do) et supprimer Classement/Historique/Profil comme tabs — blocage DRC-01 NAV-4TABS hérité du cycle 33369130489.",
+      "evidence": "Lecture candidate _layout.tsx L30-32: <Tabs.Screen name=\"index\" title=\"Ajouter une tâche\"/> <Tabs.Screen name=\"score\" title=\"Score\"/> <Tabs.Screen name=\"todo\" title=\"To-do\"/> (3 screens). grep -n Tabs.Screen = 3. diff -r --brief vs /home/runner/work/_temp/accepted-mobile (HEAD 8dfe42f, audit accept 33408230150) vide hors artefacts build (.expo,.test-build,dist,node_modules,.opencode,.test-build). Accepted déjà à 3 tabs depuis 33408230150, qui avait remplacé 4 screens Tâches/Classement/Historique/Profil. grep Tabs.Screen dans accepted et candidate identique. Aucun Tabs.Screen Classement/Historique/Profil.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise. Conserver exactement 3 Tabs.Screen canoniques. Zéro delta justifié pour ce verification-only.",
+      "verification": "grep -n Tabs.Screen app/(tabs)/_layout.tsx → 3 lignes + cat app/(tabs)/_layout.tsx L30-32 + diff -r accepted-mobile vs candidate → zéro delta + navigation manuelle foyer→3 tabs visibles sans réseau (expo export succès)."
+    },
+    {
+      "path": "app/(tabs)/index.tsx",
+      "problem": "Onglet Ajouter une tâche doit contenir formulaire de saisie (Fait par modifiable, durée, label) + historique chronologique complet du foyer — MAIN_PROMPT §3 et acceptance TASKS.",
+      "evidence": "index.tsx L22-34 wiring useApp + L63-68 householdMembers = state.users.filter(memberships householdId===state.household.id) passé à ManualEntryModal, L58 activeTasks selectVisibleTasks, L71-74 visibleEntries = getVisibleHistory(state.entries, householdId, historyDays, now), L102-168 liste tâches actives avec TaskRow startTimer/completeTimer/Manual + archive, L179-222 Section Historique complet title detail `${visibleEntries.length} entrées` + slice 0..20 Card entryLabel/user/durée/date. ManualEntryModal L126-132 SegmentedControl householdMembers. Diff vs accepted-mobile vide → identique à état accept 33408230150.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise. Conserver formulaire + historique complet sous Ajouter une tâche.",
+      "verification": "npm run check 195/195 pass + ouvrir (tabs)/index en demo: bouton Ajouter visible, ManualEntryModal affiche SegmentedControl 2+ membres défaut currentUserId, historique complet sous liste, EXPO_PUBLIC_DATA_MODE=demo export succès."
+    },
+    {
+      "path": "app/(tabs)/score.tsx",
+      "problem": "Onglet Score doit afficher sélecteur période (semaine/mois/année/depuis le début) et équilibres ; filtres Toutes/PersistentTask/Autres prévus MAIN_PROMPT §5 mais hors acceptance bornée TASKS (seulement périodes+équilibres).",
+      "evidence": "score.tsx L20-27 PERIOD_OPTIONS week Semaine/month Mois/year Année/all Depuis le début, L52-60 filterByScorePeriod isEntryInPeriod + year/all, L63-118 rows via buildLeaderboard week/month et calcul custom year/all (value, durationMinutes, contribution, rank), L159-171 SegmentedControl accessibilityLabel Période du score avec 4 options + wrap, L173-227 MetricCard Temps total + équilibres liste rank/avatar/name/meta/score/progress. Filtres Toutes/PersistentTask/Autres non rendus dans cette tranche mais non exigé par TASKS acceptance (seulement périodes+équilibres). Diff vs accepted-mobile vide.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction bloquante pour ce cycle borné. Future tranche DRC-03 pourra ajouter filtre Toutes/PersistentTask/Autres + historique filtré sous stats si critère l'exige.",
+      "verification": "npm run check 195/195 + ouvrir (tabs)/score demo: 4 segments période visibles défaut Semaine, changement Mois→Année→Depuis le début met à jour rows et temps total, export Android succès."
+    },
+    {
+      "path": "app/(tabs)/todo.tsx",
+      "problem": "Onglet To-do doit contenir planification future (liste tâches à venir) — MAIN_PROMPT §6 et acceptance TASKS.",
+      "evidence": "todo.tsx L14-43 Screen + DemoBanner + ScreenHeader To-do subtitle Planifie les tâches à venir + Section Tâches à venir + Card Aucune tâche planifiée + info Fonctionnalité à venir. Fichier présent (vs accepted 4-tabs n'avait pas todo dédié), déclaré comme Tabs.Screen todo dans _layout.tsx. Diff vs accepted-mobile vide → même implémentation que 33408230150 accept.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise pour cette tranche. Conversion To-do → CompletedEntry (check Fait par+durée+Fait pour) planifiée DRC-04 future tranche.",
+      "verification": "Ouvrir (tabs)/todo en demo sans réseau: header To-do + 2 cards visibles, navigation 3 tabs fonctionnelle, npm run check vert."
+    },
+    {
+      "path": "app/(tabs)/history.tsx",
+      "problem": "Fichiers legacy Historique/Classement/Profil : exigence Aucun onglet Classement/Historique/Profil interprétée comme suppression en tant que Tabs.Screen ; présence de redirects n'est pas un onglet et évite 404 deep link.",
+      "evidence": "history.tsx: `import {Redirect} from 'expo-router'; export default LegacyHistoryRedirect returns <Redirect href=\"/(tabs)\"/>` (6 lignes). leaderboard.tsx redirect → /(tabs)/score, profile.tsx → /(tabs). Aucun Tabs.Screen ne les référence (grep Tabs.Screen _layout = seulement index/score/todo). Diff -r --brief accepted vs candidate liste ces 3 fichiers comme identiques redirects, non-tabs. Éviter 404 deep link ancien.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction bloquante. Suppression physique optionnelle cosmétique mais non requise pour DRC-01.",
+      "verification": "grep Tabs.Screen + ls app/(tabs): 3 screens canoniques + 3 redirects isolés; deep link /(tabs)/history redirige vers /(tabs) sans crash, export succès."
+    },
+    {
+      "path": "src/components/ManualEntryModal.tsx",
+      "problem": "Fait par doit rester modifiable via SegmentedControl listant householdMembers, défaut currentUserId, validé et persisté, reset après succès — réparation vérifiée cycle 33369130489 à préserver (195 tests).",
+      "evidence": "ManualEntryModal L17 SegmentedControl import, L34 useState(currentUserId), L44-50 useEffect task===null reset performedByMemberId=currentUserId, L123-136 householdMembers.length>1 ? <Text>Fait par</Text> <SegmentedControl options householdMembers.map(m=>{value:m.id,label:m.name}) value performedByMemberId onChange setPerformedByMemberId wrap />, L69 validatePerformedBy + L75 onSubmit(parsedMinutes,performedByMemberId). app/(tabs)/index L63-68 householdMembers filter + L239-246 ManualEntryModal householdMembers/currentUserId/onSubmit->addManualEntry. AppProvider L374-392 planManualEntry isolation foyer. Identique à audit accept 33369130489. Diff vs accepted-mobile vide.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise. Conserver pattern Fait par validé.",
+      "verification": "npm run check drc01.test.ts 30 tests AC16 6 Fait par pass (défaut currentUserId ok, autre membre ok, inconnu rejeté, vide rejeté, outsider foyer rejeté, distinct performers), mutation planManualEntry vide/hors foyer rejette, UI demo 3 membres Fait par 3 segments."
+    }
+  ],
+  "checks": [
+    "npm run check — 195/195 pass dont drc01.test.ts 30 tests AC16 6 Fait par (défaut currentUserId ok, autre membre ok, inconnu rejeté, vide rejeté, outsider foyer rejeté, distinct performers) typecheck OK",
+    "EXPO_PUBLIC_DATA_MODE=demo npx --no-install expo export --platform android — success 1284 modules 2.8MB hbc bundle entry-0ccea13fdd8b59d70dda9c084c3e7f2f.hbc 27 assets dist/metadata.json",
+    "diff -r --brief /home/runner/work/_temp/accepted-mobile vs candidate — zéro delta hors artefacts build (.expo,.test-build,dist,node_modules,.opencode) → verification-only justifié (HEAD 8dfe42f déjà 3 tabs accept 33408230150)",
+    "grep -n Tabs.Screen app/(tabs)/_layout.tsx → 3 lignes Ajouter une tâche/Score/To-do, grep Tabs.Screen Classement/Historique/Profil = 0 hors redirects, cat _layout.tsx L30-32 confirm",
+    "grep ManualEntryModal SegmentedControl/validatePerformedBy/planManualEntry — Fait par modifiable préservé, isolation foyer validée, cat ManualEntryModal.tsx L34 L44-50 L126-132 L69 L75",
+    "mutation proof NAV-4TABS: Tabs.Screen count 3 canoniques, legacy routes redirect href /(tabs) et /(tabs)/score sans crash, navigation demo 3 tabs fonctionnelle hors réseau",
+    "mutation proof Fait par: planManualEntry('') rejette Fait par vide, hors-foyer rejette, 2 saisies performers distincts persistés avec performedByMemberId distincts (drc01 AC16)"
+  ]
+}

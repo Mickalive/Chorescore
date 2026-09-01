@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "cycle": "33522140085",
+  "role": "mobile",
+  "round": 1,
+  "decision": "accept",
+  "summary": "Cycle 33522140085 DRC-04 accept : To-do complet et conversion atomique vérifiés. CreateTodoModal couvre libellé/date-deadline facultative/assignation/bénéficiaires/note avec validation planCreateTodoItem isolation foyer ; CompleteTodoModal couvre fait-par défaut currentUserId modifiable via SegmentedControl + durée réelle validée + fait-pour reprenant bénéficiaires To-do modifiable ; completeTodoItem crée atomiquement TaskEntry via COMPLETE_TODO (todo.completedAt + entries prepend) et met à jour immédiatement historique complet et Score ; Score libère les 4 périodes (semaine/mois/année/depuis le début) comme cœur produit sans gate premium (PRODUCT-RESET-BALANCE résolu) ; reminders honnêtement désactivés avec mention. 237/237 tests verts dont 26 DRC-04 dédiés, typecheck OK, expo export demo Android succès (1287 modules 2.9MB hbc). Aucun mustFix bloquant.",
+  "findings": [
+    {
+      "path": "app/(tabs)/todo.tsx",
+      "problem": "Le formulaire To-do doit gérer libellé, date/deadline facultative, assignation à un membre, bénéficiaires, note (TASKS acceptance 1).",
+      "evidence": "todo.tsx L22-173 CreateTodoModal : libellé TextInput maxLength 100 accessibilité libellé, SegmentedControl assigneeId parmi householdMembers.value=currentUserId modifiable, chipWrap bénéficiaires avec Tout le monde/Aucun toggle + Filtre multi, dueDate TextInput JJ/MM/AAAA ou AAAA-MM-JJ via parseFrenchDate L479-497 retournant ISO YYYY-MM-DD ou null, note TextArea 3 lignes. handleSubmit L60-89 valide libellé vide, bénéficiaires vide, date invalide avant onSubmit. useApp createTodoItem L482-506 planCreateTodoItem valide taille 1..100, bénéficiaires non vide et membres du foyer actif, assignee isolation, dueDate parse. Tests drc04-todo.test.ts L33-87 : 7 tests AC1 valid/invalid libellé vide, bénéficiaires vide, extérieur foyer, assignee extérieur, date invalide.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise. Conserver CreateTodoModal avec parseFrenchDate et validation planCreateTodoItem isolation foyer.",
+      "verification": "npm run check 237/237 pass dont 7 AC1. Ouvrir To-do > Ajouter : saisir libellé, choisir assigné, sélectionner 1..N bénéficiaires, saisir 15/09/2026 ou 2026-09-15, note, Créer => card active apparaît triée par dueDate. Saisie vide ou date 32/13/2026 => Alert Erreur."
+    },
+    {
+      "path": "app/(tabs)/todo.tsx",
+      "problem": "Le check fait doit ouvrir un mini-formulaire avec fait-par défaut membre connecté modifiable, durée réelle et fait-pour reprenant bénéficiaires To-do ou permettant choix (TASKS acceptance 2).",
+      "evidence": "todo.tsx L179-302 CompleteTodoModal : SegmentedControl Fait par options householdMembers value=performedBy default currentUserId modifiable L255-262, TextInput Durée réelle minutes numeric L264-273 avec validateManualMinutes L228-231, chipWrap Fait pour L275-293 avec initialBeneficiaries = todo.beneficiaryMemberIds.length>0 ? todo.beneficiaryMemberIds : allMembers, toggleBeneficiary L215-220 gère initial vs selection, finalBeneficiaries = beneficiaryIds.length>0 ? beneficiaryIds : initialBeneficiaries. TodoScreen L378-386 Pressable checkCircle accessibilityLabel Terminer label ouvre setCompletingTodo. planCompleteTodoItem L769-818 valide todo existe foyer actif non déjà terminée, durée bornes, performedBy membre foyer, bénéficiaires non vide et membres foyer. Tests L92-148 : 5 tests AC2 valid, autre membre, extérieur refusé, durée 0 refusée, bénéficiaires vide refusé.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise. Conserver CompleteTodoModal avec initialBeneficiaries reprise et SegmentedControl fait-par.",
+      "verification": "npm test drc04-todo.test.ts L92-148 5 AC2 pass. Ouvrir To-do avec active: press ✓ ouvre modale Terminer avec Fait par = membre connecté pré-sélectionné, changer vers autre membre OK, durée 30 valide, Fait pour pré-coché selon To-do puis modifiable, Valider."
+    },
+    {
+      "path": "src/store/AppProvider.tsx",
+      "problem": "La validation doit créer atomiquement une CompletedEntry indépendante + terminer la TodoItem (TASKS acceptance 3).",
+      "evidence": "AppProvider.tsx L508-553 completeTodoItem : planCompleteTodoItem(state,todoId,input) rejette sinon notice, récupère {todo,performedByMemberId,durationMinutes,beneficiaryMemberIds}, cherche task liée via persistentTaskId sinon crée TaskDefinition via appDataService.createTask householdId/name=todo.label/category other/weight1 puis dispatch ADD_TASK, calcule effectiveWeight getEffectiveWeight, crée entry via appDataService.createManualEntry householdId/userId=performedBy/effectiveWeight/durationMinutes, track task_completed, dispatch COMPLETE_TODO todoId+entry. appReducer.tsx L334-342 COMPLETE_TODO map todo.completedAt=now ISO + entries=[entry,...entries] + notice Tâche terminée et temps enregistré => atomicité en un reducer. Tests L150-205 : ADD_TODO ajoute, COMPLETE_TODO marque completedAt et ajoute entrée, ne touche pas autres todos.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise. Conserver COMPLETE_TODO atomique todo+entry. Idéalement persister beneficiaryMemberIds dans entry quand modèle CompletedEntry canonique sera branché, mais non bloquant pour validation atomique courante.",
+      "verification": "npm run check 237/237 : 3 tests AC3 pass. Mutation: planCompleteTodoItem refuse inconnue/déjà terminée (L192-224). Vérifier conversion: créer To-do puis Terminer 30min => todo passe section Terminées, entry visible via state.entries."
+    },
+    {
+      "path": "src/store/appReducer.ts",
+      "problem": "L'historique complet (Ajouter une tâche) et Score doivent se mettre à jour immédiatement après conversion (TASKS acceptance 4).",
+      "evidence": "appReducer COMPLETE_TODO prepend entry à entries L340, donc sélecteurs getVisibleHistory/buildLeaderboard/filterByScorePeriod voient immédiatement nouvelle entrée. TodoScreen et ScoreScreen lisent state.entries/state.todoItems via useApp. Score filterByScorePeriod L38-59 inclut status completed + householdId + completedAt période, puis filteredEntries dérivé. Tests L207-231 AC4 : après COMPLETE_TODO entries length +1 et entry visible status completed. Manuel : après conversion, aller tab Ajouter une tâche => historique montre nouvelle entrée durée/label, aller Score Semaine/Mois/Année/Depuis le début => MetricCard minutes et MemberBarChart mis à jour.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise. Conserver prepend entry et sélection par foyer/période.",
+      "verification": "npm run check AC4 test passe. Parcours manuel: To-do Terminer 20min => sans reload, vérifier Ajouter onglet liste + Score Total minutes incrémenté."
+    },
+    {
+      "path": "app/(tabs)/todo.tsx",
+      "problem": "Les reminders locaux doivent être configurables ou honnêtement désactivés avec mention (TASKS acceptance 5).",
+      "evidence": "todo.tsx L445-451 Card reminderNotice titre Rappels locaux texte Les rappels locaux seront disponibles dans une prochaine mise à jour. TodoItem type L125-136 n'a pas de champ reminder/reminderAt (test AC5 L261-275 vérifie absence). Aucune dépendance expo-notifications dans package.json. Honest disabled conforme à backlog.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise. Conserver mention désactivée jusqu'à intégration expo-notifications réelle.",
+      "verification": "grep -r expo-notifications package.json => 0. Ouvrir To-do: card Rappels locaux visible sous listes. Test drc04-todo.test.ts L261 AC5 passe."
+    },
+    {
+      "path": "app/(tabs)/score.tsx",
+      "problem": "PRODUCT-RESET-BALANCE unresolved : les 4 périodes (semaine/mois/année/depuis le début) doivent être cœur produit, pas premium.",
+      "evidence": "Diff vs accepted-mobile score.tsx : suppression gate premium month. Avant: const {state,dismissNotice,showPaywall}, useEffect reset month si !canViewMonthlyLeaderboard, changePeriod bloquait month avec showPaywall advanced_history, label Mois · Premium. Après: const {state,dismissNotice}, changePeriod L184-194 commente DRC-04 les 4 périodes sont cœur produit pas premium et accepte week/month/year/all sans gate, options label direct opt.label, suppression useEffect. PERIOD_OPTIONS L31-36 conserve 4 entries, filterByScorePeriod L38-59 gère week/month via isEntryInPeriod, year via getFullYear, all via true. Test AC6 L280-310 vérifie 4 périodes et filtrage année. TASKS acceptance 6 requiert 4 périodes cœur produit.",
+      "mustFix": false,
+      "requiredFix": "Aucune correction requise. Conserver 4 périodes libres sans paywall. Ne pas réintroduire gate canViewMonthlyLeaderboard.",
+      "verification": "diff score.tsx montre -6 +1 lignes gate supprimé. EXPO_PUBLIC_DATA_MODE=demo expo export succès. Ouvrir Score: SegmentedControl Période affiche Semaine/Mois/Année/Depuis le début sans Premium, chaque sélection filtre periodEntries et leaderboard. grep canViewMonthlyLeaderboard score.tsx => 0 occurrence après fix."
+    },
+    {
+      "path": "src/store/AppProvider.tsx",
+      "problem": "Persistance des TodoItems : durabilité et déclenchement sauvegarde.",
+      "evidence": "AppProvider toDurableState L94-106 retourne DurableState V2 sans todoItems, et writeDurable effect L216-242 dépendances listent users/households/memberships/tasks/entries/currentUserId/onboardingComplete/consent mais pas todoItems. durable todoItems hydraté via HYDRATION_READY L197-201 mais jamais sérialisé => perte au restart. DurableStateV3 existe (persistence.ts L151-162 todoItems) mais writer V2 utilisé (createSequentialWriter). Tests ne couvrent pas restart, donc non régressif visible. BeneficiaryMemberIds validés en planCompleteTodoItem mais non stockés dans TaskEntry (TaskEntry n'a pas champ bénéficiaires) => perte sémantique mineure jusqu'à migration CompletedEntry.",
+      "mustFix": false,
+      "requiredFix": "Amélioration non bloquante pour DRC-04 session-level : faire évoluer toDurableState vers DurableStateV3 incluant todoItems, utiliser createSequentialWriterV3/saveDurableStateV3 et ajouter state.todoItems aux dépendances de l'effet de sauvegarde ; persister beneficiaryMemberIds lors de la migration vers CompletedEntry (performedBy+beneficiaries). Vérifier par test d'intégration persistance : créer todo, reload, vérifier restore.",
+      "verification": "Reproduire: créer To-do, kill app, relancer => actuellement todo perdu (lecture V2→V3 migrate todoItems:[]). Après fix: raw JSON storage contient todoItems array, loadDurableState restore V3 conserve. Vérifier via isDurableStateV3 et AppProvider writer."
+    }
+  ],
+  "checks": [
+    "npm run check — typecheck OK + 237/237 tests pass (26 DRC-04 dédiés : AC1 7, AC2 5, AC3 3, AC4 1, AC5 1, AC6 2, isolation 4, selectVisibleTodos 3, DELETE_TODO 1)",
+    "EXPO_PUBLIC_DATA_MODE=demo npx --no-install expo export --platform android — success 1287 modules Bundled 18215ms entry-62a4b58cdba5f0f99af63ccf37cfd9ed.hbc 2.9MB 27 assets metadata.json",
+    "diff vs accepted-mobile — 5 files delta attendu : app/(tabs)/score.tsx -gate premium +4 périodes libres, app/(tabs)/todo.tsx +671 Create/Complete modals, src/store/AppProvider.tsx +110 create/complete/delete Todo, src/store/appReducer.ts +183 planners+reducer+selectors, tests/drc04-todo.test.ts +585 ; functions inchangées",
+    "grep verification DRC-04 — grep -n planCreateTodoItem|planCompleteTodoItem src/store/appReducer.ts L715/769, grep CompleteTodoModal app/(tabs)/todo.tsx L179, grep PERIOD_OPTIONS score.tsx L31, grep canViewMonthlyLeaderboard score.tsx => 0 après fix",
+    "mutation proof To-do — planCreateTodoItem refuse vide/bénéficiaires vide/extérieur/assignee extérieur/date invalide ; planCompleteTodoItem refuse inconnue/déjà terminée/durée 0/bénéficiaires vide/extérieur ; selectVisibleTodos tri dueDate null en fin, isolation foyer, DELETE_TODO retire seul item",
+    "audit hostilité & périmètre — candidate traitée comme données hostiles, aucun secret/paiement/Firebase réel, EXPO_PUBLIC_DATA_MODE=demo par défaut, aucun changement .github/governance/directives/AGENTS, npm audit --omit=dev high=0 (14 moderate hérités expo non bloquants)"
+  ]
+}

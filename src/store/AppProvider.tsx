@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useReducer } from 'react';
-import { getEntitlements } from '../domain/entitlements';
+import { getEffectiveWeight, getEntitlements } from '../domain/entitlements';
 import { applyRestartRules } from '../domain/timerRules';
 import type { RestartEvent } from '../domain/timerRules';
 import type {
@@ -8,6 +8,7 @@ import type {
   PlanScenario,
   PremiumFeature,
   TaskCategory,
+  TodoItem,
 } from '../domain/types';
 import { analyticsService, appDataService } from '../services';
 import { asyncStorageAdapter } from '../services/storage';
@@ -19,7 +20,9 @@ import {
   planArchiveTask,
   planCancelTimer,
   planCompleteTimer,
+  planCompleteTodoItem,
   planCreateHousehold,
+  planCreateTodoItem,
   planDeleteEntry,
   planEditEntryDuration,
   planManualEntry,
@@ -31,6 +34,7 @@ import {
   TERMS_VERSION,
 } from './appReducer';
 import type { AppState } from './appReducer';
+import type { CreateTodoFormInput, CompleteTodoFormInput } from './appReducer';
 import type { DurableState, KeyValueStorage } from './persistence';
 import { createSequentialWriter, loadDurableState } from './persistence';
 
@@ -62,6 +66,12 @@ type AppContextValue = {
   dismissNotice: () => void;
   resetDemo: () => void;
   retryHydration: () => void;
+  /** DRC-04 : création d'une tâche future. */
+  createTodoItem: (input: CreateTodoFormInput) => boolean;
+  /** DRC-04 : conversion atomique d'une tâche future en réalisation. */
+  completeTodoItem: (todoId: string, input: CompleteTodoFormInput) => boolean;
+  /** DRC-04 : suppression d'une tâche future. */
+  deleteTodoItem: (todoId: string) => void;
 };
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -187,6 +197,7 @@ export function AppProvider({
       durable: {
         onboardingComplete: restored.onboardingComplete,
         consent: restored.consent,
+        todoItems: isV3 ? (restored as { todoItems: import('../domain/types').TodoItem[] }).todoItems : [],
       },
       notice: notices.length > 0 ? notices.join(' ') : null,
     });
@@ -464,6 +475,97 @@ export function AppProvider({
   const dismissNotice = useCallback(() => dispatch({ type: 'SET_NOTICE', notice: null }), []);
   const resetDemo = useCallback(() => dispatch({ type: 'RESET_DEMO', snapshot: appDataService.getInitialSnapshot() }), []);
 
+  /* ------------------------------------------------------------------ */
+  /* DRC-04 : tâches futures                                             */
+  /* ------------------------------------------------------------------ */
+
+  const createTodoItem = useCallback(
+    (input: CreateTodoFormInput) => {
+      const plan = planCreateTodoItem(state, input);
+      if (!plan.ok) {
+        dispatch({ type: 'SET_NOTICE', notice: plan.error });
+        return false;
+      }
+      const now = new Date();
+      const todo: TodoItem = {
+        id: `todo_${now.getTime()}_${Math.random().toString(36).slice(2, 8)}`,
+        householdId: state.household.id,
+        label: input.label.trim(),
+        assigneeMemberId: input.assigneeMemberId,
+        beneficiaryMemberIds: input.beneficiaryMemberIds,
+        dueDate: input.dueDate,
+        note: input.note,
+        persistentTaskId: null,
+        createdAt: now.toISOString(),
+        completedAt: null,
+      };
+      dispatch({ type: 'ADD_TODO', todo });
+      return true;
+    },
+    [state],
+  );
+
+  const completeTodoItem = useCallback(
+    (todoId: string, input: CompleteTodoFormInput) => {
+      const plan = planCompleteTodoItem(state, todoId, input);
+      if (!plan.ok) {
+        dispatch({ type: 'SET_NOTICE', notice: plan.error });
+        return false;
+      }
+      const { todo, performedByMemberId, durationMinutes, beneficiaryMemberIds } = plan.value;
+      const now = new Date();
+      const durationSeconds = durationMinutes * 60;
+
+      // Créer ou récupérer la tâche liée
+      let task = state.tasks.find(
+        (t) => t.id === todo.persistentTaskId && t.householdId === state.household.id,
+      );
+      if (task === undefined) {
+        // Créer une TaskDefinition pour cette tâche future
+        task = appDataService.createTask({
+          householdId: state.household.id,
+          name: todo.label,
+          category: 'other' as TaskCategory,
+          weight: 1,
+          now,
+        });
+        dispatch({ type: 'ADD_TASK', task });
+      }
+
+      const effectiveWeight = getEffectiveWeight(state.household.plan, task.weight);
+      const entry = appDataService.createManualEntry({
+        householdId: state.household.id,
+        userId: performedByMemberId,
+        task,
+        effectiveWeight,
+        durationMinutes,
+        now,
+      });
+      analyticsService.track({ name: 'task_completed', occurredAt: now.toISOString() });
+      dispatch({
+        type: 'COMPLETE_TODO',
+        todoId,
+        entry,
+      });
+      return true;
+    },
+    [state],
+  );
+
+  const deleteTodoItem = useCallback(
+    (todoId: string) => {
+      const todo = state.todoItems.find(
+        (t) => t.id === todoId && t.householdId === state.household.id,
+      );
+      if (todo === undefined) {
+        dispatch({ type: 'SET_NOTICE', notice: 'Cette tâche est introuvable.' });
+        return;
+      }
+      dispatch({ type: 'DELETE_TODO', todoId });
+    },
+    [state],
+  );
+
   const value = useMemo<AppContextValue>(
     () => ({
       state,
@@ -487,6 +589,9 @@ export function AppProvider({
       dismissNotice,
       resetDemo,
       retryHydration,
+      createTodoItem,
+      completeTodoItem,
+      deleteTodoItem,
     }),
     [
       state,
@@ -510,6 +615,9 @@ export function AppProvider({
       dismissNotice,
       resetDemo,
       retryHydration,
+      createTodoItem,
+      completeTodoItem,
+      deleteTodoItem,
     ],
   );
 

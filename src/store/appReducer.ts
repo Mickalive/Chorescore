@@ -9,6 +9,7 @@ import type {
   TaskCategory,
   TaskDefinition,
   TaskEntry,
+  TodoItem,
 } from '../domain/types';
 import { normalizeTaskName, validateManualMinutes, validateTaskInput } from '../domain/validation';
 
@@ -33,6 +34,8 @@ export type AppState = AppSnapshot & {
   paywallFeature: PremiumFeature | null;
   notice: string | null;
   analyticsEventCount: number;
+  /** DRC-04 : tâches futures du foyer actif. */
+  todoItems: TodoItem[];
 };
 
 export type Action =
@@ -40,7 +43,7 @@ export type Action =
       type: 'HYDRATION_READY';
       snapshot: AppSnapshot;
       roster: { households: Household[]; currentHouseholdId: string };
-      durable: { onboardingComplete: boolean; consent: ConsentState };
+      durable: { onboardingComplete: boolean; consent: ConsentState; todoItems?: TodoItem[] };
       notice: string | null;
     }
   | { type: 'HYDRATION_FAILED'; message: string }
@@ -62,7 +65,11 @@ export type Action =
   | { type: 'SHOW_PAYWALL'; feature: PremiumFeature }
   | { type: 'HIDE_PAYWALL' }
   | { type: 'SET_NOTICE'; notice: string | null }
-  | { type: 'RESET_DEMO'; snapshot: AppSnapshot };
+  | { type: 'RESET_DEMO'; snapshot: AppSnapshot }
+  | { type: 'ADD_TODO'; todo: TodoItem }
+  | { type: 'COMPLETE_TODO'; todoId: string; entry: TaskEntry }
+  | { type: 'DELETE_TODO'; todoId: string }
+  | { type: 'UPDATE_TODO'; todo: TodoItem };
 
 export const TERMS_VERSION = 'demo-v1';
 
@@ -129,6 +136,7 @@ export function createLoadingState(): AppState {
     paywallFeature: null,
     notice: null,
     analyticsEventCount: 0,
+    todoItems: [],
   };
 }
 
@@ -148,6 +156,7 @@ export function createInitialState(snapshot: AppSnapshot): AppState {
     paywallFeature: null,
     notice: null,
     analyticsEventCount: 0,
+    todoItems: [],
   };
 }
 
@@ -164,6 +173,7 @@ export function reducer(state: AppState, action: Action): AppState {
         paywallFeature: null,
         notice: action.notice,
         analyticsEventCount: 0,
+        todoItems: action.durable.todoItems ?? [],
       };
     case 'HYDRATION_FAILED':
       return { ...createLoadingState(), hydration: { phase: 'error', message: action.message } };
@@ -317,8 +327,29 @@ export function reducer(state: AppState, action: Action): AppState {
         [action.snapshot.household],
         action.snapshot.household.id,
       );
-      return { ...next, paywallFeature: null, notice: 'Les données fictives ont été réinitialisées.' };
+      return { ...next, paywallFeature: null, notice: 'Les données fictives ont été réinitialisées.', todoItems: [] };
     }
+    case 'ADD_TODO':
+      return { ...state, todoItems: [...state.todoItems, action.todo] };
+    case 'COMPLETE_TODO':
+      return {
+        ...state,
+        todoItems: state.todoItems.map((t) =>
+          t.id === action.todoId ? { ...t, completedAt: new Date().toISOString() } : t,
+        ),
+        entries: [action.entry, ...state.entries],
+        notice: 'Tâche terminée et temps enregistré.',
+      };
+    case 'DELETE_TODO':
+      return {
+        ...state,
+        todoItems: state.todoItems.filter((t) => t.id !== action.todoId),
+      };
+    case 'UPDATE_TODO':
+      return {
+        ...state,
+        todoItems: state.todoItems.map((t) => (t.id === action.todo.id ? action.todo : t)),
+      };
   }
 }
 
@@ -658,5 +689,151 @@ export function selectVisibleTasks(state: AppState): TaskDefinition[] {
   return state.tasks.filter(
     (task) => task.active && task.householdId === state.currentHouseholdId,
   );
+}
+
+/* ------------------------------------------------------------------ */
+/* To-do : création et conversion (DRC-04)                             */
+/* ------------------------------------------------------------------ */
+
+export type CreateTodoFormInput = {
+  label: string;
+  assigneeMemberId: string | null;
+  beneficiaryMemberIds: string[];
+  dueDate: string | null;
+  note: string;
+};
+
+export type PlannedTodoCreation = {
+  todo: TodoItem;
+};
+
+/**
+ * Validation et planification de la création d'une TodoItem.
+ * Le libellé est obligatoire ; les bénéficiaires doivent contenir au moins
+ * un membre du foyer actif.
+ */
+export function planCreateTodoItem(
+  state: AppState,
+  input: CreateTodoFormInput,
+): InteractionPlan<PlannedTodoCreation> {
+  const normalized = normalizeTaskName(input.label);
+  if (normalized.length < 1) {
+    return { ok: false, error: 'Le libellé ne peut pas être vide.' };
+  }
+  if (normalized.length > 100) {
+    return { ok: false, error: 'Le libellé ne peut pas dépasser 100 caractères.' };
+  }
+  if (input.beneficiaryMemberIds.length === 0) {
+    return { ok: false, error: 'Au moins un bénéficiaire doit être sélectionné.' };
+  }
+  const householdMemberIds = new Set(
+    state.memberships
+      .filter((m) => m.householdId === state.household.id)
+      .map((m) => m.userId),
+  );
+  for (const bid of input.beneficiaryMemberIds) {
+    if (!householdMemberIds.has(bid)) {
+      return { ok: false, error: 'Un bénéficiaire n\u2019appartient pas à ce foyer.' };
+    }
+  }
+  if (input.assigneeMemberId !== null && !householdMemberIds.has(input.assigneeMemberId)) {
+    return { ok: false, error: 'L\u2019assigné n\u2019appartient pas à ce foyer.' };
+  }
+  if (input.dueDate !== null) {
+    const parsed = new Date(input.dueDate);
+    if (Number.isNaN(parsed.getTime())) {
+      return { ok: false, error: 'La date d\u2019échéance est invalide.' };
+    }
+  }
+  return { ok: true, value: { todo: undefined as unknown as TodoItem } };
+}
+
+export type CompleteTodoFormInput = {
+  performedByMemberId: string;
+  durationMinutes: number;
+  beneficiaryMemberIds: string[];
+};
+
+export type PlannedTodoCompletion = {
+  todo: TodoItem;
+  performedByMemberId: string;
+  durationMinutes: number;
+  beneficiaryMemberIds: string[];
+};
+
+/**
+ * Validation et planification de la conversion d'une TodoItem en
+ * CompletedEntry (via TaskEntry). La TodoItem doit appartenir au foyer actif
+ * et ne pas être déjà terminée.
+ */
+export function planCompleteTodoItem(
+  state: AppState,
+  todoId: string,
+  input: CompleteTodoFormInput,
+): InteractionPlan<PlannedTodoCompletion> {
+  const todo = state.todoItems.find(
+    (t) => t.id === todoId && t.householdId === state.household.id,
+  );
+  if (todo === undefined) {
+    return { ok: false, error: 'Cette tâche est introuvable.' };
+  }
+  if (todo.completedAt !== null) {
+    return { ok: false, error: 'Cette tâche est déjà terminée.' };
+  }
+  const error = validateManualMinutes(input.durationMinutes);
+  if (error !== null) {
+    return { ok: false, error };
+  }
+  if (!input.performedByMemberId) {
+    return { ok: false, error: 'Un membre doit être sélectionné pour « Fait par ».' };
+  }
+  const isMember = state.memberships.some(
+    (m) => m.householdId === state.household.id && m.userId === input.performedByMemberId,
+  );
+  if (!isMember) {
+    return { ok: false, error: 'Le membre sélectionné n\u2019appartient pas à ce foyer.' };
+  }
+  if (input.beneficiaryMemberIds.length === 0) {
+    return { ok: false, error: 'Au moins un bénéficiaire doit être sélectionné.' };
+  }
+  const householdMemberIds = new Set(
+    state.memberships
+      .filter((m) => m.householdId === state.household.id)
+      .map((m) => m.userId),
+  );
+  for (const bid of input.beneficiaryMemberIds) {
+    if (!householdMemberIds.has(bid)) {
+      return { ok: false, error: 'Un bénéficiaire n\u2019appartient pas à ce foyer.' };
+    }
+  }
+  return {
+    ok: true,
+    value: {
+      todo,
+      performedByMemberId: input.performedByMemberId,
+      durationMinutes: input.durationMinutes,
+      beneficiaryMemberIds: input.beneficiaryMemberIds,
+    },
+  };
+}
+
+/** Visibilité des to-do du foyer actif (non terminées d'abord, terminées ensuite). */
+export function selectVisibleTodos(state: AppState): {
+  active: TodoItem[];
+  completed: TodoItem[];
+} {
+  const householdTodos = state.todoItems.filter((t) => t.householdId === state.household.id);
+  const active = householdTodos
+    .filter((t) => t.completedAt === null)
+    .sort((a, b) => {
+      if (a.dueDate === null && b.dueDate === null) return 0;
+      if (a.dueDate === null) return 1;
+      if (b.dueDate === null) return -1;
+      return a.dueDate.localeCompare(b.dueDate);
+    });
+  const completed = householdTodos
+    .filter((t) => t.completedAt !== null)
+    .sort((a, b) => (b.completedAt ?? '').localeCompare(a.completedAt ?? ''));
+  return { active, completed };
 }
 

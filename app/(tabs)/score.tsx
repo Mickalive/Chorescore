@@ -59,7 +59,7 @@ function filterByScorePeriod(
 }
 
 export default function ScoreScreen() {
-  const { state, dismissNotice, showPaywall } = useApp();
+  const { state, dismissNotice } = useApp();
   const [period, setPeriod] = useState<ScorePeriod>('week');
   const [taskFilter, setTaskFilter] = useState<string>(FILTER_ALL);
   const entitlements = getEntitlements(state.household.plan);
@@ -181,17 +181,8 @@ export default function ScoreScreen() {
     [filteredEntries],
   );
 
-  useEffect(() => {
-    if (!entitlements.canViewMonthlyLeaderboard && period === 'month') {
-      setPeriod('week');
-    }
-  }, [entitlements.canViewMonthlyLeaderboard, period]);
-
   const changePeriod = (value: string) => {
-    if (value === 'month' && !entitlements.canViewMonthlyLeaderboard) {
-      showPaywall('advanced_history');
-      return;
-    }
+    // DRC-04 : les 4 périodes sont cœur produit, pas premium.
     if (
       value === 'week' ||
       value === 'month' ||
@@ -233,10 +224,7 @@ export default function ScoreScreen() {
         accessibilityLabel="Période du score"
         options={PERIOD_OPTIONS.map((opt) => ({
           value: opt.value,
-          label:
-            opt.value === 'month' && !entitlements.canViewMonthlyLeaderboard
-              ? 'Mois · Premium'
-              : opt.label,
+          label: opt.label,
         }))}
         value={period}
         onChange={changePeriod}
